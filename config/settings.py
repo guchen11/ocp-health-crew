@@ -43,6 +43,19 @@ class Config:
         REPORTS_DIR = os.path.join(BASE_DIR, "reports")
         BUILDS_FILE = os.path.join(BASE_DIR, ".builds.json")
     
+    # Database Configuration (SQLite by default, upgrade to PostgreSQL later)
+    SQLALCHEMY_DATABASE_URI = os.getenv(
+        'DATABASE_URL',
+        'sqlite:///' + os.path.join(DATA_DIR, 'healthcrew.db')
+    )
+    SQLALCHEMY_TRACK_MODIFICATIONS = False
+    
+    # Multi-user / Build Queue Configuration
+    MAX_CONCURRENT_BUILDS = int(os.getenv('MAX_CONCURRENT_BUILDS', '3'))
+    
+    # Secret key for sessions
+    SECRET_KEY = os.getenv('SECRET_KEY', 'dev-key-change-in-production')
+    
     TEMPLATES_DIR = os.path.join(BASE_DIR, "app", "templates")
     STATIC_DIR = os.path.join(BASE_DIR, "app", "static")
     
@@ -51,6 +64,11 @@ class Config:
     SSH_USER = os.getenv("RH_LAB_USER", "root")
     SSH_KEY_PATH = os.getenv("SSH_KEY_PATH")
     KUBECONFIG = os.getenv("KUBECONFIG_REMOTE", "/home/kni/clusterconfigs/auth/kubeconfig")
+    
+    # Jumphost / Bastion Configuration
+    JUMPHOST_HOST = os.getenv("JUMPHOST_HOST", "")
+    JUMPHOST_USER = os.getenv("JUMPHOST_USER", "")
+    JUMPHOST_KEY_PATH = os.getenv("JUMPHOST_KEY_PATH", "")
     
     # Email Configuration
     DEFAULT_EMAIL = os.getenv("EMAIL_TO", "guchen@redhat.com")

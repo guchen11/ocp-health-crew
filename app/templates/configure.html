@@ -73,22 +73,69 @@
                 </div>
             </div>
             
-            <!-- Target Server -->
+            <!-- Target Host -->
             <div class="card">
                 <div class="card-header" onclick="toggleCard(this)">
-                    🖥️ Target Server
+                    🖥️ Target Host
                     <span class="collapse-icon" style="margin-left:auto;">▼</span>
                 </div>
                 <div class="card-body">
-                    <div style="margin-bottom:12px;">
-                        <label for="server_host" style="display:block;font-weight:600;margin-bottom:8px;color:var(--text);">Server Hostname / IP</label>
-                        <input type="text" id="server_host" name="server_host" 
-                            placeholder="e.g. f04-h10-000-r640.rdu2.scalelab.redhat.com" 
-                            style="width:100%;padding:12px 16px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:var(--bg-secondary);"
-                            value="{{ server_host or '' }}">
-                        <span style="font-size:12px;color:var(--text-secondary);margin-top:6px;display:block;">
-                            💡 Leave empty to use default kubeconfig, or enter the bastion/server hostname to connect via SSH
-                        </span>
+                    {% if ssh_config.jumphost_host %}
+                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;padding:10px 14px;background:var(--bg-secondary);border-radius:8px;font-size:13px;color:var(--text-secondary);">
+                        <span style="font-size:16px;">🔀</span>
+                        Connection via jumphost: <strong style="color:var(--text);">{{ ssh_config.jumphost_user }}@{{ ssh_config.jumphost_host }}</strong>
+                    </div>
+                    {% endif %}
+                    
+                    <label for="server_host" style="display:block;font-weight:600;margin-bottom:8px;color:var(--text);">Select Target Host</label>
+                    {% if saved_hosts %}
+                    <select name="server_host" id="server_host" 
+                        style="width:100%;padding:12px 16px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:var(--bg-secondary);cursor:pointer;">
+                        {% for h in saved_hosts %}
+                        <option value="{{ h.host }}" {% if h.host == server_host %}selected{% endif %}>
+                            {{ h.name }}{% if h.name != h.host %} ({{ h.user or 'root' }}@{{ h.host }}){% endif %}
+                        </option>
+                        {% endfor %}
+                    </select>
+                    <span style="font-size:12px;color:var(--text-secondary);margin-top:8px;display:block;">
+                        Manage hosts in <a href="/settings#ssh" style="color:var(--accent);">Settings</a>
+                    </span>
+                    {% else %}
+                    <div style="padding:20px;border:2px dashed var(--border);border-radius:8px;text-align:center;">
+                        <span style="font-size:24px;display:block;margin-bottom:8px;">🖥️</span>
+                        <span style="color:var(--text-secondary);font-size:14px;">No hosts configured yet.</span><br>
+                        <a href="/settings#ssh" style="color:var(--accent);font-size:13px;">Go to Settings to add a host</a>
+                    </div>
+                    <input type="hidden" name="server_host" value="">
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Agent Selection -->
+            <div class="card">
+                <div class="card-header" onclick="toggleCard(this)">
+                    🤖 AI Agent
+                    <span class="collapse-icon" style="margin-left:auto;">▼</span>
+                </div>
+                <div class="card-body">
+                    <p style="color:var(--text-secondary);margin-bottom:16px;font-size:13px;">
+                        Select which AI agent runs the analysis. Each agent specializes in a different domain.
+                    </p>
+                    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;" id="agent-grid">
+                        <label class="agent-option" style="display:flex;flex-direction:column;padding:16px;border:2px solid var(--accent);border-radius:10px;cursor:pointer;transition:all 0.2s;background:var(--accent-light);">
+                            <input type="radio" name="agent" value="all" style="margin-bottom:8px;" onchange="updateAgentStyles()" checked>
+                            <span style="font-size:20px;margin-bottom:4px;">🚀</span>
+                            <span style="font-weight:600;color:var(--text);font-size:14px;">All Agents (Crew)</span>
+                            <span style="color:var(--text-secondary);font-size:11px;margin-top:4px;">Run full crew sequentially — most thorough</span>
+                        </label>
+                        {% for agent_id, agent in agents.items() %}
+                        <label class="agent-option" style="display:flex;flex-direction:column;padding:16px;border:2px solid var(--border);border-radius:10px;cursor:pointer;transition:all 0.2s;">
+                            <input type="radio" name="agent" value="{{ agent_id }}" style="margin-bottom:8px;" onchange="updateAgentStyles()">
+                            <span style="font-size:20px;margin-bottom:4px;">{{ agent.icon }}</span>
+                            <span style="font-weight:600;color:var(--text);font-size:14px;">{{ agent.name }}</span>
+                            <span style="color:var(--text-secondary);font-size:11px;margin-top:4px;">{{ agent.description }}</span>
+                        </label>
+                        {% endfor %}
                     </div>
                 </div>
             </div>
@@ -466,6 +513,19 @@
 
 {% block scripts %}
 <script>
+    function updateAgentStyles() {
+        document.querySelectorAll('.agent-option').forEach(opt => {
+            var radio = opt.querySelector('input[type="radio"]');
+            if (radio.checked) {
+                opt.style.borderColor = 'var(--accent)';
+                opt.style.background = 'var(--accent-light)';
+            } else {
+                opt.style.borderColor = 'var(--border)';
+                opt.style.background = 'transparent';
+            }
+        });
+    }
+    
     function toggleCard(header) {
         header.classList.toggle('collapsed');
         var body = header.nextElementSibling;

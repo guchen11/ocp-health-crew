@@ -34,6 +34,11 @@ USER = os.getenv("RH_LAB_USER", "root")
 KEY_PATH = os.getenv("SSH_KEY_PATH")
 KUBECONFIG = "/home/kni/clusterconfigs/auth/kubeconfig"
 
+# Jumphost / Bastion configuration (optional)
+JUMPHOST_HOST = os.getenv("JUMPHOST_HOST", "")
+JUMPHOST_USER = os.getenv("JUMPHOST_USER", "")
+JUMPHOST_KEY_PATH = os.getenv("JUMPHOST_KEY_PATH", "")
+
 # Email Configuration
 EMAIL_TO = os.getenv("EMAIL_TO", "guchen@redhat.com")
 EMAIL_FROM = os.getenv("EMAIL_FROM", "cnv-healthcrew@redhat.com")
@@ -569,6 +574,7 @@ COMPONENT_TO_CHECK = {
 
 # Global SSH client
 ssh_client = None
+jumphost_client = None  # Keeps jumphost transport alive for tunnelling
 
 def call_jira_mcp(tool_name, arguments):
     """Call Jira MCP tool via subprocess"""
@@ -2271,12 +2277,56 @@ def escape_html(text):
     return str(text).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 def get_ssh_client():
-    """Get or create SSH client"""
-    global ssh_client
-    if ssh_client is None:
+    """
+    Get or create SSH client.
+    If JUMPHOST_HOST is configured, connections are tunnelled through the
+    jumphost:  You  →  Jumphost  →  Target Host
+    """
+    global ssh_client, jumphost_client
+
+    if ssh_client is not None:
+        # Quick liveness check – if the transport died, reconnect
+        transport = ssh_client.get_transport()
+        if transport and transport.is_active():
+            return ssh_client
+        # Transport is dead; reset
+        ssh_client = None
+        jumphost_client = None
+
+    if JUMPHOST_HOST and JUMPHOST_USER:
+        # ── Connect through jumphost ─────────────────────────────
+        jumphost_client = paramiko.SSHClient()
+        jumphost_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        jh_key = JUMPHOST_KEY_PATH or None
+        jumphost_client.connect(
+            JUMPHOST_HOST,
+            username=JUMPHOST_USER,
+            key_filename=jh_key if jh_key else None,
+            timeout=15,
+        )
+
+        # Open a forwarded channel from jumphost → target host:22
+        jh_transport = jumphost_client.get_transport()
+        dest_addr = (HOST, 22)
+        local_addr = ("127.0.0.1", 0)
+        channel = jh_transport.open_channel("direct-tcpip", dest_addr, local_addr)
+
+        # Connect to the target host over the tunnel
+        ssh_client = paramiko.SSHClient()
+        ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        ssh_client.connect(
+            HOST,
+            username=USER,
+            key_filename=KEY_PATH,
+            sock=channel,
+            timeout=10,
+        )
+    else:
+        # ── Direct connection (no jumphost) ──────────────────────
         ssh_client = paramiko.SSHClient()
         ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         ssh_client.connect(HOST, username=USER, key_filename=KEY_PATH, timeout=10)
+
     return ssh_client
 
 def ssh_command(command, timeout=30):

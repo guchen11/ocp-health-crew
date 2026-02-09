@@ -8,7 +8,9 @@ venv/
 file.log
 .learning_data.json
 .builds.json
+.builds.json.migrated
 .suggested_checks.json
 .settings.json
 schedules.json
 reports/
+*.db

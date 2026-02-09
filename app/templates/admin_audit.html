@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+
+{% block title %}Audit Log - CNV HealthCrew AI{% endblock %}
+
+{% block breadcrumb %}
+<span>›</span>
+<a href="/admin/users">Admin</a>
+<span>›</span>
+<span>Audit Log</span>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <aside class="sidebar">
+        <div class="sidebar-section">
+            <div class="sidebar-title">Admin</div>
+            <a href="/admin/users" class="sidebar-item">
+                <span class="sidebar-icon">👥</span>
+                User Management
+            </a>
+            <a href="/admin/audit" class="sidebar-item active">
+                <span class="sidebar-icon">📜</span>
+                Audit Log
+            </a>
+        </div>
+        <div class="sidebar-section">
+            <div class="sidebar-title">Filter by Action</div>
+            <a href="/admin/audit" class="sidebar-item {% if not current_action %}active{% endif %}">
+                <span class="sidebar-icon">📋</span>
+                All Actions
+            </a>
+            {% for action in actions %}
+            <a href="/admin/audit?action={{ action }}" class="sidebar-item {% if current_action == action %}active{% endif %}">
+                <span class="sidebar-icon">
+                    {% if 'login' in action %}🔑{% elif 'build' in action %}🏗️{% elif 'user' in action %}👤{% elif 'settings' in action %}⚙️{% elif 'password' in action %}🔐{% else %}📝{% endif %}
+                </span>
+                {{ action }}
+            </a>
+            {% endfor %}
+        </div>
+    </aside>
+    
+    <main class="main">
+        <div class="card">
+            <div class="card-header">
+                📜 Audit Log
+                <span style="margin-left:auto;font-weight:normal;color:var(--text-muted);">
+                    Page {{ pagination.page }} of {{ pagination.pages or 1 }}
+                </span>
+            </div>
+            <div class="card-body" style="padding:0;">
+                {% if logs %}
+                <table class="build-table">
+                    <thead>
+                        <tr>
+                            <th>Time</th>
+                            <th>User</th>
+                            <th>Action</th>
+                            <th>Target</th>
+                            <th>Details</th>
+                            <th>IP</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for log in logs %}
+                        <tr>
+                            <td style="font-size:12px;white-space:nowrap;">
+                                {{ log.timestamp.strftime('%Y-%m-%d %H:%M:%S') if log.timestamp else '' }}
+                            </td>
+                            <td style="font-weight:600;">{{ log.username }}</td>
+                            <td>
+                                <span style="display:inline-block;padding:3px 10px;border-radius:6px;font-size:11px;font-weight:600;
+                                    {% if 'login' in log.action %}background:rgba(0,102,204,0.1);color:var(--accent);
+                                    {% elif 'build_start' in log.action %}background:var(--success-light);color:var(--success);
+                                    {% elif 'build_stop' in log.action %}background:rgba(220,53,69,0.1);color:var(--error);
+                                    {% elif 'delete' in log.action %}background:rgba(220,53,69,0.1);color:var(--error);
+                                    {% elif 'create' in log.action %}background:var(--success-light);color:var(--success);
+                                    {% else %}background:var(--bg-tertiary);color:var(--text-secondary);{% endif %}">
+                                    {{ log.action }}
+                                </span>
+                            </td>
+                            <td style="font-size:13px;">{{ log.target or '' }}</td>
+                            <td style="font-size:12px;color:var(--text-secondary);max-width:200px;overflow:hidden;text-overflow:ellipsis;">
+                                {{ log.details or '' }}
+                            </td>
+                            <td style="font-size:11px;color:var(--text-muted);font-family:monospace;">
+                                {{ log.ip_address or '' }}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                
+                {% if pagination.pages and pagination.pages > 1 %}
+                <div style="display:flex;justify-content:center;gap:8px;padding:16px;">
+                    {% if pagination.has_prev %}
+                    <a href="/admin/audit?page={{ pagination.prev_num }}{% if current_action %}&action={{ current_action }}{% endif %}" class="btn">Previous</a>
+                    {% endif %}
+                    <span style="padding:8px 16px;color:var(--text-secondary);">
+                        Page {{ pagination.page }} of {{ pagination.pages }}
+                    </span>
+                    {% if pagination.has_next %}
+                    <a href="/admin/audit?page={{ pagination.next_num }}{% if current_action %}&action={{ current_action }}{% endif %}" class="btn">Next</a>
+                    {% endif %}
+                </div>
+                {% endif %}
+                {% else %}
+                <div class="empty-state">
+                    <h3>No audit logs{% if current_action %} for "{{ current_action }}"{% endif %}</h3>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </main>
+</div>
+{% endblock %}

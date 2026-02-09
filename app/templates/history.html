@@ -60,7 +60,11 @@
         <div class="card">
             <div class="card-header">
                 📋 Build History
-                <span style="margin-left:auto;font-weight:normal;color:var(--text-muted);">{{ builds|length }} builds</span>
+                <div style="margin-left:auto;display:flex;align-items:center;gap:8px;">
+                    <span style="font-weight:normal;color:var(--text-muted);">{{ builds|length }} builds</span>
+                    <a href="/job/history?view=all" class="btn" style="padding:4px 12px;font-size:11px;{% if current_view != 'mine' %}background:var(--accent);color:white;{% endif %}">All</a>
+                    <a href="/job/history?view=mine" class="btn" style="padding:4px 12px;font-size:11px;{% if current_view == 'mine' %}background:var(--accent);color:white;{% endif %}">Mine</a>
+                </div>
                 <button id="deleteSelectedBtn" onclick="deleteSelected()" class="btn btn-danger" style="margin-left:16px;display:none;">
                     🗑️ Delete Selected (<span id="selectedCount">0</span>)
                 </button>
@@ -73,6 +77,7 @@
                             <th style="width:40px;"><input type="checkbox" id="selectAll" onchange="toggleSelectAll()"></th>
                             <th>Build</th>
                             <th>Status</th>
+                            <th>Triggered By</th>
                             <th>Checks</th>
                             <th>Options</th>
                             <th>Started</th>
@@ -96,6 +101,12 @@
                             <td>
                                 <span class="status-badge status-{{ build.status }}">
                                     {{ build.status_text }}
+                                </span>
+                            </td>
+                            <td style="font-size:12px;">
+                                <span style="display:inline-flex;align-items:center;gap:4px;">
+                                    <span style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:var(--accent);color:white;font-size:9px;font-weight:700;">{{ (build.triggered_by or 'S')[0]|upper }}</span>
+                                    {{ build.triggered_by or 'system' }}
                                 </span>
                             </td>
                             <td>{{ build.checks_count }}</td>

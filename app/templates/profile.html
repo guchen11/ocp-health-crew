@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+
+{% block title %}Profile - CNV HealthCrew AI{% endblock %}
+
+{% block breadcrumb %}
+<span>›</span>
+<span>Profile</span>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <aside class="sidebar">
+        <div class="sidebar-section">
+            <div class="sidebar-title">Account</div>
+            <a href="/profile" class="sidebar-item active">
+                <span class="sidebar-icon">👤</span>
+                Profile
+            </a>
+            {% if current_user.is_admin %}
+            <a href="/admin/users" class="sidebar-item">
+                <span class="sidebar-icon">👥</span>
+                Manage Users
+            </a>
+            <a href="/admin/audit" class="sidebar-item">
+                <span class="sidebar-icon">📜</span>
+                Audit Log
+            </a>
+            {% endif %}
+        </div>
+    </aside>
+    
+    <main class="main">
+        {% if message %}
+        <div style="background:var(--success-light);border:1px solid var(--success);border-radius:8px;padding:16px 20px;margin-bottom:20px;display:flex;align-items:center;gap:12px;">
+            <span style="font-size:24px;">✅</span>
+            <div style="color:var(--success);font-weight:600;">{{ message }}</div>
+        </div>
+        {% endif %}
+        
+        {% if error %}
+        <div style="background:rgba(220,53,69,0.1);border:1px solid var(--error);border-radius:8px;padding:16px 20px;margin-bottom:20px;display:flex;align-items:center;gap:12px;">
+            <span style="font-size:24px;">❌</span>
+            <div style="color:var(--error);font-weight:600;">{{ error }}</div>
+        </div>
+        {% endif %}
+        
+        <!-- Account Info -->
+        <div class="card">
+            <div class="card-header">👤 Account Information</div>
+            <div class="card-body">
+                <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-bottom:20px;">
+                    <div>
+                        <strong style="color:var(--text-muted);font-size:11px;text-transform:uppercase;">Username</strong>
+                        <div style="font-size:16px;font-weight:600;">{{ current_user.username }}</div>
+                    </div>
+                    <div>
+                        <strong style="color:var(--text-muted);font-size:11px;text-transform:uppercase;">Email</strong>
+                        <div style="font-size:16px;">{{ current_user.email }}</div>
+                    </div>
+                    <div>
+                        <strong style="color:var(--text-muted);font-size:11px;text-transform:uppercase;">Role</strong>
+                        <div>
+                            <span style="display:inline-block;padding:4px 12px;border-radius:12px;font-size:12px;font-weight:600;
+                                {% if current_user.role == 'admin' %}background:linear-gradient(135deg,#1a237e,#0066cc);color:white;
+                                {% elif current_user.role == 'operator' %}background:var(--success-light);color:var(--success);border:1px solid var(--success);
+                                {% else %}background:var(--bg-tertiary);color:var(--text-secondary);{% endif %}">
+                                {{ current_user.role_display }}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+                <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:20px;">
+                    <div>
+                        <strong style="color:var(--text-muted);font-size:11px;text-transform:uppercase;">Member Since</strong>
+                        <div>{{ current_user.created_at.strftime('%Y-%m-%d %H:%M') if current_user.created_at else 'N/A' }}</div>
+                    </div>
+                    <div>
+                        <strong style="color:var(--text-muted);font-size:11px;text-transform:uppercase;">Last Login</strong>
+                        <div>{{ current_user.last_login.strftime('%Y-%m-%d %H:%M') if current_user.last_login else 'N/A' }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Change Password -->
+        <div class="card">
+            <div class="card-header">🔑 Change Password</div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('auth.profile') }}" style="max-width:400px;">
+                    <div style="margin-bottom:16px;">
+                        <label style="display:block;font-weight:600;margin-bottom:8px;color:var(--text);font-size:13px;">Current Password</label>
+                        <input type="password" name="current_password" required
+                            style="width:100%;padding:12px 16px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:var(--bg-secondary);box-sizing:border-box;">
+                    </div>
+                    <div style="margin-bottom:16px;">
+                        <label style="display:block;font-weight:600;margin-bottom:8px;color:var(--text);font-size:13px;">New Password</label>
+                        <input type="password" name="new_password" required minlength="6"
+                            style="width:100%;padding:12px 16px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:var(--bg-secondary);box-sizing:border-box;">
+                        <span style="font-size:11px;color:var(--text-secondary);margin-top:4px;display:block;">At least 6 characters</span>
+                    </div>
+                    <div style="margin-bottom:20px;">
+                        <label style="display:block;font-weight:600;margin-bottom:8px;color:var(--text);font-size:13px;">Confirm New Password</label>
+                        <input type="password" name="confirm_password" required
+                            style="width:100%;padding:12px 16px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:var(--bg-secondary);box-sizing:border-box;">
+                    </div>
+                    <button type="submit" class="btn btn-primary" style="padding:12px 30px;">
+                        Update Password
+                    </button>
+                </form>
+            </div>
+        </div>
+    </main>
+</div>
+{% endblock %}

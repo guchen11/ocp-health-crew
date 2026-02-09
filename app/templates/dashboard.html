@@ -165,7 +165,11 @@
         <div class="card">
             <div class="card-header" onclick="toggleCard(this)">
                 📋 Recent Build History
-                <span class="collapse-icon" style="margin-left:auto;">▼</span>
+                <div style="margin-left:auto;display:flex;align-items:center;gap:8px;">
+                    <a href="/?view=all" class="btn" style="padding:4px 12px;font-size:11px;{% if current_view != 'mine' %}background:var(--accent);color:white;{% endif %}">All Builds</a>
+                    <a href="/?view=mine" class="btn" style="padding:4px 12px;font-size:11px;{% if current_view == 'mine' %}background:var(--accent);color:white;{% endif %}">My Builds</a>
+                    <span class="collapse-icon" style="margin-left:8px;">▼</span>
+                </div>
                 <button id="deleteSelectedBtn" onclick="event.stopPropagation(); deleteSelected()" class="btn btn-danger" style="margin-left:16px;display:none;">
                     🗑️ Delete Selected (<span id="selectedCount">0</span>)
                 </button>
@@ -178,6 +182,7 @@
                             <th style="width:40px;"><input type="checkbox" id="selectAll" onchange="toggleSelectAll()"></th>
                             <th style="width:60px;">Build</th>
                             <th>Status</th>
+                            <th>Triggered By</th>
                             <th>Checks Run</th>
                             <th>Started</th>
                             <th>Duration</th>
@@ -200,6 +205,12 @@
                             <td>
                                 <span class="status-badge status-{{ build.status }}">
                                     {{ build.status_text }}
+                                </span>
+                            </td>
+                            <td style="font-size:12px;">
+                                <span style="display:inline-flex;align-items:center;gap:4px;">
+                                    <span style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:var(--accent);color:white;font-size:10px;font-weight:700;">{{ (build.triggered_by or 'S')[0]|upper }}</span>
+                                    {{ build.triggered_by or 'system' }}
                                 </span>
                             </td>
                             <td>{{ build.checks_count }} checks</td>

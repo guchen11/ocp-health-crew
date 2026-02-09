@@ -17,8 +17,12 @@
                 Alert Thresholds
             </a>
             <a href="#ssh" class="sidebar-item">
-                <span class="sidebar-icon">🔐</span>
-                SSH Configuration
+                <span class="sidebar-icon">🖥️</span>
+                Target Hosts
+            </a>
+            <a href="#jumphost" class="sidebar-item">
+                <span class="sidebar-icon">🔀</span>
+                Jumphost / Bastion
             </a>
             <a href="#ai" class="sidebar-item">
                 <span class="sidebar-icon">🤖</span>
@@ -170,43 +174,151 @@
                 </div>
             </div>
             
-            <!-- SSH Configuration -->
+            <!-- Target Hosts -->
             <div class="card" id="ssh">
-                <div class="card-header">
-                    🔐 SSH Configuration
+                <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+                    <span>🖥️ Target Hosts</span>
+                    <span style="font-size:12px;padding:4px 12px;border-radius:12px;background:var(--bg-secondary);color:var(--text-secondary);">
+                        {{ saved_hosts|length }} host{{ 's' if saved_hosts|length != 1 else '' }}
+                    </span>
                 </div>
                 <div class="card-body">
                     <p style="color:var(--text-secondary);margin-bottom:20px;">
-                        Configure the default SSH connection settings for connecting to bastion hosts.
-                        These can also be set via environment variables.
+                        Add the target hosts that have <code>oc</code> access. These will appear in the build dropdown.
+                        All connections go through the jumphost.
+                    </p>
+                    
+                    <!-- Existing hosts list -->
+                    <div id="hosts-list">
+                        {% for h in saved_hosts %}
+                        <div class="host-row" data-index="{{ loop.index0 }}" style="display:flex;align-items:center;gap:12px;padding:14px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:8px;margin-bottom:10px;">
+                            <span style="font-size:18px;">🖥️</span>
+                            <div style="flex:1;display:grid;grid-template-columns:1fr 2fr 1fr;gap:10px;">
+                                <input type="text" name="host_name[]" value="{{ h.name }}" placeholder="Label"
+                                    style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-weight:600;">
+                                <input type="text" name="host_addr[]" value="{{ h.host }}" placeholder="hostname or IP"
+                                    style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:monospace;">
+                                <input type="text" name="host_user[]" value="{{ h.user or 'root' }}" placeholder="user"
+                                    style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
+                            </div>
+                            <button type="button" onclick="removeHost(this)" style="background:none;border:none;color:var(--error);cursor:pointer;font-size:18px;padding:4px 8px;" title="Remove host">
+                                &times;
+                            </button>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    
+                    <!-- Add host button -->
+                    <button type="button" onclick="addHost()" style="width:100%;padding:12px;border:2px dashed var(--border);border-radius:8px;background:transparent;color:var(--accent);cursor:pointer;font-size:14px;font-weight:600;transition:all 0.2s;"
+                        onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">
+                        + Add Target Host
+                    </button>
+                    
+                    <!-- First-time setup: make target host passwordless (hidden by default) -->
+                    <div id="ssh_setup_section" style="display:none;margin-top:24px;padding:20px;background:var(--bg-secondary);border-radius:12px;border:1px solid var(--border);">
+                        <div style="font-weight:600;margin-bottom:12px;color:var(--text);font-size:15px;">
+                            🔑 Make Host Passwordless
+                        </div>
+                        <p style="color:var(--text-secondary);margin-bottom:16px;font-size:13px;">
+                            Enter the host address, user and password. This generates an SSH key (if needed) and copies it to the host. The password is <strong>never saved</strong>.
+                        </p>
+                        
+                        <div style="display:grid;grid-template-columns:2fr 1fr 2fr auto;gap:10px;align-items:flex-end;">
+                            <div>
+                                <label style="display:block;font-weight:500;margin-bottom:6px;color:var(--text);font-size:13px;">Host</label>
+                                <input type="text" id="ssh_setup_host_input" placeholder="hostname or IP"
+                                    style="width:100%;padding:10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:monospace;">
+                            </div>
+                            <div>
+                                <label style="display:block;font-weight:500;margin-bottom:6px;color:var(--text);font-size:13px;">User</label>
+                                <input type="text" id="ssh_setup_user_input" placeholder="root" value="root"
+                                    style="width:100%;padding:10px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
+                            </div>
+                            <div>
+                                <label style="display:block;font-weight:500;margin-bottom:6px;color:var(--text);font-size:13px;">Password (one-time)</label>
+                                <input type="password" id="ssh_password" placeholder="Enter password"
+                                    style="width:100%;padding:10px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
+                            </div>
+                            <button type="button" id="setup_ssh_btn" onclick="setupSSH(); return false;" 
+                                class="btn btn-primary" style="padding:10px 20px;white-space:nowrap;margin-bottom:0;">
+                                🔑 Setup Key
+                            </button>
+                        </div>
+                        
+                        <div id="ssh_setup_result" style="margin-top:16px;display:none;"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Jumphost Configuration -->
+            <div class="card" id="jumphost">
+                <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+                    <span>🔀 Jumphost / Bastion</span>
+                    <span id="jumphost_status" style="font-size:12px;padding:4px 12px;border-radius:12px;
+                        {% if ssh_config.jumphost_host %}background:var(--success-light);color:var(--success);{% else %}background:var(--bg-secondary);color:var(--text-secondary);{% endif %}">
+                        {% if ssh_config.jumphost_host %}Configured{% else %}Not configured{% endif %}
+                    </span>
+                </div>
+                <div class="card-body">
+                    <p style="color:var(--text-secondary);margin-bottom:20px;">
+                        If your cluster host is behind a bastion/jumphost, configure it here.
+                        The connection will tunnel through: <strong>You &rarr; Jumphost &rarr; Target Host</strong>.
                     </p>
                     
                     <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:24px;">
                         <div class="setting-group">
                             <label style="display:block;font-weight:600;margin-bottom:8px;color:var(--text);">
-                                Default SSH Host
+                                Jumphost Address
                             </label>
-                            <input type="text" name="ssh_host" id="ssh_host" 
-                                value="{{ ssh_config.host or '' }}"
-                                placeholder="e.g., bastion.example.com"
+                            <input type="text" name="jumphost_host" id="jumphost_host" 
+                                value="{{ ssh_config.jumphost_host or '' }}"
+                                placeholder="e.g., jumphost.example.com"
                                 style="width:100%;padding:12px;border:1px solid var(--border);border-radius:8px;font-size:14px;">
                             <span style="font-size:12px;color:var(--text-secondary);display:block;margin-top:8px;">
-                                Environment variable: <code>RH_LAB_HOST</code>
+                                Leave empty to connect directly (no jumphost). Env: <code>JUMPHOST_HOST</code>
                             </span>
                         </div>
                         
                         <div class="setting-group">
                             <label style="display:block;font-weight:600;margin-bottom:8px;color:var(--text);">
-                                Default SSH User
+                                Jumphost User
                             </label>
-                            <input type="text" name="ssh_user" id="ssh_user" 
-                                value="{{ ssh_config.user or 'root' }}"
-                                placeholder="e.g., root"
+                            <input type="text" name="jumphost_user" id="jumphost_user" 
+                                value="{{ ssh_config.jumphost_user or '' }}"
+                                placeholder="e.g., fedora"
                                 style="width:100%;padding:12px;border:1px solid var(--border);border-radius:8px;font-size:14px;">
                             <span style="font-size:12px;color:var(--text-secondary);display:block;margin-top:8px;">
-                                Environment variable: <code>RH_LAB_USER</code>
+                                Env: <code>JUMPHOST_USER</code>
                             </span>
                         </div>
+                    </div>
+                    
+                    <!-- First-time setup section -->
+                    <div id="jumphost_setup_section" style="margin-top:24px;padding:20px;background:var(--bg-secondary);border-radius:12px;border:1px solid var(--border);">
+                        <div style="font-weight:600;margin-bottom:12px;color:var(--text);font-size:15px;">
+                            🔑 First-Time Setup: Make Jumphost Passwordless
+                        </div>
+                        <p style="color:var(--text-secondary);margin-bottom:16px;font-size:13px;">
+                            Enter the jumphost password once below. This will generate an SSH key pair (if needed),
+                            copy it to the jumphost, and configure passwordless SSH access. The password is <strong>never saved</strong>.
+                        </p>
+                        
+                        <div style="display:flex;gap:12px;align-items:flex-end;">
+                            <div style="flex:1;">
+                                <label style="display:block;font-weight:500;margin-bottom:6px;color:var(--text);font-size:13px;">
+                                    Jumphost Password (one-time use)
+                                </label>
+                                <input type="password" id="jumphost_password" 
+                                    placeholder="Enter password to set up passwordless SSH"
+                                    style="width:100%;padding:12px;border:1px solid var(--border);border-radius:8px;font-size:14px;">
+                            </div>
+                            <button type="button" id="setup_jumphost_btn" onclick="setupJumphost()" 
+                                class="btn btn-primary" style="padding:12px 24px;white-space:nowrap;">
+                                🔑 Setup Passwordless SSH
+                            </button>
+                        </div>
+                        
+                        <div id="jumphost_setup_result" style="margin-top:16px;display:none;"></div>
                     </div>
                 </div>
             </div>
@@ -309,6 +421,138 @@
 </div>
 
 <script>
+function addHostRow(name, addr, user) {
+    var list = document.getElementById('hosts-list');
+    var row = document.createElement('div');
+    row.className = 'host-row';
+    row.style.cssText = 'display:flex;align-items:center;gap:12px;padding:14px;background:var(--bg-secondary);border:1px solid var(--success);border-radius:8px;margin-bottom:10px;';
+    row.innerHTML = '<span style="font-size:18px;">🖥️</span>' +
+        '<div style="flex:1;display:grid;grid-template-columns:1fr 2fr 1fr;gap:10px;">' +
+            '<input type="text" name="host_name[]" value="' + name + '" placeholder="Label" style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-weight:600;">' +
+            '<input type="text" name="host_addr[]" value="' + addr + '" placeholder="hostname or IP" style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:monospace;">' +
+            '<input type="text" name="host_user[]" value="' + user + '" placeholder="user" style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;">' +
+        '</div>' +
+        '<button type="button" onclick="removeHost(this)" style="background:none;border:none;color:var(--error);cursor:pointer;font-size:18px;padding:4px 8px;" title="Remove host">&times;</button>';
+    list.appendChild(row);
+}
+
+function addHost() {
+    // Show the passwordless setup section and focus the host field
+    var section = document.getElementById('ssh_setup_section');
+    section.style.display = 'block';
+    document.getElementById('ssh_setup_host_input').focus();
+}
+
+function removeHost(btn) {
+    btn.closest('.host-row').remove();
+}
+
+function setupSSH() {
+    var host = document.getElementById('ssh_setup_host_input').value.trim();
+    var user = document.getElementById('ssh_setup_user_input').value.trim() || 'root';
+    var password = document.getElementById('ssh_password').value;
+    var resultDiv = document.getElementById('ssh_setup_result');
+    var btn = document.getElementById('setup_ssh_btn');
+    
+    resultDiv.style.display = 'block';
+    
+    if (!host) {
+        resultDiv.innerHTML = '<div style="color:var(--warning);font-size:13px;">Please enter the host address.</div>';
+        return;
+    }
+    if (!password) {
+        resultDiv.innerHTML = '<div style="color:var(--warning);font-size:13px;">Please enter the password.</div>';
+        return;
+    }
+    
+    btn.disabled = true;
+    btn.textContent = '⏳ Setting up...';
+    resultDiv.innerHTML = '<div style="color:var(--text-secondary);font-size:13px;">Generating key and copying to ' + user + '@' + host + '...</div>';
+    
+    fetch('/api/ssh/setup', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({host: host, user: user, password: password})
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        btn.disabled = false;
+        btn.textContent = '🔑 Setup Key';
+        document.getElementById('ssh_password').value = '';
+        
+        if (data.success) {
+            resultDiv.innerHTML = '<div style="background:var(--success-light);border:1px solid var(--success);border-radius:8px;padding:12px 16px;"><div style="font-weight:600;color:var(--success);">✅ Passwordless SSH to ' + user + '@' + host + ' configured!</div><div style="color:var(--text-secondary);font-size:12px;margin-top:4px;">Key: <code>' + (data.key_path || '') + '</code></div></div>';
+            // Add the host to the list
+            addHostRow(host, host, user);
+            document.getElementById('ssh_setup_host_input').value = '';
+            document.getElementById('ssh_setup_user_input').value = 'root';
+        } else {
+            resultDiv.innerHTML = '<div style="background:rgba(255,107,107,0.1);border:1px solid var(--error);border-radius:8px;padding:12px 16px;"><div style="font-weight:600;color:var(--error);">❌ Setup failed</div><div style="color:var(--text-secondary);font-size:12px;margin-top:4px;">' + data.error + '</div></div>';
+        }
+    })
+    .catch(function(err) {
+        btn.disabled = false;
+        btn.textContent = '🔑 Setup Key';
+        resultDiv.innerHTML = '<div style="color:var(--error);font-size:13px;">Network error: ' + err.message + '</div>';
+    });
+}
+
+function setupJumphost() {
+    const host = document.getElementById('jumphost_host').value.trim();
+    const user = document.getElementById('jumphost_user').value.trim();
+    const password = document.getElementById('jumphost_password').value;
+    const resultDiv = document.getElementById('jumphost_setup_result');
+    const btn = document.getElementById('setup_jumphost_btn');
+    
+    if (!host || !user) {
+        resultDiv.style.display = 'block';
+        resultDiv.innerHTML = '<div style="color:var(--warning);font-size:13px;">Please fill in the Jumphost Address and User fields above first, then save settings.</div>';
+        return;
+    }
+    if (!password) {
+        resultDiv.style.display = 'block';
+        resultDiv.innerHTML = '<div style="color:var(--warning);font-size:13px;">Please enter the jumphost password.</div>';
+        return;
+    }
+    
+    btn.disabled = true;
+    btn.textContent = '⏳ Setting up...';
+    resultDiv.style.display = 'block';
+    resultDiv.innerHTML = '<div style="color:var(--text-secondary);font-size:13px;">Generating SSH key and copying to jumphost... This may take a few seconds.</div>';
+    
+    fetch('/api/jumphost/setup', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({host: host, user: user, password: password})
+    })
+    .then(r => r.json())
+    .then(data => {
+        btn.disabled = false;
+        btn.textContent = '🔑 Setup Passwordless SSH';
+        document.getElementById('jumphost_password').value = '';
+        
+        if (data.success) {
+            resultDiv.innerHTML = `
+                <div style="background:var(--success-light);border:1px solid var(--success);border-radius:8px;padding:12px 16px;">
+                    <div style="font-weight:600;color:var(--success);">✅ Passwordless SSH configured!</div>
+                    <div style="color:var(--text-secondary);font-size:12px;margin-top:4px;">${data.message}</div>
+                    <div style="color:var(--text-secondary);font-size:12px;margin-top:4px;">Key: <code>${data.key_path || ''}</code></div>
+                </div>`;
+        } else {
+            resultDiv.innerHTML = `
+                <div style="background:rgba(255,107,107,0.1);border:1px solid var(--error);border-radius:8px;padding:12px 16px;">
+                    <div style="font-weight:600;color:var(--error);">❌ Setup failed</div>
+                    <div style="color:var(--text-secondary);font-size:12px;margin-top:4px;">${data.error}</div>
+                </div>`;
+        }
+    })
+    .catch(err => {
+        btn.disabled = false;
+        btn.textContent = '🔑 Setup Passwordless SSH';
+        resultDiv.innerHTML = `<div style="color:var(--error);font-size:13px;">Network error: ${err.message}</div>`;
+    });
+}
+
 function resetDefaults() {
     if (!confirm('Reset all settings to their default values?')) return;
     

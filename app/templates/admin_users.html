@@ -1,0 +1,238 @@
+{% extends "base.html" %}
+
+{% block title %}User Management - CNV HealthCrew AI{% endblock %}
+
+{% block breadcrumb %}
+<span>›</span>
+<a href="/admin/users">Admin</a>
+<span>›</span>
+<span>Users</span>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <aside class="sidebar">
+        <div class="sidebar-section">
+            <div class="sidebar-title">Admin</div>
+            <a href="/admin/users" class="sidebar-item active">
+                <span class="sidebar-icon">👥</span>
+                User Management
+            </a>
+            <a href="/admin/audit" class="sidebar-item">
+                <span class="sidebar-icon">📜</span>
+                Audit Log
+            </a>
+        </div>
+        <div class="sidebar-section">
+            <div class="sidebar-title">Quick Stats</div>
+            <div style="padding:8px 12px;font-size:13px;color:var(--text-secondary);">
+                Total Users: <strong style="color:var(--text);">{{ users|length }}</strong>
+            </div>
+            <div style="padding:8px 12px;font-size:13px;color:var(--text-secondary);">
+                Admins: <strong style="color:var(--text);">{{ users|selectattr('role', 'eq', 'admin')|list|length }}</strong>
+            </div>
+            <div style="padding:8px 12px;font-size:13px;color:var(--text-secondary);">
+                Operators: <strong style="color:var(--text);">{{ users|selectattr('role', 'eq', 'operator')|list|length }}</strong>
+            </div>
+            <div style="padding:8px 12px;font-size:13px;color:var(--text-secondary);">
+                Viewers: <strong style="color:var(--text);">{{ users|selectattr('role', 'eq', 'viewer')|list|length }}</strong>
+            </div>
+        </div>
+    </aside>
+    
+    <main class="main">
+        <!-- Create User -->
+        <div class="card">
+            <div class="card-header" onclick="toggleCard(this)" style="cursor:pointer;">
+                ➕ Create New User
+                <span class="collapse-icon" style="margin-left:auto;">▼</span>
+            </div>
+            <div class="card-body collapsed">
+                <form id="createUserForm" onsubmit="createUser(event)">
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+                        <div>
+                            <label style="display:block;font-weight:600;margin-bottom:8px;font-size:13px;">Username</label>
+                            <input type="text" id="new_username" required minlength="3"
+                                placeholder="e.g. john.doe"
+                                style="width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:var(--bg-secondary);box-sizing:border-box;">
+                        </div>
+                        <div>
+                            <label style="display:block;font-weight:600;margin-bottom:8px;font-size:13px;">Email</label>
+                            <input type="email" id="new_email" required
+                                placeholder="john@example.com"
+                                style="width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:var(--bg-secondary);box-sizing:border-box;">
+                        </div>
+                        <div>
+                            <label style="display:block;font-weight:600;margin-bottom:8px;font-size:13px;">Password</label>
+                            <input type="password" id="new_password" required minlength="6"
+                                placeholder="At least 6 characters"
+                                style="width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:var(--bg-secondary);box-sizing:border-box;">
+                        </div>
+                        <div>
+                            <label style="display:block;font-weight:600;margin-bottom:8px;font-size:13px;">Role</label>
+                            <select id="new_role"
+                                style="width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:var(--bg-secondary);box-sizing:border-box;">
+                                <option value="operator">Operator</option>
+                                <option value="viewer">Viewer</option>
+                                <option value="admin">Admin</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary" style="padding:10px 24px;">
+                        Create User
+                    </button>
+                    <span id="createResult" style="margin-left:12px;font-size:13px;"></span>
+                </form>
+            </div>
+        </div>
+        
+        <!-- Users List -->
+        <div class="card">
+            <div class="card-header">
+                👥 Users
+                <span style="margin-left:auto;font-weight:normal;color:var(--text-muted);">{{ users|length }} total</span>
+            </div>
+            <div class="card-body" style="padding:0;">
+                <table class="build-table">
+                    <thead>
+                        <tr>
+                            <th>User</th>
+                            <th>Email</th>
+                            <th>Role</th>
+                            <th>Created</th>
+                            <th>Last Login</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for user in users %}
+                        <tr id="user-row-{{ user.id }}">
+                            <td>
+                                <div style="font-weight:600;">{{ user.username }}</div>
+                                {% if user.id == current_user.id %}
+                                <span style="font-size:11px;color:var(--accent);">(you)</span>
+                                {% endif %}
+                            </td>
+                            <td style="font-size:13px;color:var(--text-secondary);">{{ user.email }}</td>
+                            <td>
+                                <select id="role-{{ user.id }}" 
+                                    onchange="updateRole({{ user.id }})"
+                                    {% if user.id == current_user.id %}disabled{% endif %}
+                                    style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;background:var(--bg-secondary);
+                                        {% if user.role == 'admin' %}color:#1a237e;font-weight:600;
+                                        {% elif user.role == 'operator' %}color:var(--success);
+                                        {% else %}color:var(--text-secondary);{% endif %}">
+                                    <option value="admin" {% if user.role == 'admin' %}selected{% endif %}>Admin</option>
+                                    <option value="operator" {% if user.role == 'operator' %}selected{% endif %}>Operator</option>
+                                    <option value="viewer" {% if user.role == 'viewer' %}selected{% endif %}>Viewer</option>
+                                </select>
+                            </td>
+                            <td style="font-size:12px;color:var(--text-secondary);">
+                                {{ user.created_at.strftime('%Y-%m-%d') if user.created_at else 'N/A' }}
+                            </td>
+                            <td style="font-size:12px;color:var(--text-secondary);">
+                                {{ user.last_login.strftime('%Y-%m-%d %H:%M') if user.last_login else 'Never' }}
+                            </td>
+                            <td>
+                                <button onclick="resetPassword({{ user.id }}, '{{ user.username }}')" 
+                                    class="btn" style="font-size:12px;" title="Reset Password">🔑</button>
+                                {% if user.id != current_user.id %}
+                                <button onclick="deleteUser({{ user.id }}, '{{ user.username }}')" 
+                                    class="btn" style="font-size:12px;color:var(--error);" title="Delete User">🗑️</button>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function toggleCard(header) {
+    header.classList.toggle('collapsed');
+    var body = header.nextElementSibling;
+    if (body && body.classList.contains('card-body')) {
+        body.classList.toggle('collapsed');
+    }
+}
+
+function createUser(event) {
+    event.preventDefault();
+    var resultSpan = document.getElementById('createResult');
+    
+    var formData = new FormData();
+    formData.append('username', document.getElementById('new_username').value);
+    formData.append('email', document.getElementById('new_email').value);
+    formData.append('password', document.getElementById('new_password').value);
+    formData.append('role', document.getElementById('new_role').value);
+    
+    fetch('/admin/users/create', { method: 'POST', body: formData })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                resultSpan.innerHTML = '<span style="color:var(--success);">✅ ' + data.message + '</span>';
+                setTimeout(() => location.reload(), 1000);
+            } else {
+                resultSpan.innerHTML = '<span style="color:var(--error);">❌ ' + data.error + '</span>';
+            }
+        });
+}
+
+function updateRole(userId) {
+    var role = document.getElementById('role-' + userId).value;
+    
+    var formData = new FormData();
+    formData.append('role', role);
+    
+    fetch('/admin/users/' + userId + '/update', { method: 'POST', body: formData })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('Error: ' + data.error);
+            }
+        });
+}
+
+function resetPassword(userId, username) {
+    var newPassword = prompt('Enter new password for ' + username + ' (min 6 chars):');
+    if (!newPassword || newPassword.length < 6) {
+        if (newPassword !== null) alert('Password must be at least 6 characters.');
+        return;
+    }
+    
+    var formData = new FormData();
+    formData.append('password', newPassword);
+    
+    fetch('/admin/users/' + userId + '/reset-password', { method: 'POST', body: formData })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                alert('Password reset for ' + username);
+            } else {
+                alert('Error: ' + data.error);
+            }
+        });
+}
+
+function deleteUser(userId, username) {
+    if (!confirm('Are you sure you want to delete user "' + username + '"? This cannot be undone.')) return;
+    
+    fetch('/admin/users/' + userId + '/delete', { method: 'POST' })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                document.getElementById('user-row-' + userId).remove();
+            } else {
+                alert('Error: ' + data.error);
+            }
+        });
+}
+</script>
+{% endblock %}
