@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+
+{% block title %}Console Output - Build #{{ build.number }}{% if build.name %} - {{ build.name }}{% endif %}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .console-full {
+        background: #1e1e1e;
+        color: #d4d4d4;
+        font-family: 'Consolas', 'Monaco', monospace;
+        font-size: 13px;
+        padding: 20px;
+        min-height: 500px;
+        white-space: pre-wrap;
+        word-break: break-word;
+    }
+</style>
+{% endblock %}
+
+{% block breadcrumb %}
+<span>›</span>
+<a href="/job/{{ build.number }}">Build #{{ build.number }}{% if build.name %} - {{ build.name }}{% endif %}</a>
+<span>›</span>
+<span>Console Output</span>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <aside class="sidebar">
+        <div class="sidebar-section">
+            <div class="sidebar-title">Build #{{ build.number }}</div>
+            {% if build.name %}
+            <div style="padding:8px 12px;font-size:12px;color:var(--text-secondary);background:var(--bg-tertiary);border-radius:6px;margin-bottom:8px;">
+                🏷️ {{ build.name }}
+            </div>
+            {% endif %}
+            <a href="/job/{{ build.number }}" class="sidebar-item">
+                <span class="sidebar-icon">📊</span>
+                Build Summary
+            </a>
+            <a href="/job/{{ build.number }}/console" class="sidebar-item active">
+                <span class="sidebar-icon">📝</span>
+                Console Output
+            </a>
+        </div>
+    </aside>
+    
+    <main class="main">
+        <div class="card">
+            <div class="card-header">📝 Console Output</div>
+            <div class="card-body" style="padding:0;">
+                <div class="console-full" id="console">{{ build.output }}</div>
+            </div>
+        </div>
+    </main>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{% if build.status == 'running' %}
+<script>
+    setInterval(function() {
+        fetch('/api/status')
+            .then(r => r.json())
+            .then(data => {
+                document.getElementById('console').innerHTML = data.output;
+                document.getElementById('console').scrollTop = document.getElementById('console').scrollHeight;
+                if (!data.running) location.reload();
+            });
+    }, 2000);
+</script>
+{% endif %}
+{% endblock %}

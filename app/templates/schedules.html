@@ -1,0 +1,211 @@
+{% extends "base.html" %}
+
+{% block title %}Scheduled Tasks - CNV HealthCrew AI{% endblock %}
+
+{% block breadcrumb %}
+<span>›</span>
+<span>Scheduled Tasks</span>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <aside class="sidebar">
+        <div class="sidebar-section">
+            <div class="sidebar-title" onclick="toggleSidebarSection(this)" style="cursor:pointer;display:flex;align-items:center;">
+                Actions
+                <span class="collapse-icon" style="margin-left:auto;font-size:10px;">▼</span>
+            </div>
+            <div class="sidebar-content">
+                <a href="/job/configure" class="sidebar-item">
+                    <span class="sidebar-icon">➕</span>
+                    Create New Schedule
+                </a>
+                <a href="/" class="sidebar-item">
+                    <span class="sidebar-icon">🏠</span>
+                    Dashboard
+                </a>
+            </div>
+        </div>
+        <div class="sidebar-section">
+            <div class="sidebar-title" onclick="toggleSidebarSection(this)" style="cursor:pointer;display:flex;align-items:center;">
+                Filter
+                <span class="collapse-icon" style="margin-left:auto;font-size:10px;">▼</span>
+            </div>
+            <div class="sidebar-content">
+                <a href="/schedules" class="sidebar-item active">
+                    <span class="sidebar-icon">📋</span>
+                    All Schedules
+                </a>
+                <a href="/schedules?status=active" class="sidebar-item">
+                    <span class="sidebar-icon">✅</span>
+                    Active
+                </a>
+                <a href="/schedules?status=paused" class="sidebar-item">
+                    <span class="sidebar-icon">⏸️</span>
+                    Paused
+                </a>
+            </div>
+        </div>
+    </aside>
+    
+    <main class="main">
+        <div class="card">
+            <div class="card-header">
+                📅 Scheduled Tasks
+                <span style="margin-left:auto;font-weight:normal;color:var(--text-muted);">{{ schedules|length }} schedule(s)</span>
+            </div>
+            <div class="card-body" style="padding:0;">
+                {% if schedules %}
+                <table class="build-table">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Type</th>
+                            <th>Schedule</th>
+                            <th>Next Run</th>
+                            <th>Last Run</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for schedule in schedules %}
+                        <tr>
+                            <td>
+                                <strong>{{ schedule.name or 'Unnamed Schedule' }}</strong>
+                                <div style="font-size:11px;color:var(--text-muted);">{{ schedule.checks_count }} checks</div>
+                            </td>
+                            <td>
+                                {% if schedule.type == 'once' %}
+                                <span class="status-badge" style="background:var(--accent-light);color:var(--accent);">📅 Once</span>
+                                {% else %}
+                                <span class="status-badge" style="background:var(--purple);color:white;">🔄 {{ schedule.frequency|capitalize }}</span>
+                                {% endif %}
+                            </td>
+                            <td style="font-family:monospace;font-size:12px;">
+                                {% if schedule.type == 'once' %}
+                                {{ schedule.scheduled_time }}
+                                {% else %}
+                                {{ schedule.cron_display or schedule.cron }}
+                                {% endif %}
+                            </td>
+                            <td>{{ schedule.next_run or 'N/A' }}</td>
+                            <td>{{ schedule.last_run or 'Never' }}</td>
+                            <td>
+                                {% if schedule.status == 'active' %}
+                                <span class="status-badge status-success">Active</span>
+                                {% elif schedule.status == 'paused' %}
+                                <span class="status-badge status-unstable">Paused</span>
+                                {% elif schedule.status == 'completed' %}
+                                <span class="status-badge" style="background:var(--bg-tertiary);color:var(--text-secondary);">Completed</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if schedule.status == 'active' %}
+                                <button onclick="toggleSchedule('{{ schedule.id }}', 'pause')" class="btn" title="Pause">⏸️</button>
+                                {% elif schedule.status == 'paused' %}
+                                <button onclick="toggleSchedule('{{ schedule.id }}', 'resume')" class="btn" title="Resume">▶️</button>
+                                {% endif %}
+                                <button onclick="runScheduleNow('{{ schedule.id }}')" class="btn" title="Run Now">🚀</button>
+                                <button onclick="deleteSchedule('{{ schedule.id }}')" class="btn" style="color:var(--error);" title="Delete">🗑️</button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <div class="empty-state">
+                    <h3>No scheduled tasks</h3>
+                    <p>Create a new schedule from the <a href="/job/configure">Build Configuration</a> page</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- Scheduler Status -->
+        <div class="card">
+            <div class="card-header" onclick="toggleCard(this)">
+                ⚙️ Scheduler Status
+                <span class="collapse-icon" style="margin-left:auto;">▼</span>
+            </div>
+            <div class="card-body">
+                <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:20px;">
+                    <div class="stat-box info">
+                        <div class="stat-value">{{ scheduler_status.active_schedules }}</div>
+                        <div class="stat-label">Active Schedules</div>
+                    </div>
+                    <div class="stat-box success">
+                        <div class="stat-value">{{ scheduler_status.runs_today }}</div>
+                        <div class="stat-label">Runs Today</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-value" style="font-size:16px;">{{ scheduler_status.next_run or 'None' }}</div>
+                        <div class="stat-label">Next Scheduled Run</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function toggleSidebarSection(title) {
+        title.classList.toggle('collapsed');
+        var content = title.nextElementSibling;
+        if (content && content.classList.contains('sidebar-content')) {
+            content.classList.toggle('collapsed');
+        }
+    }
+    
+    function toggleCard(header) {
+        header.classList.toggle('collapsed');
+        var body = header.nextElementSibling;
+        if (body && body.classList.contains('card-body')) {
+            body.classList.toggle('collapsed');
+        }
+    }
+    
+    function toggleSchedule(scheduleId, action) {
+        fetch('/api/schedule/' + scheduleId + '/' + action, { method: 'POST' })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    location.reload();
+                } else {
+                    alert('Failed: ' + data.error);
+                }
+            });
+    }
+    
+    function runScheduleNow(scheduleId) {
+        if (confirm('Run this scheduled task now?')) {
+            fetch('/api/schedule/' + scheduleId + '/run', { method: 'POST' })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('Build started!');
+                        window.location.href = '/';
+                    } else {
+                        alert('Failed: ' + data.error);
+                    }
+                });
+        }
+    }
+    
+    function deleteSchedule(scheduleId) {
+        if (confirm('Are you sure you want to delete this schedule?')) {
+            fetch('/api/schedule/' + scheduleId, { method: 'DELETE' })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        location.reload();
+                    } else {
+                        alert('Failed: ' + data.error);
+                    }
+                });
+        }
+    }
+</script>
+{% endblock %}

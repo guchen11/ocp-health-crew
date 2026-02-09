@@ -1,0 +1,424 @@
+{% extends "base.html" %}
+
+{% block title %}CNV HealthCrew AI{% endblock %}
+
+{% block content %}
+<div class="container">
+    <aside class="sidebar">
+        <div class="sidebar-section">
+            <div class="sidebar-title" onclick="toggleSidebarSection(this)" style="cursor:pointer;display:flex;align-items:center;">
+                Quick Actions
+                <span class="collapse-icon" style="margin-left:auto;font-size:10px;">▼</span>
+            </div>
+            <div class="sidebar-content">
+                <a href="/job/configure" class="sidebar-item">
+                    <span class="sidebar-icon">▶️</span>
+                    Build with Parameters
+                </a>
+                <a href="/job/quick-run" class="sidebar-item">
+                    <span class="sidebar-icon">⚡</span>
+                    Quick Build (All Checks)
+                </a>
+                <a href="/job/history" class="sidebar-item">
+                    <span class="sidebar-icon">📋</span>
+                    Build History
+                </a>
+            </div>
+        </div>
+        <div class="sidebar-section">
+            <div class="sidebar-title" onclick="toggleSidebarSection(this)" style="cursor:pointer;display:flex;align-items:center;">
+                Cleanup
+                <span class="collapse-icon" style="margin-left:auto;font-size:10px;">▼</span>
+            </div>
+            <div class="sidebar-content">
+                <a href="#" onclick="deleteBulk('stopped'); return false;" class="sidebar-item" style="color:var(--warning);">
+                    <span class="sidebar-icon">⏹️</span>
+                    Delete All Stopped
+                </a>
+                <a href="#" onclick="deleteBulk('failed'); return false;" class="sidebar-item" style="color:var(--error);">
+                    <span class="sidebar-icon">❌</span>
+                    Delete All Failed
+                </a>
+                <a href="#" onclick="deleteBulk('all'); return false;" class="sidebar-item" style="color:var(--error);">
+                    <span class="sidebar-icon">🗑️</span>
+                    Delete All Builds
+                </a>
+            </div>
+        </div>
+        <div class="sidebar-section">
+            <div class="sidebar-title" onclick="toggleSidebarSection(this)" style="cursor:pointer;display:flex;align-items:center;">
+                Recent Builds
+                <span class="collapse-icon" style="margin-left:auto;font-size:10px;">▼</span>
+            </div>
+            <div class="sidebar-content">
+                {% for build in recent_builds[:5] %}
+                <a href="/job/{{ build.number }}" class="sidebar-item">
+                    <span class="status-icon {{ build.status }}"></span>
+                    #{{ build.number }}{% if build.name %} - {{ build.name[:20] }}{% else %} - {{ build.timestamp[:16] }}{% endif %}
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+    </aside>
+    
+    <main class="main">
+        {% if not running_build %}
+        <!-- Stats -->
+        <div class="card">
+            <div class="card-header" onclick="toggleCard(this)">
+                📊 Build Statistics
+                <span class="collapse-icon" style="margin-left:auto;">▼</span>
+            </div>
+            <div class="card-body">
+                <div class="stats-grid">
+                    <div class="stat-box info">
+                        <div class="stat-value">{{ stats.total }}</div>
+                        <div class="stat-label">Total Builds</div>
+                    </div>
+                    <div class="stat-box success">
+                        <div class="stat-value">{{ stats.success }}</div>
+                        <div class="stat-label">Successful</div>
+                    </div>
+                    <div class="stat-box warning">
+                        <div class="stat-value">{{ stats.unstable }}</div>
+                        <div class="stat-label">Issues Found</div>
+                    </div>
+                    <div class="stat-box danger">
+                        <div class="stat-value">{{ stats.failed }}</div>
+                        <div class="stat-label">Failed</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+        
+        <!-- Running Build -->
+        {% if running_build %}
+        <div class="card">
+            <div class="card-header">
+                <span class="status-icon running"></span>
+                Build #{{ running_build.number }}{% if running_build.name %} "{{ running_build.name }}"{% endif %} - Running
+                <button onclick="stopBuild()" class="btn btn-danger" style="margin-left:auto;padding:6px 16px;">
+                    ⏹️ Stop Build
+                </button>
+                <span class="collapse-icon" style="margin-left:12px;cursor:pointer;" onclick="toggleCard(this.parentElement)">▼</span>
+            </div>
+            <div class="card-body">
+                <!-- Phases & Progress -->
+                <div id="phases-progress" style="margin-bottom:20px;">
+                    <div id="phases" style="display:grid;grid-template-columns:repeat({{ running_build.phases|length }}, 1fr);gap:2px;margin-bottom:8px;">
+                        {% for phase in running_build.phases %}
+                        <div class="phase-label {{ phase.status }}" style="text-align:center;padding:8px 4px;font-size:11px;font-weight:500;
+                            {% if phase.status == 'done' %}color:var(--success);{% elif phase.status == 'running' %}color:var(--accent);{% elif phase.status == 'error' %}color:var(--error);{% elif phase.status == 'skipped' %}color:var(--text-secondary);opacity:0.5;{% else %}color:var(--text-secondary);{% endif %}">
+                            <span class="phase-icon" style="display:block;font-size:16px;margin-bottom:2px;">
+                                {% if phase.status == 'done' %}✅
+                                {% elif phase.status == 'running' %}🔄
+                                {% elif phase.status == 'error' %}❌
+                                {% elif phase.status == 'skipped' %}⏭️
+                                {% else %}⏳{% endif %}
+                            </span>
+                            {{ phase.name }}
+                            {% if phase.duration %}
+                            <span style="display:block;font-size:10px;color:var(--text-secondary);margin-top:2px;">{{ phase.duration }}s</span>
+                            {% elif phase.status == 'running' %}
+                            <span class="phase-timer" data-start="{{ phase.start_time }}" style="display:block;font-size:10px;color:var(--accent);margin-top:2px;">0.0s</span>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <div style="display:grid;grid-template-columns:repeat({{ running_build.phases|length }}, 1fr);gap:2px;height:8px;background:var(--bg-tertiary);border-radius:4px;overflow:hidden;">
+                        {% for phase in running_build.phases %}
+                        <div class="phase-progress" style="height:100%;transition:background 0.3s;
+                            {% if phase.status == 'done' %}background:var(--success);
+                            {% elif phase.status == 'running' %}background:linear-gradient(90deg, var(--accent) 0%, var(--bg-tertiary) 100%);animation:pulse 1s infinite;
+                            {% elif phase.status == 'error' %}background:var(--error);
+                            {% elif phase.status == 'skipped' %}background:var(--text-secondary);opacity:0.3;
+                            {% else %}background:var(--bg-tertiary);{% endif %}">
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <div style="display:flex;justify-content:space-between;margin-top:6px;">
+                        <span id="elapsed-time" style="font-size:12px;color:var(--text-secondary);">Elapsed: 0s</span>
+                        <span id="progress-text" style="font-size:12px;color:var(--text-secondary);">{{ running_build.progress }}%</span>
+                    </div>
+                </div>
+                
+                <div id="current-phase" style="padding:12px 16px;background:var(--accent-light);border-radius:8px;margin-bottom:15px;border-left:4px solid var(--accent);">
+                    <span style="font-weight:600;">{{ running_build.current_phase or 'Initializing...' }}</span>
+                </div>
+                
+                <div class="card" style="margin:0;">
+                    <div class="card-header" onclick="toggleCard(this)" style="padding:10px 16px;">
+                        📝 Console Output
+                        <span class="collapse-icon" style="margin-left:auto;">▼</span>
+                    </div>
+                    <div class="card-body" style="padding:0;">
+                        <div class="console" id="console" style="border-radius:0;">{{ running_build.output }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+        
+        {% if not running_build %}
+        <!-- Build History -->
+        <div class="card">
+            <div class="card-header" onclick="toggleCard(this)">
+                📋 Recent Build History
+                <span class="collapse-icon" style="margin-left:auto;">▼</span>
+                <button id="deleteSelectedBtn" onclick="event.stopPropagation(); deleteSelected()" class="btn btn-danger" style="margin-left:16px;display:none;">
+                    🗑️ Delete Selected (<span id="selectedCount">0</span>)
+                </button>
+            </div>
+            <div class="card-body" style="padding:0;">
+                {% if builds %}
+                <table class="build-table">
+                    <thead>
+                        <tr>
+                            <th style="width:40px;"><input type="checkbox" id="selectAll" onchange="toggleSelectAll()"></th>
+                            <th style="width:60px;">Build</th>
+                            <th>Status</th>
+                            <th>Checks Run</th>
+                            <th>Started</th>
+                            <th>Duration</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for build in builds %}
+                        <tr>
+                            <td><input type="checkbox" class="build-checkbox" value="{{ build.number }}" onchange="updateSelectedCount()"></td>
+                            <td>
+                                <a href="/job/{{ build.number }}" class="build-link">
+                                    <span class="status-icon {{ build.status }}"></span>
+                                    #{{ build.number }}
+                                </a>
+                                {% if build.name %}
+                                <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">{{ build.name[:30] }}{% if build.name|length > 30 %}...{% endif %}</div>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <span class="status-badge status-{{ build.status }}">
+                                    {{ build.status_text }}
+                                </span>
+                            </td>
+                            <td>{{ build.checks_count }} checks</td>
+                            <td>{{ build.timestamp }}</td>
+                            <td>{{ build.duration }}</td>
+                            <td>
+                                {% if build.report_file %}
+                                <a href="/report/{{ build.report_file }}" class="btn" target="_blank">📄 Report</a>
+                                {% endif %}
+                                <a href="/job/{{ build.number }}/console" class="btn">📝 Console</a>
+                                <button onclick="deleteBuild({{ build.number }})" class="btn" style="color:var(--error);" title="Delete">🗑️</button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <div class="empty-state">
+                    <h3>No builds yet</h3>
+                    <p>Click "Build with Parameters" to run your first health check</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+    </main>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function toggleCard(header) {
+        header.classList.toggle('collapsed');
+        var body = header.nextElementSibling;
+        if (body && body.classList.contains('card-body')) {
+            body.classList.toggle('collapsed');
+        }
+    }
+    
+    function toggleSidebarSection(title) {
+        title.classList.toggle('collapsed');
+        var content = title.nextElementSibling;
+        if (content && content.classList.contains('sidebar-content')) {
+            content.classList.toggle('collapsed');
+        }
+    }
+    
+    function toggleSelectAll() {
+        var selectAll = document.getElementById('selectAll').checked;
+        document.querySelectorAll('.build-checkbox').forEach(function(cb) {
+            cb.checked = selectAll;
+        });
+        updateSelectedCount();
+    }
+    
+    function updateSelectedCount() {
+        var count = document.querySelectorAll('.build-checkbox:checked').length;
+        document.getElementById('selectedCount').textContent = count;
+        document.getElementById('deleteSelectedBtn').style.display = count > 0 ? 'inline-flex' : 'none';
+    }
+    
+    function deleteSelected() {
+        var selected = [];
+        document.querySelectorAll('.build-checkbox:checked').forEach(function(cb) {
+            selected.push(cb.value);
+        });
+        
+        if (selected.length === 0) return;
+        
+        if (confirm('Are you sure you want to delete ' + selected.length + ' build(s) and their reports?')) {
+            Promise.all(selected.map(function(buildNum) {
+                return fetch('/api/delete/' + buildNum, { method: 'POST' });
+            })).then(function() {
+                location.reload();
+            });
+        }
+    }
+    
+    function deleteBuild(buildNum) {
+        if (confirm('Are you sure you want to delete Build #' + buildNum + ' and its report?')) {
+            fetch('/api/delete/' + buildNum, { method: 'POST' })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        location.reload();
+                    } else {
+                        alert('Failed to delete: ' + data.error);
+                    }
+                });
+        }
+    }
+    
+    function deleteBulk(filterType) {
+        var messages = {
+            'stopped': 'Are you sure you want to delete ALL STOPPED builds?',
+            'failed': 'Are you sure you want to delete ALL FAILED builds?',
+            'all': '⚠️ WARNING: This will delete ALL builds and their reports!\n\nAre you absolutely sure?'
+        };
+        
+        if (confirm(messages[filterType])) {
+            fetch('/api/delete-bulk', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({filter: filterType})
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Deleted ' + data.deleted + ' build(s)');
+                    location.reload();
+                } else {
+                    alert('Failed to delete: ' + data.error);
+                }
+            });
+        }
+    }
+</script>
+
+{% if running_build %}
+<script>
+    var buildStartTime = {{ running_build.start_time }};
+    
+    function formatDuration(seconds) {
+        if (seconds < 60) return seconds.toFixed(1) + 's';
+        var mins = Math.floor(seconds / 60);
+        var secs = Math.floor(seconds % 60);
+        return mins + 'm ' + secs + 's';
+    }
+    
+    function updatePhases(phases, startTime) {
+        var container = document.getElementById('phases-progress');
+        if (!container || !phases) return;
+        
+        var now = Date.now() / 1000;
+        
+        var labelsHtml = '<div id="phases" style="display:grid;grid-template-columns:repeat(' + phases.length + ', 1fr);gap:2px;margin-bottom:8px;">';
+        phases.forEach(function(phase) {
+            var icon = phase.status === 'done' ? '✅' : 
+                       phase.status === 'running' ? '🔄' : 
+                       phase.status === 'error' ? '❌' : 
+                       phase.status === 'skipped' ? '⏭️' : '⏳';
+            var color = phase.status === 'done' ? 'var(--success)' : 
+                        phase.status === 'running' ? 'var(--accent)' : 
+                        phase.status === 'error' ? 'var(--error)' : 
+                        phase.status === 'skipped' ? 'var(--text-secondary)' : 'var(--text-secondary)';
+            var opacity = phase.status === 'skipped' ? 'opacity:0.5;' : '';
+            
+            var durationHtml = '';
+            if (phase.duration) {
+                durationHtml = '<span style="display:block;font-size:10px;color:var(--text-secondary);margin-top:2px;">' + phase.duration + 's</span>';
+            } else if (phase.status === 'running' && phase.start_time) {
+                var elapsed = (now - phase.start_time).toFixed(1);
+                durationHtml = '<span style="display:block;font-size:10px;color:var(--accent);margin-top:2px;">' + elapsed + 's</span>';
+            }
+            
+            labelsHtml += '<div class="phase-label ' + phase.status + '" style="text-align:center;padding:8px 4px;font-size:11px;font-weight:500;color:' + color + ';' + opacity + '">';
+            labelsHtml += '<span class="phase-icon" style="display:block;font-size:16px;margin-bottom:2px;">' + icon + '</span>';
+            labelsHtml += phase.name;
+            labelsHtml += durationHtml;
+            labelsHtml += '</div>';
+        });
+        labelsHtml += '</div>';
+        
+        var progressHtml = '<div style="display:grid;grid-template-columns:repeat(' + phases.length + ', 1fr);gap:2px;height:8px;background:var(--bg-tertiary);border-radius:4px;overflow:hidden;">';
+        phases.forEach(function(phase) {
+            var bg = phase.status === 'done' ? 'var(--success)' : 
+                     phase.status === 'running' ? 'linear-gradient(90deg, var(--accent) 0%, var(--bg-tertiary) 100%)' : 
+                     phase.status === 'error' ? 'var(--error)' : 
+                     phase.status === 'skipped' ? 'var(--text-secondary)' : 'var(--bg-tertiary)';
+            var anim = phase.status === 'running' ? 'animation:pulse 1s infinite;' : '';
+            var opacityBar = phase.status === 'skipped' ? 'opacity:0.3;' : '';
+            progressHtml += '<div class="phase-progress" style="height:100%;transition:background 0.3s;background:' + bg + ';' + anim + opacityBar + '"></div>';
+        });
+        progressHtml += '</div>';
+        
+        // Calculate total elapsed time
+        var totalElapsed = now - startTime;
+        var elapsedStr = formatDuration(totalElapsed);
+        
+        var footerHtml = '<div style="display:flex;justify-content:space-between;margin-top:6px;">';
+        footerHtml += '<span id="elapsed-time" style="font-size:12px;color:var(--text-secondary);">Elapsed: ' + elapsedStr + '</span>';
+        footerHtml += '<span id="progress-text" style="font-size:12px;color:var(--text-secondary);">0%</span>';
+        footerHtml += '</div>';
+        
+        container.innerHTML = labelsHtml + progressHtml + footerHtml;
+    }
+    
+    function stopBuild() {
+        if (confirm('Are you sure you want to stop the running build?')) {
+            fetch('/api/stop', { method: 'POST' })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        location.reload();
+                    } else {
+                        alert('Failed to stop build: ' + data.error);
+                    }
+                });
+        }
+    }
+    
+    setInterval(function() {
+        fetch('/api/status')
+            .then(r => r.json())
+            .then(data => {
+                if (data.running) {
+                    document.getElementById('console').innerHTML = data.output;
+                    document.getElementById('console').scrollTop = document.getElementById('console').scrollHeight;
+                    var progressText = document.getElementById('progress-text');
+                    if (progressText) progressText.textContent = data.progress + '%';
+                    if (data.current_phase) {
+                        document.getElementById('current-phase').innerHTML = '<span style="font-weight:600;">' + data.current_phase + '</span>';
+                    }
+                    updatePhases(data.phases, data.start_time || buildStartTime);
+                } else {
+                    location.reload();
+                }
+            });
+    }, 1000);
+</script>
+{% endif %}
+{% endblock %}

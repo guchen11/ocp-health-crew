@@ -1,0 +1,1068 @@
+{% extends "base.html" %}
+
+{% block title %}{% if preset == 'all' %}Quick Build{% else %}Build with Parameters{% endif %} - CNV HealthCrew AI{% endblock %}
+
+{% block breadcrumb %}
+<span>›</span>
+<a href="/job/configure">Build with Parameters</a>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <aside class="sidebar">
+        <div class="sidebar-section">
+            <div class="sidebar-title">Build Options</div>
+            <a href="/job/configure" class="sidebar-item active">
+                <span class="sidebar-icon">⚙️</span>
+                Configure Build
+            </a>
+            <a href="/job/quick-run" class="sidebar-item">
+                <span class="sidebar-icon">⚡</span>
+                Quick Build
+            </a>
+        </div>
+        <div class="sidebar-section">
+            <div class="sidebar-title">Presets</div>
+            <a href="#" onclick="selectAll()" class="sidebar-item">
+                <span class="sidebar-icon">✅</span>
+                Select All Checks
+            </a>
+            <a href="#" onclick="selectNone()" class="sidebar-item">
+                <span class="sidebar-icon">⬜</span>
+                Deselect All
+            </a>
+            <a href="#" onclick="selectInfra()" class="sidebar-item">
+                <span class="sidebar-icon">🏗️</span>
+                Infrastructure Only
+            </a>
+            <a href="#" onclick="selectVirt()" class="sidebar-item">
+                <span class="sidebar-icon">💻</span>
+                Virtualization Only
+            </a>
+        </div>
+    </aside>
+    
+    <main class="main">
+        {% if preset == 'all' %}
+        <div style="background:var(--success-light);border:1px solid var(--success);border-radius:8px;padding:16px 20px;margin-bottom:20px;display:flex;align-items:center;gap:12px;">
+            <span style="font-size:24px;">⚡</span>
+            <div>
+                <div style="font-weight:600;color:var(--success);font-size:16px;">Quick Build Mode</div>
+                <div style="color:var(--text-secondary);font-size:13px;">All checks are pre-selected. Review and click "Run Now" to start.</div>
+            </div>
+        </div>
+        {% endif %}
+        
+        <form action="/job/run" method="POST" id="buildForm" onsubmit="return checkJiraSuggestionsBeforeRun(event)">
+            <!-- Run Name -->
+            <div class="card">
+                <div class="card-header" onclick="toggleCard(this)">
+                    🏷️ Run Information
+                    <span class="collapse-icon" style="margin-left:auto;">▼</span>
+                </div>
+                <div class="card-body">
+                    <div style="margin-bottom:12px;">
+                        <label for="run_name" style="display:block;font-weight:600;margin-bottom:8px;color:var(--text);">Run Name (optional)</label>
+                        <input type="text" id="run_name" name="run_name" 
+                            placeholder="e.g. Pre-upgrade check, Daily health scan, Scale test validation" 
+                            style="width:100%;padding:12px 16px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:var(--bg-secondary);">
+                        <span style="font-size:12px;color:var(--text-secondary);margin-top:6px;display:block;">
+                            💡 Give this run a descriptive name to easily identify it later in history
+                        </span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Target Server -->
+            <div class="card">
+                <div class="card-header" onclick="toggleCard(this)">
+                    🖥️ Target Server
+                    <span class="collapse-icon" style="margin-left:auto;">▼</span>
+                </div>
+                <div class="card-body">
+                    <div style="margin-bottom:12px;">
+                        <label for="server_host" style="display:block;font-weight:600;margin-bottom:8px;color:var(--text);">Server Hostname / IP</label>
+                        <input type="text" id="server_host" name="server_host" 
+                            placeholder="e.g. f04-h10-000-r640.rdu2.scalelab.redhat.com" 
+                            style="width:100%;padding:12px 16px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:var(--bg-secondary);"
+                            value="{{ server_host or '' }}">
+                        <span style="font-size:12px;color:var(--text-secondary);margin-top:6px;display:block;">
+                            💡 Leave empty to use default kubeconfig, or enter the bastion/server hostname to connect via SSH
+                        </span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- General Options -->
+            <div class="card">
+                <div class="card-header" onclick="toggleCard(this)">
+                    ⚙️ Build Options
+                    <span class="collapse-icon" style="margin-left:auto;">▼</span>
+                </div>
+                <div class="card-body">
+                    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:20px;">
+                        <div class="checkbox-item" style="flex-direction:column;align-items:stretch;">
+                            <div style="display:flex;align-items:flex-start;gap:12px;">
+                                <input type="checkbox" id="opt_jira" name="check_jira" {{ 'checked' if preset == 'all' else '' }} onchange="toggleJiraScan()">
+                                <label for="opt_jira">
+                                    <span class="check-name">🔍 Jira Integration</span>
+                                    <span class="check-desc">Check Jira for recent bugs & suggest adding new tests</span>
+                                </label>
+                            </div>
+                            <div id="jira-scan-section" style="display:none;margin-top:12px;padding:12px;background:var(--bg-tertiary);border-radius:8px;">
+                                <button type="button" onclick="scanJiraForTests()" class="btn" style="background:var(--accent);color:white;width:100%;">
+                                    🔍 Scan Jira for New Test Suggestions
+                                </button>
+                                <div id="jira-scan-status" style="margin-top:8px;font-size:12px;color:var(--text-secondary);text-align:center;"></div>
+                            </div>
+                        </div>
+                        <div class="checkbox-item" style="flex-direction:column;align-items:stretch;">
+                            <div style="display:flex;align-items:flex-start;gap:12px;">
+                                <input type="checkbox" id="opt_email" name="send_email" style="margin-top:3px;" {{ 'checked' if preset == 'all' else '' }}>
+                                <label for="opt_email">
+                                    <span class="check-name">📤 Email Report</span>
+                                    <span class="check-desc">Send report via email</span>
+                                </label>
+                            </div>
+                            <input type="email" name="email_to" id="email_to" placeholder="Enter email address (e.g. user@redhat.com)" 
+                                style="margin-top:10px;padding:8px 12px;border:1px solid var(--border);border-radius:6px;font-size:13px;width:100%;"
+                                value="guchen@redhat.com">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Scheduling Options -->
+            <div class="card">
+                <div class="card-header" onclick="toggleCard(this)">
+                    🕐 Schedule Build
+                    <span class="collapse-icon" style="margin-left:auto;">▼</span>
+                </div>
+                <div class="card-body">
+                    <div style="margin-bottom:20px;">
+                        <div style="font-weight:600;color:var(--text);margin-bottom:12px;font-size:14px;">Run Type</div>
+                        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;">
+                            <label class="schedule-option" style="display:flex;flex-direction:column;padding:16px;border:2px solid var(--border);border-radius:8px;cursor:pointer;transition:all 0.2s;">
+                                <input type="radio" name="schedule_type" value="now" style="margin-bottom:8px;" onchange="toggleScheduleOptions()" checked>
+                                <span style="font-weight:600;color:var(--text);font-size:14px;">▶️ Run Now</span>
+                                <span style="color:var(--text-secondary);font-size:12px;margin-top:4px;">Execute immediately</span>
+                            </label>
+                            <label class="schedule-option" style="display:flex;flex-direction:column;padding:16px;border:2px solid var(--border);border-radius:8px;cursor:pointer;transition:all 0.2s;">
+                                <input type="radio" name="schedule_type" value="once" style="margin-bottom:8px;" onchange="toggleScheduleOptions()">
+                                <span style="font-weight:600;color:var(--text);font-size:14px;">📅 Schedule Once</span>
+                                <span style="color:var(--text-secondary);font-size:12px;margin-top:4px;">Run at specific date/time</span>
+                            </label>
+                            <label class="schedule-option" style="display:flex;flex-direction:column;padding:16px;border:2px solid var(--border);border-radius:8px;cursor:pointer;transition:all 0.2s;">
+                                <input type="radio" name="schedule_type" value="recurring" style="margin-bottom:8px;" onchange="toggleScheduleOptions()">
+                                <span style="font-weight:600;color:var(--text);font-size:14px;">🔄 Recurring</span>
+                                <span style="color:var(--text-secondary);font-size:12px;margin-top:4px;">Run on a schedule</span>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <!-- Schedule Once Options -->
+                    <div id="schedule-once-options" style="display:none;">
+                        <hr style="border:none;border-top:1px solid var(--border);margin:20px 0;">
+                        <div style="font-weight:600;color:var(--text);margin-bottom:12px;font-size:14px;">📅 Schedule Date & Time</div>
+                        <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;">
+                            <div>
+                                <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:6px;">Date</label>
+                                <input type="date" name="schedule_date" id="schedule_date" 
+                                    style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:6px;font-size:14px;">
+                            </div>
+                            <div>
+                                <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:6px;">Time</label>
+                                <input type="time" name="schedule_time" id="schedule_time" 
+                                    style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:6px;font-size:14px;">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Recurring Options -->
+                    <div id="schedule-recurring-options" style="display:none;">
+                        <hr style="border:none;border-top:1px solid var(--border);margin:20px 0;">
+                        <div style="font-weight:600;color:var(--text);margin-bottom:12px;font-size:14px;">🔄 Recurring Schedule</div>
+                        
+                        <div style="margin-bottom:16px;">
+                            <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:6px;">Frequency</label>
+                            <select name="recurring_frequency" id="recurring_frequency" onchange="toggleRecurringDetails()"
+                                style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:6px;font-size:14px;background:var(--bg-secondary);">
+                                <option value="hourly">Every Hour</option>
+                                <option value="daily" selected>Daily</option>
+                                <option value="weekly">Weekly</option>
+                                <option value="monthly">Monthly</option>
+                                <option value="custom">Custom (Cron)</option>
+                            </select>
+                        </div>
+                        
+                        <!-- Time for daily/weekly/monthly -->
+                        <div id="recurring-time" style="margin-bottom:16px;">
+                            <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:6px;">Time of Day</label>
+                            <input type="time" name="recurring_time" id="recurring_time" value="06:00"
+                                style="width:200px;padding:10px 12px;border:1px solid var(--border);border-radius:6px;font-size:14px;">
+                        </div>
+                        
+                        <!-- Days for weekly -->
+                        <div id="recurring-days" style="display:none;margin-bottom:16px;">
+                            <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:6px;">Days of Week</label>
+                            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                                <label style="display:flex;align-items:center;gap:4px;padding:8px 12px;border:1px solid var(--border);border-radius:6px;cursor:pointer;">
+                                    <input type="checkbox" name="recurring_days" value="mon" checked> Mon
+                                </label>
+                                <label style="display:flex;align-items:center;gap:4px;padding:8px 12px;border:1px solid var(--border);border-radius:6px;cursor:pointer;">
+                                    <input type="checkbox" name="recurring_days" value="tue"> Tue
+                                </label>
+                                <label style="display:flex;align-items:center;gap:4px;padding:8px 12px;border:1px solid var(--border);border-radius:6px;cursor:pointer;">
+                                    <input type="checkbox" name="recurring_days" value="wed"> Wed
+                                </label>
+                                <label style="display:flex;align-items:center;gap:4px;padding:8px 12px;border:1px solid var(--border);border-radius:6px;cursor:pointer;">
+                                    <input type="checkbox" name="recurring_days" value="thu"> Thu
+                                </label>
+                                <label style="display:flex;align-items:center;gap:4px;padding:8px 12px;border:1px solid var(--border);border-radius:6px;cursor:pointer;">
+                                    <input type="checkbox" name="recurring_days" value="fri" checked> Fri
+                                </label>
+                                <label style="display:flex;align-items:center;gap:4px;padding:8px 12px;border:1px solid var(--border);border-radius:6px;cursor:pointer;">
+                                    <input type="checkbox" name="recurring_days" value="sat"> Sat
+                                </label>
+                                <label style="display:flex;align-items:center;gap:4px;padding:8px 12px;border:1px solid var(--border);border-radius:6px;cursor:pointer;">
+                                    <input type="checkbox" name="recurring_days" value="sun"> Sun
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <!-- Day of month for monthly -->
+                        <div id="recurring-dayofmonth" style="display:none;margin-bottom:16px;">
+                            <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:6px;">Day of Month</label>
+                            <input type="number" name="recurring_dayofmonth" id="recurring_dayofmonth" value="1" min="1" max="28"
+                                style="width:100px;padding:10px 12px;border:1px solid var(--border);border-radius:6px;font-size:14px;">
+                        </div>
+                        
+                        <!-- Custom cron -->
+                        <div id="recurring-cron" style="display:none;margin-bottom:16px;">
+                            <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:6px;">Cron Expression</label>
+                            <input type="text" name="recurring_cron" id="recurring_cron" placeholder="0 6 * * *" 
+                                style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:6px;font-size:14px;font-family:monospace;">
+                            <span style="font-size:11px;color:var(--text-muted);margin-top:4px;display:block;">
+                                Format: minute hour day month weekday (e.g., "0 6 * * 1-5" = 6AM weekdays)
+                            </span>
+                        </div>
+                        
+                        <!-- Schedule name -->
+                        <div style="margin-bottom:16px;">
+                            <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:6px;">Schedule Name (optional)</label>
+                            <input type="text" name="schedule_name" id="schedule_name" placeholder="e.g., Daily Morning Check"
+                                style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:6px;font-size:14px;">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Root Cause Analysis -->
+            <div class="card">
+                <div class="card-header" onclick="toggleCard(this)">
+                    🔬 Root Cause Analysis
+                    <span class="collapse-icon" style="margin-left:auto;">▼</span>
+                </div>
+                <div class="card-body">
+                    <div style="margin-bottom:20px;">
+                        <div style="font-weight:600;color:var(--text);margin-bottom:12px;font-size:14px;">Analysis Level</div>
+                        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;">
+                            <label class="rca-option" style="display:flex;flex-direction:column;padding:16px;border:2px solid var(--border);border-radius:8px;cursor:pointer;transition:all 0.2s;">
+                                <input type="radio" name="rca_level" value="none" style="margin-bottom:8px;" onchange="toggleRcaSources()" {{ '' if preset == 'all' else 'checked' }}>
+                                <span style="font-weight:600;color:var(--text);font-size:14px;">📋 Checks Only</span>
+                                <span style="color:var(--text-secondary);font-size:12px;margin-top:4px;">Run health checks without analysis</span>
+                            </label>
+                            <label class="rca-option" style="display:flex;flex-direction:column;padding:16px;border:2px solid var(--border);border-radius:8px;cursor:pointer;transition:all 0.2s;">
+                                <input type="radio" name="rca_level" value="bugs" style="margin-bottom:8px;" onchange="toggleRcaSources()">
+                                <span style="font-weight:600;color:var(--text);font-size:14px;">🐛 Bug Digging</span>
+                                <span style="color:var(--text-secondary);font-size:12px;margin-top:4px;">Match failures to known bugs</span>
+                            </label>
+                            <label class="rca-option" style="display:flex;flex-direction:column;padding:16px;border:2px solid var(--border);border-radius:8px;cursor:pointer;transition:all 0.2s;">
+                                <input type="radio" name="rca_level" value="full" style="margin-bottom:8px;" onchange="toggleRcaSources()" {{ 'checked' if preset == 'all' else '' }}>
+                                <span style="font-weight:600;color:var(--text);font-size:14px;">🔍 Full RCA</span>
+                                <span style="color:var(--text-secondary);font-size:12px;margin-top:4px;">Deep investigation & root cause</span>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div id="rca-sources" style="display:none;">
+                        <hr style="border:none;border-top:1px solid var(--border);margin:20px 0;">
+                        <div style="font-weight:600;color:var(--text);margin-bottom:12px;font-size:14px;">📚 Data Sources for Bug Digging</div>
+                        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;">
+                            <div class="checkbox-item" style="padding:12px;border:1px solid var(--border);border-radius:8px;">
+                                <input type="checkbox" id="opt_jira_rca" name="rca_jira" {{ 'checked' if preset == 'all' else 'checked' }}>
+                                <label for="opt_jira_rca">
+                                    <span class="check-name">🎫 Jira Bugs</span>
+                                    <span class="check-desc">Search Jira for matching bugs & known issues</span>
+                                </label>
+                            </div>
+                            <div class="checkbox-item" style="padding:12px;border:1px solid var(--border);border-radius:8px;">
+                                <input type="checkbox" id="opt_email_rca" name="rca_email" {{ 'checked' if preset == 'all' else '' }}>
+                                <label for="opt_email_rca">
+                                    <span class="check-name">📧 Email Search</span>
+                                    <span class="check-desc">Search Gmail for related discussions & alerts</span>
+                                </label>
+                            </div>
+                            <div class="checkbox-item" style="padding:12px;border:1px solid var(--border);border-radius:8px;">
+                                <input type="checkbox" id="opt_web_rca" name="rca_web" {{ 'checked' if preset == 'all' else '' }}>
+                                <label for="opt_web_rca">
+                                    <span class="check-name">🌐 Web Search</span>
+                                    <span class="check-desc">Search docs, forums & knowledge bases</span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Thresholds Configuration -->
+            <div class="card">
+                <div class="card-header" onclick="toggleCard(this)">
+                    📊 Alert Thresholds
+                    <span class="collapse-icon" style="margin-left:auto;">▼</span>
+                </div>
+                <div class="card-body">
+                    <div style="margin-bottom:16px;">
+                        <div class="checkbox-item" style="padding:0;">
+                            <input type="checkbox" id="use_custom_thresholds" name="use_custom_thresholds" onchange="toggleThresholdInputs()">
+                            <label for="use_custom_thresholds">
+                                <span class="check-name">⚙️ Use Custom Thresholds</span>
+                                <span class="check-desc">Override default thresholds for this run only</span>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div id="threshold-inputs" style="display:none;padding-top:16px;border-top:1px solid var(--border);">
+                        <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:16px;">
+                            <div>
+                                <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:6px;">
+                                    🔥 CPU Warning Threshold (%)
+                                </label>
+                                <div style="display:flex;align-items:center;gap:8px;">
+                                    <input type="range" name="cpu_threshold" id="cpu_threshold" 
+                                        min="50" max="100" value="{{ thresholds.cpu_warning }}"
+                                        style="flex:1;" oninput="document.getElementById('cpu_val').textContent=this.value+'%'">
+                                    <span id="cpu_val" style="width:45px;text-align:right;font-weight:600;">{{ thresholds.cpu_warning }}%</span>
+                                </div>
+                                <span style="font-size:11px;color:var(--text-muted);">Default: {{ thresholds.cpu_warning }}% - Flag nodes above this</span>
+                            </div>
+                            <div>
+                                <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:6px;">
+                                    💾 Memory Warning Threshold (%)
+                                </label>
+                                <div style="display:flex;align-items:center;gap:8px;">
+                                    <input type="range" name="memory_threshold" id="memory_threshold" 
+                                        min="50" max="100" value="{{ thresholds.memory_warning }}"
+                                        style="flex:1;" oninput="document.getElementById('mem_val').textContent=this.value+'%'">
+                                    <span id="mem_val" style="width:45px;text-align:right;font-weight:600;">{{ thresholds.memory_warning }}%</span>
+                                </div>
+                                <span style="font-size:11px;color:var(--text-muted);">Default: {{ thresholds.memory_warning }}% - Flag nodes above this</span>
+                            </div>
+                            <div>
+                                <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:6px;">
+                                    💿 Disk I/O Latency Threshold (ms)
+                                </label>
+                                <div style="display:flex;align-items:center;gap:8px;">
+                                    <input type="number" name="disk_latency_threshold" id="disk_latency_threshold" 
+                                        min="10" max="1000" value="{{ thresholds.disk_latency }}"
+                                        style="flex:1;padding:8px;border:1px solid var(--border);border-radius:6px;">
+                                    <span style="width:30px;">ms</span>
+                                </div>
+                                <span style="font-size:11px;color:var(--text-muted);">Default: {{ thresholds.disk_latency }}ms - Flag I/O above this</span>
+                            </div>
+                            <div>
+                                <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:6px;">
+                                    🗄️ etcd Latency Threshold (ms)
+                                </label>
+                                <div style="display:flex;align-items:center;gap:8px;">
+                                    <input type="number" name="etcd_latency_threshold" id="etcd_latency_threshold" 
+                                        min="10" max="500" value="{{ thresholds.etcd_latency }}"
+                                        style="flex:1;padding:8px;border:1px solid var(--border);border-radius:6px;">
+                                    <span style="width:30px;">ms</span>
+                                </div>
+                                <span style="font-size:11px;color:var(--text-muted);">Default: {{ thresholds.etcd_latency }}ms - Critical above this</span>
+                            </div>
+                            <div>
+                                <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:6px;">
+                                    📦 Pod Density Warning (pods/node)
+                                </label>
+                                <div style="display:flex;align-items:center;gap:8px;">
+                                    <input type="number" name="pod_density_threshold" id="pod_density_threshold" 
+                                        min="10" max="250" value="{{ thresholds.pod_density }}"
+                                        style="flex:1;padding:8px;border:1px solid var(--border);border-radius:6px;">
+                                    <span style="width:70px;">pods/node</span>
+                                </div>
+                                <span style="font-size:11px;color:var(--text-muted);">Default: {{ thresholds.pod_density }} - Warn above this</span>
+                            </div>
+                            <div>
+                                <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:6px;">
+                                    🔁 Pod Restart Threshold (count)
+                                </label>
+                                <div style="display:flex;align-items:center;gap:8px;">
+                                    <input type="number" name="restart_threshold" id="restart_threshold" 
+                                        min="1" max="50" value="{{ thresholds.restart_count }}"
+                                        style="flex:1;padding:8px;border:1px solid var(--border);border-radius:6px;">
+                                    <span style="width:70px;">restarts</span>
+                                </div>
+                                <span style="font-size:11px;color:var(--text-muted);">Default: {{ thresholds.restart_count }} - Flag pods with more restarts</span>
+                            </div>
+                        </div>
+                        <div style="margin-top:16px;padding:12px;background:var(--bg-tertiary);border-radius:8px;">
+                            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+                                <span style="font-size:16px;">💡</span>
+                                <span style="font-weight:600;font-size:13px;">Tip: Change Defaults</span>
+                            </div>
+                            <span style="font-size:12px;color:var(--text-secondary);">
+                                These overrides only apply to this run. To change the defaults permanently, 
+                                go to <a href="/settings" style="color:var(--accent);">Settings</a>.
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Health Checks Selection -->
+            <div class="card">
+                <div class="card-header" onclick="toggleCard(this)">
+                    🔍 Select Health Checks to Run
+                    <span class="collapse-icon" style="margin-left:auto;">▼</span>
+                </div>
+                <div class="card-body">
+                    {% for category in categories %}
+                    <div class="category-header" onclick="toggleCategory(this)" style="cursor:pointer;display:flex;align-items:center;">
+                        {{ category }}
+                        <span class="collapse-icon" style="margin-left:auto;font-size:12px;">▼</span>
+                    </div>
+                    <div class="checkbox-grid category-content">
+                        {% for check_id, check in checks.items() %}
+                        {% if check.category == category %}
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="check_{{ check_id }}" name="checks" value="{{ check_id }}" 
+                                {{ 'checked' if (preset == 'all' or check.default) else '' }} class="check-input" data-category="{{ check.category }}">
+                            <label for="check_{{ check_id }}">
+                                <span class="check-name">{{ check.name }}</span>
+                                <span class="check-desc">{{ check.description }}</span>
+                            </label>
+                        </div>
+                        {% endif %}
+                        {% endfor %}
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            
+            <!-- Submit -->
+            <div style="display:flex;gap:12px;margin-top:20px;">
+                <button type="submit" id="submit-btn" class="btn btn-primary" style="padding:12px 30px;font-size:14px;">
+                    ▶️ Run Now
+                </button>
+                <a href="/" class="btn">Cancel</a>
+                <a href="/schedules" class="btn" style="margin-left:auto;">📅 View Scheduled Tasks</a>
+            </div>
+        </form>
+    </main>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function toggleCard(header) {
+        header.classList.toggle('collapsed');
+        var body = header.nextElementSibling;
+        if (body && body.classList.contains('card-body')) {
+            body.classList.toggle('collapsed');
+        }
+    }
+    
+    function toggleCategory(header) {
+        header.classList.toggle('collapsed');
+        var content = header.nextElementSibling;
+        if (content && content.classList.contains('category-content')) {
+            content.classList.toggle('collapsed');
+        }
+    }
+    
+    function selectAll() {
+        document.querySelectorAll('.check-input').forEach(cb => cb.checked = true);
+        document.querySelector('input[name="rca_level"][value="full"]').checked = true;
+        document.getElementById('opt_jira_rca').checked = true;
+        document.getElementById('opt_email_rca').checked = true;
+        document.getElementById('opt_jira').checked = true;
+        document.getElementById('opt_email').checked = true;
+        toggleRcaSources();
+        return false;
+    }
+    
+    function selectNone() {
+        document.querySelectorAll('.check-input').forEach(cb => cb.checked = false);
+        document.querySelector('input[name="rca_level"][value="none"]').checked = true;
+        document.getElementById('opt_jira_rca').checked = false;
+        document.getElementById('opt_email_rca').checked = false;
+        document.getElementById('opt_jira').checked = false;
+        document.getElementById('opt_email').checked = false;
+        toggleRcaSources();
+        return false;
+    }
+    
+    function updateRcaStyles() {
+        document.querySelectorAll('.rca-option').forEach(opt => {
+            var radio = opt.querySelector('input[type="radio"]');
+            if (radio.checked) {
+                opt.style.borderColor = 'var(--accent)';
+                opt.style.background = 'var(--accent-light)';
+            } else {
+                opt.style.borderColor = 'var(--border)';
+                opt.style.background = 'transparent';
+            }
+        });
+    }
+    
+    function toggleRcaSources() {
+        var rcaLevel = document.querySelector('input[name="rca_level"]:checked').value;
+        var sourcesDiv = document.getElementById('rca-sources');
+        if (rcaLevel === 'bugs' || rcaLevel === 'full') {
+            sourcesDiv.style.display = 'block';
+        } else {
+            sourcesDiv.style.display = 'none';
+        }
+        updateRcaStyles();
+    }
+    
+    document.querySelectorAll('input[name="rca_level"]').forEach(r => r.addEventListener('change', toggleRcaSources));
+    toggleRcaSources();
+    
+    function selectInfra() {
+        document.querySelectorAll('.check-input').forEach(cb => {
+            cb.checked = cb.dataset.category === 'Infrastructure';
+        });
+        return false;
+    }
+    
+    function selectVirt() {
+        document.querySelectorAll('.check-input').forEach(cb => {
+            cb.checked = cb.dataset.category === 'Virtualization';
+        });
+        return false;
+    }
+    
+    // Schedule functions
+    function toggleScheduleOptions() {
+        var scheduleType = document.querySelector('input[name="schedule_type"]:checked').value;
+        var onceOptions = document.getElementById('schedule-once-options');
+        var recurringOptions = document.getElementById('schedule-recurring-options');
+        var submitBtn = document.getElementById('submit-btn');
+        
+        onceOptions.style.display = 'none';
+        recurringOptions.style.display = 'none';
+        
+        if (scheduleType === 'now') {
+            submitBtn.innerHTML = '▶️ Run Now';
+        } else if (scheduleType === 'once') {
+            onceOptions.style.display = 'block';
+            submitBtn.innerHTML = '📅 Schedule Build';
+            // Set default date/time to tomorrow at 6 AM
+            var tomorrow = new Date();
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            document.getElementById('schedule_date').value = tomorrow.toISOString().split('T')[0];
+            document.getElementById('schedule_time').value = '06:00';
+        } else if (scheduleType === 'recurring') {
+            recurringOptions.style.display = 'block';
+            submitBtn.innerHTML = '🔄 Create Schedule';
+        }
+        
+        updateScheduleStyles();
+    }
+    
+    function updateScheduleStyles() {
+        document.querySelectorAll('.schedule-option').forEach(opt => {
+            var radio = opt.querySelector('input[type="radio"]');
+            if (radio.checked) {
+                opt.style.borderColor = 'var(--accent)';
+                opt.style.background = 'var(--accent-light)';
+            } else {
+                opt.style.borderColor = 'var(--border)';
+                opt.style.background = 'transparent';
+            }
+        });
+    }
+    
+    function toggleRecurringDetails() {
+        var frequency = document.getElementById('recurring_frequency').value;
+        var timeDiv = document.getElementById('recurring-time');
+        var daysDiv = document.getElementById('recurring-days');
+        var dayOfMonthDiv = document.getElementById('recurring-dayofmonth');
+        var cronDiv = document.getElementById('recurring-cron');
+        
+        // Hide all
+        timeDiv.style.display = 'none';
+        daysDiv.style.display = 'none';
+        dayOfMonthDiv.style.display = 'none';
+        cronDiv.style.display = 'none';
+        
+        // Show relevant options
+        if (frequency === 'hourly') {
+            // No additional options needed
+        } else if (frequency === 'daily') {
+            timeDiv.style.display = 'block';
+        } else if (frequency === 'weekly') {
+            timeDiv.style.display = 'block';
+            daysDiv.style.display = 'block';
+        } else if (frequency === 'monthly') {
+            timeDiv.style.display = 'block';
+            dayOfMonthDiv.style.display = 'block';
+        } else if (frequency === 'custom') {
+            cronDiv.style.display = 'block';
+        }
+    }
+    
+    // Initialize
+    document.querySelectorAll('input[name="schedule_type"]').forEach(r => r.addEventListener('change', toggleScheduleOptions));
+    toggleScheduleOptions();
+    toggleRecurringDetails();
+    
+    // Threshold toggle function
+    function toggleThresholdInputs() {
+        var checkbox = document.getElementById('use_custom_thresholds');
+        var inputs = document.getElementById('threshold-inputs');
+        if (checkbox.checked) {
+            inputs.style.display = 'block';
+        } else {
+            inputs.style.display = 'none';
+        }
+    }
+    
+    // Initialize threshold section
+    toggleThresholdInputs();
+    
+    // Jira Integration functions
+    function toggleJiraScan() {
+        var jiraCheckbox = document.getElementById('opt_jira');
+        var scanSection = document.getElementById('jira-scan-section');
+        if (jiraCheckbox.checked) {
+            scanSection.style.display = 'block';
+        } else {
+            scanSection.style.display = 'none';
+        }
+    }
+    
+    // Initialize Jira scan section
+    toggleJiraScan();
+    
+    var jiraSuggestions = [];
+    var currentSuggestionIndex = 0;
+    
+    function scanJiraForTests() {
+        var statusDiv = document.getElementById('jira-scan-status');
+        statusDiv.innerHTML = '<span style="color:var(--accent);">🔍 Scanning Jira for recent bugs...</span>';
+        
+        fetch('/api/jira/suggestions')
+            .then(r => r.json())
+            .then(data => {
+                if (data.success && data.suggestions && data.suggestions.length > 0) {
+                    jiraSuggestions = data.suggestions;
+                    currentSuggestionIndex = 0;
+                    statusDiv.innerHTML = '<span style="color:var(--success);">✅ Found ' + data.count + ' suggestions from ' + data.bugs_analyzed + ' bugs</span>';
+                    showJiraSuggestionModal();
+                } else {
+                    statusDiv.innerHTML = '<span style="color:var(--text-muted);">No new test suggestions found</span>';
+                }
+            })
+            .catch(err => {
+                statusDiv.innerHTML = '<span style="color:var(--error);">❌ Error: ' + err.message + '</span>';
+            });
+    }
+    
+    function showJiraSuggestionModal() {
+        if (currentSuggestionIndex >= jiraSuggestions.length) {
+            closeJiraModal();
+            var statusDiv = document.getElementById('jira-scan-status');
+            statusDiv.innerHTML = '<span style="color:var(--success);">✅ All suggestions reviewed</span>';
+            return;
+        }
+        
+        var suggestion = jiraSuggestions[currentSuggestionIndex];
+        var modal = document.getElementById('jira-suggestion-modal');
+        
+        // Update modal content
+        document.getElementById('modal-check-name').textContent = suggestion.suggested_check;
+        document.getElementById('modal-jira-key').textContent = suggestion.jira_key;
+        document.getElementById('modal-jira-key').href = 'https://issues.redhat.com/browse/' + suggestion.jira_key;
+        document.getElementById('modal-priority').textContent = suggestion.priority;
+        document.getElementById('modal-priority').className = 'priority-badge priority-' + suggestion.priority.toLowerCase();
+        document.getElementById('modal-summary').textContent = suggestion.summary;
+        document.getElementById('modal-description').textContent = suggestion.check_description;
+        document.getElementById('modal-reason').textContent = suggestion.reason;
+        document.getElementById('modal-counter').textContent = (currentSuggestionIndex + 1) + ' of ' + jiraSuggestions.length;
+        
+        // Show modal
+        modal.style.display = 'flex';
+    }
+    
+    function acceptJiraSuggestion() {
+        var suggestion = jiraSuggestions[currentSuggestionIndex];
+        
+        fetch('/api/jira/accept-check', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                name: suggestion.suggested_check,
+                jira_key: suggestion.jira_key,
+                description: suggestion.check_description,
+                category: 'Custom'
+            })
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                // Add the check to the form
+                addCustomCheckToForm(suggestion);
+                showToast('✅ Check "' + suggestion.suggested_check + '" added!', 'success');
+            }
+            currentSuggestionIndex++;
+            showJiraSuggestionModal();
+        });
+    }
+    
+    function rejectJiraSuggestion() {
+        var suggestion = jiraSuggestions[currentSuggestionIndex];
+        
+        fetch('/api/jira/reject-check', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: suggestion.suggested_check })
+        })
+        .then(r => r.json())
+        .then(data => {
+            showToast('⏭️ Skipped "' + suggestion.suggested_check + '"', 'info');
+            currentSuggestionIndex++;
+            showJiraSuggestionModal();
+        });
+    }
+    
+    function skipAllJiraSuggestions() {
+        closeJiraModal();
+        var statusDiv = document.getElementById('jira-scan-status');
+        statusDiv.innerHTML = '<span style="color:var(--text-muted);">Skipped all suggestions</span>';
+    }
+    
+    function closeJiraModal() {
+        document.getElementById('jira-suggestion-modal').style.display = 'none';
+    }
+    
+    function addCustomCheckToForm(suggestion) {
+        // Check if custom checks section exists, if not create it
+        var customSection = document.getElementById('custom-checks-section');
+        if (!customSection) {
+            // Find the health checks card and add a custom section
+            var checksCard = document.querySelector('.card-body .checkbox-grid').parentElement;
+            var newSection = document.createElement('div');
+            newSection.innerHTML = '<div class="category-header" onclick="toggleCategory(this)" style="cursor:pointer;display:flex;align-items:center;margin-top:20px;background:linear-gradient(90deg,var(--purple),var(--accent));color:white;padding:10px 15px;border-radius:8px;">🤖 AI-Suggested Checks (from Jira)<span class="collapse-icon" style="margin-left:auto;font-size:12px;">▼</span></div><div class="checkbox-grid category-content" id="custom-checks-section"></div>';
+            checksCard.appendChild(newSection);
+            customSection = document.getElementById('custom-checks-section');
+        }
+        
+        // Add the check
+        var checkDiv = document.createElement('div');
+        checkDiv.className = 'checkbox-item';
+        checkDiv.style.background = 'linear-gradient(135deg, rgba(106,27,154,0.1), rgba(0,112,204,0.1))';
+        checkDiv.style.border = '1px solid var(--purple)';
+        checkDiv.style.borderRadius = '8px';
+        checkDiv.style.padding = '12px';
+        checkDiv.innerHTML = '<input type="checkbox" id="check_' + suggestion.suggested_check + '" name="checks" value="' + suggestion.suggested_check + '" checked class="check-input" data-category="Custom">' +
+            '<label for="check_' + suggestion.suggested_check + '">' +
+            '<span class="check-name">🤖 ' + suggestion.suggested_check.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) + '</span>' +
+            '<span class="check-desc">' + suggestion.check_description + ' <a href="https://issues.redhat.com/browse/' + suggestion.jira_key + '" target="_blank" style="color:var(--accent);">' + suggestion.jira_key + '</a></span>' +
+            '</label>';
+        customSection.appendChild(checkDiv);
+    }
+    
+    function showToast(message, type) {
+        var toast = document.createElement('div');
+        toast.className = 'toast toast-' + type;
+        toast.textContent = message;
+        toast.style.cssText = 'position:fixed;bottom:20px;right:20px;padding:12px 24px;border-radius:8px;color:white;font-weight:500;z-index:10000;animation:slideIn 0.3s ease;';
+        toast.style.background = type === 'success' ? 'var(--success)' : type === 'error' ? 'var(--error)' : 'var(--accent)';
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 3000);
+    }
+    
+    // Pre-run Jira suggestions check
+    var preRunSuggestions = [];
+    var preRunSuggestionIndex = 0;
+    var proceedWithRun = false;
+    
+    function checkJiraSuggestionsBeforeRun(event) {
+        // If we already processed suggestions, proceed with submit
+        if (proceedWithRun) {
+            proceedWithRun = false;
+            return true;
+        }
+        
+        // Check if Jira integration is enabled
+        var jiraCheckbox = document.getElementById('opt_jira');
+        if (!jiraCheckbox || !jiraCheckbox.checked) {
+            return true; // No Jira, proceed normally
+        }
+        
+        // Prevent form submission while we check
+        event.preventDefault();
+        
+        // Show loading
+        showToast('🔍 Checking Jira for new test suggestions...', 'info');
+        
+        // Fetch suggestions
+        fetch('/api/jira/suggestions')
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.suggestions && data.suggestions.length > 0) {
+                    preRunSuggestions = data.suggestions;
+                    preRunSuggestionIndex = 0;
+                    showPreRunSuggestionModal();
+                } else {
+                    // No suggestions, proceed with run
+                    showToast('✅ No new suggestions found, starting run...', 'success');
+                    proceedWithRun = true;
+                    document.getElementById('buildForm').submit();
+                }
+            })
+            .catch(error => {
+                console.error('Error checking Jira:', error);
+                // On error, proceed with run anyway
+                proceedWithRun = true;
+                document.getElementById('buildForm').submit();
+            });
+        
+        return false;
+    }
+    
+    function showPreRunSuggestionModal() {
+        if (preRunSuggestionIndex >= preRunSuggestions.length) {
+            // All suggestions processed, proceed with run
+            closePreRunModal();
+            showToast('✅ Starting health check...', 'success');
+            proceedWithRun = true;
+            document.getElementById('buildForm').submit();
+            return;
+        }
+        
+        var suggestion = preRunSuggestions[preRunSuggestionIndex];
+        var modal = document.getElementById('pre-run-modal');
+        
+        // Update modal content
+        document.getElementById('pre-run-counter').textContent = (preRunSuggestionIndex + 1) + ' of ' + preRunSuggestions.length;
+        document.getElementById('pre-run-check-name').textContent = suggestion.suggested_check.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+        document.getElementById('pre-run-jira-key').textContent = suggestion.jira_key;
+        document.getElementById('pre-run-jira-key').href = 'https://issues.redhat.com/browse/' + suggestion.jira_key;
+        document.getElementById('pre-run-priority').textContent = suggestion.priority || 'Normal';
+        document.getElementById('pre-run-priority').className = 'priority-badge priority-' + (suggestion.priority || 'normal').toLowerCase();
+        document.getElementById('pre-run-description').textContent = suggestion.check_description;
+        document.getElementById('pre-run-reason').textContent = suggestion.bug_summary || 'Detected from recent Jira bugs';
+        
+        modal.style.display = 'flex';
+    }
+    
+    function acceptPreRunSuggestion() {
+        var suggestion = preRunSuggestions[preRunSuggestionIndex];
+        
+        // Accept via API
+        fetch('/api/jira/accept-check', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                name: suggestion.suggested_check,
+                jira_key: suggestion.jira_key,
+                description: suggestion.check_description
+            })
+        }).then(() => {
+            // Add the check to the form
+            addPreRunCheckToForm(suggestion);
+            showToast('✅ Added: ' + suggestion.suggested_check, 'success');
+            
+            // Move to next
+            preRunSuggestionIndex++;
+            showPreRunSuggestionModal();
+        });
+    }
+    
+    function rejectPreRunSuggestion() {
+        var suggestion = preRunSuggestions[preRunSuggestionIndex];
+        
+        // Reject via API
+        fetch('/api/jira/reject-check', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: suggestion.suggested_check })
+        });
+        
+        // Move to next
+        preRunSuggestionIndex++;
+        showPreRunSuggestionModal();
+    }
+    
+    function skipAllPreRunSuggestions() {
+        closePreRunModal();
+        showToast('⏭️ Skipped suggestions, starting run...', 'info');
+        proceedWithRun = true;
+        document.getElementById('buildForm').submit();
+    }
+    
+    function closePreRunModal() {
+        document.getElementById('pre-run-modal').style.display = 'none';
+    }
+    
+    function addPreRunCheckToForm(suggestion) {
+        // Add a hidden input for the new check
+        var input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'checks';
+        input.value = suggestion.suggested_check;
+        document.getElementById('buildForm').appendChild(input);
+    }
+</script>
+
+<!-- Pre-Run Jira Suggestions Modal -->
+<div id="pre-run-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);z-index:10000;justify-content:center;align-items:center;">
+    <div style="background:var(--bg-card);border-radius:16px;max-width:550px;width:90%;box-shadow:0 25px 80px rgba(0,0,0,0.4);">
+        <!-- Header -->
+        <div style="background:linear-gradient(135deg,var(--purple),var(--accent));color:white;padding:20px 24px;border-radius:16px 16px 0 0;">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+                <h3 style="margin:0;font-size:18px;">🎫 New Test Suggestion from Jira</h3>
+                <span id="pre-run-counter" style="background:rgba(255,255,255,0.2);padding:4px 12px;border-radius:12px;font-size:12px;">1 of 3</span>
+            </div>
+            <p style="margin:8px 0 0;opacity:0.9;font-size:13px;">Add this check to your health check run?</p>
+        </div>
+        
+        <!-- Content -->
+        <div style="padding:24px;">
+            <div style="background:var(--bg-tertiary);border-radius:12px;padding:16px;margin-bottom:16px;">
+                <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">Suggested Check</div>
+                <div id="pre-run-check-name" style="font-size:18px;font-weight:700;color:var(--accent);"></div>
+            </div>
+            
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+                <div style="background:var(--bg-secondary);border-radius:8px;padding:12px;">
+                    <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">Source Bug</div>
+                    <a id="pre-run-jira-key" href="#" target="_blank" style="font-weight:600;color:var(--accent);text-decoration:none;font-size:14px;"></a>
+                </div>
+                <div style="background:var(--bg-secondary);border-radius:8px;padding:12px;">
+                    <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">Priority</div>
+                    <span id="pre-run-priority" class="priority-badge"></span>
+                </div>
+            </div>
+            
+            <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:16px;">
+                <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px;">📋 What This Check Does</div>
+                <div id="pre-run-description" style="font-size:13px;color:var(--text);line-height:1.5;"></div>
+            </div>
+            
+            <div style="font-size:12px;color:var(--text-secondary);margin-bottom:20px;">
+                <strong>Why:</strong> <span id="pre-run-reason"></span>
+            </div>
+            
+            <!-- Actions -->
+            <div style="display:flex;gap:12px;">
+                <button type="button" onclick="acceptPreRunSuggestion()" style="flex:1;padding:14px;border:none;border-radius:10px;background:var(--success);color:white;font-weight:600;cursor:pointer;font-size:14px;transition:transform 0.1s;">
+                    ✅ Add to This Run
+                </button>
+                <button type="button" onclick="rejectPreRunSuggestion()" style="flex:1;padding:14px;border:none;border-radius:10px;background:var(--bg-tertiary);color:var(--text);font-weight:600;cursor:pointer;font-size:14px;">
+                    ⏭️ Skip
+                </button>
+            </div>
+            <button type="button" onclick="skipAllPreRunSuggestions()" style="width:100%;margin-top:10px;padding:10px;border:1px solid var(--border);border-radius:8px;background:transparent;color:var(--text-muted);cursor:pointer;font-size:12px;">
+                Skip All & Start Run
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Jira Suggestion Modal (for during build) -->
+<div id="jira-suggestion-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:9999;justify-content:center;align-items:center;">
+    <div style="background:var(--bg-card);border-radius:16px;max-width:600px;width:90%;max-height:90vh;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+        <!-- Header -->
+        <div style="background:linear-gradient(135deg,var(--purple),var(--accent));color:white;padding:20px 24px;border-radius:16px 16px 0 0;">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+                <h3 style="margin:0;font-size:18px;">🤖 New Health Check Suggestion</h3>
+                <span id="modal-counter" style="background:rgba(255,255,255,0.2);padding:4px 12px;border-radius:12px;font-size:12px;">1 of 3</span>
+            </div>
+            <p style="margin:8px 0 0;opacity:0.9;font-size:14px;">AI found a potential new test based on Jira bugs</p>
+        </div>
+        
+        <!-- Content -->
+        <div style="padding:24px;">
+            <!-- Check Name -->
+            <div style="background:var(--bg-tertiary);border-radius:12px;padding:16px;margin-bottom:16px;">
+                <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px;">Suggested Check Name</div>
+                <div id="modal-check-name" style="font-size:20px;font-weight:600;color:var(--accent);font-family:monospace;"></div>
+            </div>
+            
+            <!-- Jira Info -->
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+                <div style="background:var(--bg-secondary);border-radius:8px;padding:12px;">
+                    <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">Source Bug</div>
+                    <a id="modal-jira-key" href="#" target="_blank" style="font-weight:600;color:var(--accent);text-decoration:none;"></a>
+                </div>
+                <div style="background:var(--bg-secondary);border-radius:8px;padding:12px;">
+                    <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">Priority</div>
+                    <span id="modal-priority" class="priority-badge"></span>
+                </div>
+            </div>
+            
+            <!-- Summary -->
+            <div style="margin-bottom:16px;">
+                <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px;">Bug Summary</div>
+                <div id="modal-summary" style="font-size:14px;line-height:1.5;color:var(--text);"></div>
+            </div>
+            
+            <!-- Description -->
+            <div style="background:var(--bg-secondary);border-radius:8px;padding:16px;margin-bottom:16px;">
+                <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px;">📋 What This Check Will Do</div>
+                <div id="modal-description" style="font-size:14px;color:var(--text);"></div>
+            </div>
+            
+            <!-- Reason -->
+            <div style="font-size:12px;color:var(--text-secondary);margin-bottom:20px;">
+                <strong>Why suggested:</strong> <span id="modal-reason"></span>
+            </div>
+            
+            <!-- Actions -->
+            <div style="display:flex;gap:12px;">
+                <button type="button" onclick="acceptJiraSuggestion()" style="flex:1;padding:14px;border:none;border-radius:10px;background:var(--success);color:white;font-weight:600;cursor:pointer;font-size:14px;">
+                    ✅ Accept & Add Check
+                </button>
+                <button type="button" onclick="rejectJiraSuggestion()" style="flex:1;padding:14px;border:none;border-radius:10px;background:var(--bg-tertiary);color:var(--text);font-weight:600;cursor:pointer;font-size:14px;">
+                    ⏭️ Skip This One
+                </button>
+            </div>
+            <button type="button" onclick="skipAllJiraSuggestions()" style="width:100%;margin-top:10px;padding:10px;border:1px solid var(--border);border-radius:8px;background:transparent;color:var(--text-muted);cursor:pointer;font-size:13px;">
+                Skip All Remaining
+            </button>
+        </div>
+    </div>
+</div>
+
+<style>
+    .priority-badge {
+        display: inline-block;
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 600;
+    }
+    .priority-critical, .priority-blocker {
+        background: var(--error);
+        color: white;
+    }
+    .priority-major {
+        background: var(--warning);
+        color: #333;
+    }
+    .priority-normal, .priority-minor {
+        background: var(--bg-tertiary);
+        color: var(--text);
+    }
+    @keyframes slideIn {
+        from { transform: translateX(100px); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+    }
+</style>
+{% endblock %}

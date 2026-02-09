@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+
+{% block title %}Build #{{ build.number }}{% if build.name %} - {{ build.name }}{% endif %} - CNV HealthCrew AI{% endblock %}
+
+{% block breadcrumb %}
+<span>›</span>
+<a href="/job/history">Builds</a>
+<span>›</span>
+<span>#{{ build.number }}{% if build.name %} - {{ build.name }}{% endif %}</span>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <aside class="sidebar">
+        <div class="sidebar-section">
+            <div class="sidebar-title">Build #{{ build.number }}</div>
+            {% if build.name %}
+            <div style="padding:8px 12px;font-size:13px;color:var(--text-secondary);background:var(--bg-tertiary);border-radius:6px;margin-bottom:8px;">
+                🏷️ {{ build.name }}
+            </div>
+            {% endif %}
+            <a href="/job/{{ build.number }}" class="sidebar-item active">
+                <span class="sidebar-icon">📊</span>
+                Build Summary
+            </a>
+            <a href="/job/{{ build.number }}/console" class="sidebar-item">
+                <span class="sidebar-icon">📝</span>
+                Console Output
+            </a>
+            {% if build.report_file %}
+            <a href="/report/{{ build.report_file }}" class="sidebar-item" target="_blank">
+                <span class="sidebar-icon">📄</span>
+                View Report
+            </a>
+            {% endif %}
+        </div>
+        <div class="sidebar-section">
+            <div class="sidebar-title">Actions</div>
+            <a href="/job/rebuild/{{ build.number }}" class="sidebar-item">
+                <span class="sidebar-icon">🔄</span>
+                Rebuild
+            </a>
+            <a href="/job/configure" class="sidebar-item">
+                <span class="sidebar-icon">▶️</span>
+                New Build
+            </a>
+        </div>
+    </aside>
+    
+    <main class="main">
+        <div class="card">
+            <div class="card-header">
+                <span class="status-icon {{ build.status }}"></span>
+                Build #{{ build.number }}{% if build.name %} "{{ build.name }}"{% endif %} - {{ build.status_text }}
+            </div>
+            <div class="card-body">
+                {% if build.name %}
+                <div style="background:linear-gradient(90deg, var(--accent-light), transparent);padding:12px 16px;border-radius:8px;margin-bottom:20px;display:flex;align-items:center;gap:10px;">
+                    <span style="font-size:20px;">🏷️</span>
+                    <div>
+                        <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;">Run Name</div>
+                        <div style="font-weight:600;color:var(--text);">{{ build.name }}</div>
+                    </div>
+                </div>
+                {% endif %}
+                <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:20px;margin-bottom:20px;">
+                    <div>
+                        <strong style="color:var(--text-muted);font-size:11px;text-transform:uppercase;">Started</strong>
+                        <div>{{ build.timestamp }}</div>
+                    </div>
+                    <div>
+                        <strong style="color:var(--text-muted);font-size:11px;text-transform:uppercase;">Duration</strong>
+                        <div>{{ build.duration }}</div>
+                    </div>
+                    <div>
+                        <strong style="color:var(--text-muted);font-size:11px;text-transform:uppercase;">Checks Run</strong>
+                        <div>{{ build.checks_count }} checks</div>
+                    </div>
+                    <div>
+                        <strong style="color:var(--text-muted);font-size:11px;text-transform:uppercase;">Server</strong>
+                        <div style="font-family:monospace;font-size:12px;">{{ build.options.server_host or 'Default (env)' }}</div>
+                    </div>
+                    <div>
+                        <strong style="color:var(--text-muted);font-size:11px;text-transform:uppercase;">Options</strong>
+                        <div>
+                            {% if build.options.rca_level == 'full' %}🔍 Full RCA {% elif build.options.rca_level == 'bugs' %}🐛 Bug Match {% else %}📋 Checks {% endif %}
+                            {% if build.options.rca_jira %}🎫 Jira {% endif %}
+                            {% if build.options.rca_email %}📧 Email {% endif %}
+                            {% if build.options.rca_web %}🌐 Web {% endif %}
+                            {% if build.options.jira %}🔎 Suggest {% endif %}
+                            {% if build.options.email %}📤 {{ build.options.email_to or 'Send' }} {% endif %}
+                        </div>
+                    </div>
+                </div>
+                
+                {% if build.checks %}
+                <h4 style="margin-bottom:15px;">Checks Executed:</h4>
+                <div class="checkbox-grid">
+                    {% for check in build.checks %}
+                    <div class="checkbox-item" style="background:{% if check in checks %}#e8f5e9{% else %}#f5f5f5{% endif %};">
+                        <span>{% if check in checks %}✅{% else %}⬜{% endif %}</span>
+                        <span>{{ checks.get(check, {}).get('name', check) }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        {% if build.report_file %}
+        <div class="card">
+            <div class="card-header">📄 Report Preview</div>
+            <div class="card-body" style="padding:0;">
+                <div class="report-preview">
+                    <iframe src="/report/{{ build.report_file }}"></iframe>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </main>
+</div>
+{% endblock %}

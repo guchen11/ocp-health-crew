@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+.idea/
+venv/
+.venv/
+.env
+*.log
+file.log
+.learning_data.json
+.builds.json
+.suggested_checks.json
+.settings.json
+schedules.json
+reports/

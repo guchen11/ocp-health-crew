@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{% block title %}CNV HealthCrew AI{% endblock %}</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        /* Dropdown styles */
+        .nav-dropdown {
+            position: relative;
+            display: inline-block;
+        }
+        .nav-dropdown > .nav-dropdown-trigger {
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding-bottom: 15px;
+            margin-bottom: -15px;
+        }
+        .nav-dropdown > .nav-dropdown-trigger .dropdown-arrow {
+            font-size: 0.7em;
+            opacity: 0.7;
+            transition: transform 0.2s;
+        }
+        .nav-dropdown:hover > .nav-dropdown-trigger .dropdown-arrow {
+            transform: rotate(180deg);
+        }
+        .dropdown-menu {
+            display: none;
+            position: absolute;
+            top: 100%;
+            right: 0;
+            padding-top: 5px;
+            z-index: 1000;
+        }
+        .dropdown-menu::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 10px;
+            background: transparent;
+        }
+        .dropdown-menu-inner {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            min-width: 220px;
+            overflow: hidden;
+        }
+        .nav-dropdown:hover .dropdown-menu {
+            display: block;
+        }
+        .dropdown-menu-inner a {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 14px 18px;
+            color: var(--text-primary);
+            text-decoration: none;
+            transition: background 0.2s;
+            border-bottom: 1px solid var(--border);
+        }
+        .dropdown-menu-inner a:last-child {
+            border-bottom: none;
+        }
+        .dropdown-menu-inner a:hover {
+            background: var(--accent);
+            color: white;
+        }
+        .dropdown-menu-inner a:hover .dropdown-desc {
+            color: rgba(255,255,255,0.8);
+        }
+        .dropdown-menu-inner .dropdown-icon {
+            font-size: 1.3em;
+        }
+        .dropdown-menu-inner .dropdown-text {
+            display: flex;
+            flex-direction: column;
+        }
+        .dropdown-menu-inner .dropdown-title {
+            font-weight: 600;
+        }
+        .dropdown-menu-inner .dropdown-desc {
+            font-size: 0.75em;
+            color: var(--text-secondary);
+            margin-top: 2px;
+        }
+    </style>
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <header class="header">
+        <div class="header-inner">
+            <a href="/" class="logo">
+                <div class="logo-img">🔍</div>
+                <span class="logo-text">CNV HealthCrew AI</span>
+            </a>
+            <nav class="header-nav">
+                <a href="/" {% if active_page == 'dashboard' %}class="active"{% endif %}>Dashboard</a>
+                <a href="/job/configure" {% if active_page == 'configure' %}class="active"{% endif %}>New Build</a>
+                <a href="/job/history" {% if active_page == 'history' %}class="active"{% endif %}>Build History</a>
+                <a href="/schedules" {% if active_page == 'schedules' %}class="active"{% endif %}>Schedules</a>
+                <a href="/settings" {% if active_page == 'settings' %}class="active"{% endif %}>Settings</a>
+                <div class="nav-dropdown">
+                    <a class="nav-dropdown-trigger {% if active_page == 'help' %}active{% endif %}">Help <span class="dropdown-arrow">▼</span></a>
+                    <div class="dropdown-menu">
+                        <div class="dropdown-menu-inner">
+                            <a href="/help#about" onclick="localStorage.setItem('helpView','about')">
+                                <span class="dropdown-icon">📖</span>
+                                <span class="dropdown-text">
+                                    <span class="dropdown-title">About</span>
+                                    <span class="dropdown-desc">Overview & features</span>
+                                </span>
+                            </a>
+                            <a href="/help#docs" onclick="localStorage.setItem('helpView','docs')">
+                                <span class="dropdown-icon">📚</span>
+                                <span class="dropdown-text">
+                                    <span class="dropdown-title">Documentation</span>
+                                    <span class="dropdown-desc">Setup & technical guides</span>
+                                </span>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </nav>
+        </div>
+    </header>
+    
+    <div class="breadcrumb">
+        <a href="/">Dashboard</a>
+        {% block breadcrumb %}
+        <span>›</span>
+        <span>Overview</span>
+        {% endblock %}
+    </div>
+    
+    {% block content %}{% endblock %}
+    
+    {% block scripts %}{% endblock %}
+</body>
+</html>

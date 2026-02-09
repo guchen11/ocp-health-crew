@@ -1,0 +1,373 @@
+{% extends "base.html" %}
+
+{% block title %}Settings - CNV HealthCrew AI{% endblock %}
+
+{% block breadcrumb %}
+<span>›</span>
+<span>Settings</span>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <aside class="sidebar">
+        <div class="sidebar-section">
+            <div class="sidebar-title">Settings</div>
+            <a href="#thresholds" class="sidebar-item active">
+                <span class="sidebar-icon">📊</span>
+                Alert Thresholds
+            </a>
+            <a href="#ssh" class="sidebar-item">
+                <span class="sidebar-icon">🔐</span>
+                SSH Configuration
+            </a>
+            <a href="#ai" class="sidebar-item">
+                <span class="sidebar-icon">🤖</span>
+                AI Configuration
+            </a>
+            <a href="#jira" class="sidebar-item">
+                <span class="sidebar-icon">🎫</span>
+                Jira Configuration
+            </a>
+        </div>
+        <div class="sidebar-section">
+            <div class="sidebar-title">Actions</div>
+            <a href="#" onclick="resetDefaults(); return false;" class="sidebar-item" style="color:var(--warning);">
+                <span class="sidebar-icon">🔄</span>
+                Reset to Defaults
+            </a>
+        </div>
+    </aside>
+    
+    <main class="main">
+        {% if message %}
+        <div style="background:var(--success-light);border:1px solid var(--success);border-radius:8px;padding:16px 20px;margin-bottom:20px;display:flex;align-items:center;gap:12px;">
+            <span style="font-size:24px;">✅</span>
+            <div>
+                <div style="font-weight:600;color:var(--success);font-size:16px;">Settings Saved</div>
+                <div style="color:var(--text-secondary);font-size:13px;">{{ message }}</div>
+            </div>
+        </div>
+        {% endif %}
+        
+        <form action="/settings" method="POST">
+            <!-- Alert Thresholds -->
+            <div class="card" id="thresholds">
+                <div class="card-header">
+                    📊 Alert Thresholds
+                </div>
+                <div class="card-body">
+                    <p style="color:var(--text-secondary);margin-bottom:20px;">
+                        Configure the default thresholds used to determine when to flag resources as unhealthy. 
+                        These values can be overridden per-run from the Build Configuration page.
+                    </p>
+                    
+                    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:24px;">
+                        <div class="setting-group">
+                            <label style="display:block;font-weight:600;margin-bottom:8px;color:var(--text);">
+                                🔥 CPU Warning Threshold
+                            </label>
+                            <div style="display:flex;align-items:center;gap:12px;">
+                                <input type="range" name="cpu_warning" id="cpu_warning" 
+                                    min="50" max="100" value="{{ thresholds.cpu_warning }}"
+                                    style="flex:1;" oninput="document.getElementById('cpu_display').textContent=this.value+'%'">
+                                <span id="cpu_display" style="width:50px;font-weight:600;font-size:18px;">{{ thresholds.cpu_warning }}%</span>
+                            </div>
+                            <span style="font-size:12px;color:var(--text-secondary);display:block;margin-top:8px;">
+                                Nodes with CPU usage above this percentage will be flagged as high CPU.
+                            </span>
+                        </div>
+                        
+                        <div class="setting-group">
+                            <label style="display:block;font-weight:600;margin-bottom:8px;color:var(--text);">
+                                💾 Memory Warning Threshold
+                            </label>
+                            <div style="display:flex;align-items:center;gap:12px;">
+                                <input type="range" name="memory_warning" id="memory_warning" 
+                                    min="50" max="100" value="{{ thresholds.memory_warning }}"
+                                    style="flex:1;" oninput="document.getElementById('mem_display').textContent=this.value+'%'">
+                                <span id="mem_display" style="width:50px;font-weight:600;font-size:18px;">{{ thresholds.memory_warning }}%</span>
+                            </div>
+                            <span style="font-size:12px;color:var(--text-secondary);display:block;margin-top:8px;">
+                                Nodes with memory usage above this percentage will be flagged as high memory.
+                            </span>
+                        </div>
+                        
+                        <div class="setting-group">
+                            <label style="display:block;font-weight:600;margin-bottom:8px;color:var(--text);">
+                                💿 Disk I/O Latency Threshold
+                            </label>
+                            <div style="display:flex;align-items:center;gap:12px;">
+                                <input type="number" name="disk_latency" id="disk_latency" 
+                                    min="10" max="1000" value="{{ thresholds.disk_latency }}"
+                                    style="flex:1;padding:12px;border:1px solid var(--border);border-radius:8px;font-size:16px;">
+                                <span style="font-weight:600;font-size:16px;">ms</span>
+                            </div>
+                            <span style="font-size:12px;color:var(--text-secondary);display:block;margin-top:8px;">
+                                Disk I/O operations taking longer than this will trigger a warning.
+                            </span>
+                        </div>
+                        
+                        <div class="setting-group">
+                            <label style="display:block;font-weight:600;margin-bottom:8px;color:var(--text);">
+                                🗄️ etcd Latency Threshold
+                            </label>
+                            <div style="display:flex;align-items:center;gap:12px;">
+                                <input type="number" name="etcd_latency" id="etcd_latency" 
+                                    min="10" max="500" value="{{ thresholds.etcd_latency }}"
+                                    style="flex:1;padding:12px;border:1px solid var(--border);border-radius:8px;font-size:16px;">
+                                <span style="font-weight:600;font-size:16px;">ms</span>
+                            </div>
+                            <span style="font-size:12px;color:var(--text-secondary);display:block;margin-top:8px;">
+                                etcd latency above this is considered <strong style="color:var(--error);">CRITICAL</strong> - can cause cluster instability.
+                            </span>
+                        </div>
+                        
+                        <div class="setting-group">
+                            <label style="display:block;font-weight:600;margin-bottom:8px;color:var(--text);">
+                                📦 Pod Density Warning
+                            </label>
+                            <div style="display:flex;align-items:center;gap:12px;">
+                                <input type="number" name="pod_density" id="pod_density" 
+                                    min="10" max="250" value="{{ thresholds.pod_density }}"
+                                    style="flex:1;padding:12px;border:1px solid var(--border);border-radius:8px;font-size:16px;">
+                                <span style="font-weight:600;font-size:16px;">pods/node</span>
+                            </div>
+                            <span style="font-size:12px;color:var(--text-secondary);display:block;margin-top:8px;">
+                                Warn when nodes have more than this many pods scheduled.
+                            </span>
+                        </div>
+                        
+                        <div class="setting-group">
+                            <label style="display:block;font-weight:600;margin-bottom:8px;color:var(--text);">
+                                🔁 Pod Restart Threshold
+                            </label>
+                            <div style="display:flex;align-items:center;gap:12px;">
+                                <input type="number" name="restart_count" id="restart_count" 
+                                    min="1" max="50" value="{{ thresholds.restart_count }}"
+                                    style="flex:1;padding:12px;border:1px solid var(--border);border-radius:8px;font-size:16px;">
+                                <span style="font-weight:600;font-size:16px;">restarts</span>
+                            </div>
+                            <span style="font-size:12px;color:var(--text-secondary);display:block;margin-top:8px;">
+                                Pods with more restarts than this will be flagged for attention.
+                            </span>
+                        </div>
+                        
+                        <div class="setting-group">
+                            <label style="display:block;font-weight:600;margin-bottom:8px;color:var(--text);">
+                                🖥️ virt-handler Memory Warning
+                            </label>
+                            <div style="display:flex;align-items:center;gap:12px;">
+                                <input type="number" name="virt_handler_memory" id="virt_handler_memory" 
+                                    min="100" max="2000" value="{{ thresholds.virt_handler_memory }}"
+                                    style="flex:1;padding:12px;border:1px solid var(--border);border-radius:8px;font-size:16px;">
+                                <span style="font-weight:600;font-size:16px;">Mi</span>
+                            </div>
+                            <span style="font-size:12px;color:var(--text-secondary);display:block;margin-top:8px;">
+                                virt-handler pods using more than this memory will be flagged (CNV-66551 related).
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- SSH Configuration -->
+            <div class="card" id="ssh">
+                <div class="card-header">
+                    🔐 SSH Configuration
+                </div>
+                <div class="card-body">
+                    <p style="color:var(--text-secondary);margin-bottom:20px;">
+                        Configure the default SSH connection settings for connecting to bastion hosts.
+                        These can also be set via environment variables.
+                    </p>
+                    
+                    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:24px;">
+                        <div class="setting-group">
+                            <label style="display:block;font-weight:600;margin-bottom:8px;color:var(--text);">
+                                Default SSH Host
+                            </label>
+                            <input type="text" name="ssh_host" id="ssh_host" 
+                                value="{{ ssh_config.host or '' }}"
+                                placeholder="e.g., bastion.example.com"
+                                style="width:100%;padding:12px;border:1px solid var(--border);border-radius:8px;font-size:14px;">
+                            <span style="font-size:12px;color:var(--text-secondary);display:block;margin-top:8px;">
+                                Environment variable: <code>RH_LAB_HOST</code>
+                            </span>
+                        </div>
+                        
+                        <div class="setting-group">
+                            <label style="display:block;font-weight:600;margin-bottom:8px;color:var(--text);">
+                                Default SSH User
+                            </label>
+                            <input type="text" name="ssh_user" id="ssh_user" 
+                                value="{{ ssh_config.user or 'root' }}"
+                                placeholder="e.g., root"
+                                style="width:100%;padding:12px;border:1px solid var(--border);border-radius:8px;font-size:14px;">
+                            <span style="font-size:12px;color:var(--text-secondary);display:block;margin-top:8px;">
+                                Environment variable: <code>RH_LAB_USER</code>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- AI Configuration -->
+            <div class="card" id="ai">
+                <div class="card-header">
+                    🤖 AI Configuration
+                </div>
+                <div class="card-body">
+                    <p style="color:var(--text-secondary);margin-bottom:20px;">
+                        Configure the AI model used for root cause analysis.
+                    </p>
+                    
+                    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:24px;">
+                        <div class="setting-group">
+                            <label style="display:block;font-weight:600;margin-bottom:8px;color:var(--text);">
+                                Ollama Model
+                            </label>
+                            <input type="text" name="ollama_model" id="ollama_model" 
+                                value="{{ ai_config.model }}"
+                                placeholder="e.g., ollama/llama3.2:3b"
+                                style="width:100%;padding:12px;border:1px solid var(--border);border-radius:8px;font-size:14px;">
+                        </div>
+                        
+                        <div class="setting-group">
+                            <label style="display:block;font-weight:600;margin-bottom:8px;color:var(--text);">
+                                Ollama URL
+                            </label>
+                            <input type="text" name="ollama_url" id="ollama_url" 
+                                value="{{ ai_config.url }}"
+                                placeholder="e.g., http://localhost:11434"
+                                style="width:100%;padding:12px;border:1px solid var(--border);border-radius:8px;font-size:14px;">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Jira Configuration -->
+            <div class="card" id="jira">
+                <div class="card-header">
+                    🎫 Jira Configuration
+                </div>
+                <div class="card-body">
+                    <p style="color:var(--text-secondary);margin-bottom:20px;">
+                        Configure Jira integration for bug scanning and pattern learning.
+                    </p>
+                    
+                    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:24px;">
+                        <div class="setting-group">
+                            <label style="display:block;font-weight:600;margin-bottom:8px;color:var(--text);">
+                                Jira Projects to Scan
+                            </label>
+                            <input type="text" name="jira_projects" id="jira_projects" 
+                                value="{{ jira_config.projects|join(', ') }}"
+                                placeholder="e.g., CNV, OCPBUGS, ODF"
+                                style="width:100%;padding:12px;border:1px solid var(--border);border-radius:8px;font-size:14px;">
+                            <span style="font-size:12px;color:var(--text-secondary);display:block;margin-top:8px;">
+                                Comma-separated list of Jira project keys
+                            </span>
+                        </div>
+                        
+                        <div class="setting-group">
+                            <label style="display:block;font-weight:600;margin-bottom:8px;color:var(--text);">
+                                Bug Scan Period (days)
+                            </label>
+                            <input type="number" name="jira_scan_days" id="jira_scan_days" 
+                                value="{{ jira_config.scan_days }}"
+                                min="1" max="365"
+                                style="width:100%;padding:12px;border:1px solid var(--border);border-radius:8px;font-size:14px;">
+                            <span style="font-size:12px;color:var(--text-secondary);display:block;margin-top:8px;">
+                                How far back to look for bugs when scanning
+                            </span>
+                        </div>
+                        
+                        <div class="setting-group">
+                            <label style="display:block;font-weight:600;margin-bottom:8px;color:var(--text);">
+                                Max Bugs to Analyze
+                            </label>
+                            <input type="number" name="jira_bug_limit" id="jira_bug_limit" 
+                                value="{{ jira_config.bug_limit }}"
+                                min="10" max="500"
+                                style="width:100%;padding:12px;border:1px solid var(--border);border-radius:8px;font-size:14px;">
+                            <span style="font-size:12px;color:var(--text-secondary);display:block;margin-top:8px;">
+                                Maximum number of bugs to analyze per scan
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Save Button -->
+            <div style="display:flex;gap:12px;margin-top:20px;">
+                <button type="submit" class="btn btn-primary" style="flex:1;padding:16px;font-size:16px;">
+                    💾 Save Settings
+                </button>
+            </div>
+        </form>
+    </main>
+</div>
+
+<script>
+function resetDefaults() {
+    if (!confirm('Reset all settings to their default values?')) return;
+    
+    // Reset threshold values
+    document.getElementById('cpu_warning').value = 85;
+    document.getElementById('cpu_display').textContent = '85%';
+    document.getElementById('memory_warning').value = 80;
+    document.getElementById('mem_display').textContent = '80%';
+    document.getElementById('disk_latency').value = 100;
+    document.getElementById('etcd_latency').value = 100;
+    document.getElementById('pod_density').value = 50;
+    document.getElementById('restart_count').value = 5;
+    document.getElementById('virt_handler_memory').value = 500;
+    
+    // Reset AI config
+    document.getElementById('ollama_model').value = 'ollama/llama3.2:3b';
+    document.getElementById('ollama_url').value = 'http://localhost:11434';
+    
+    // Reset Jira config
+    document.getElementById('jira_projects').value = 'CNV, OCPBUGS, ODF';
+    document.getElementById('jira_scan_days').value = 30;
+    document.getElementById('jira_bug_limit').value = 50;
+    
+    alert('Default values restored. Click "Save Settings" to apply.');
+}
+</script>
+
+<style>
+.setting-group {
+    padding: 16px;
+    background: var(--bg-secondary);
+    border-radius: 8px;
+    border: 1px solid var(--border);
+}
+
+input[type="range"] {
+    -webkit-appearance: none;
+    height: 8px;
+    background: var(--border);
+    border-radius: 4px;
+    outline: none;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 20px;
+    height: 20px;
+    background: var(--accent);
+    border-radius: 50%;
+    cursor: pointer;
+}
+
+input[type="range"]::-moz-range-thumb {
+    width: 20px;
+    height: 20px;
+    background: var(--accent);
+    border-radius: 50%;
+    cursor: pointer;
+    border: none;
+}
+</style>
+{% endblock %}

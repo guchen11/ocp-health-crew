@@ -1,0 +1,1730 @@
+{% extends "base.html" %}
+
+{% block title %}Help & Documentation - CNV HealthCrew AI{% endblock %}
+
+{% block extra_css %}
+<style>
+    .markdown-body {
+        max-width: 1000px;
+        margin: 0 auto;
+        padding: 20px;
+        line-height: 1.7;
+    }
+    .markdown-body h1 { 
+        font-size: 2.5em; 
+        border-bottom: 2px solid var(--accent); 
+        padding-bottom: 15px;
+        margin-top: 30px;
+    }
+    .markdown-body h2 { 
+        font-size: 1.8em; 
+        border-bottom: 1px solid var(--border); 
+        padding-bottom: 10px;
+        margin-top: 40px;
+        color: var(--accent);
+    }
+    .markdown-body h3 { 
+        font-size: 1.4em; 
+        margin-top: 25px;
+        color: var(--text-primary);
+    }
+    .markdown-body table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 20px 0;
+    }
+    .markdown-body th, .markdown-body td {
+        border: 1px solid var(--border);
+        padding: 12px 15px;
+        text-align: left;
+    }
+    .markdown-body th {
+        background: var(--bg-tertiary);
+        font-weight: 600;
+    }
+    .markdown-body tr:hover {
+        background: var(--bg-tertiary);
+    }
+    .markdown-body code {
+        background: var(--bg-tertiary);
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-family: monospace;
+    }
+    .markdown-body pre {
+        background: #1e1e1e;
+        color: #d4d4d4;
+        padding: 15px;
+        border-radius: 8px;
+        overflow-x: auto;
+    }
+    .markdown-body pre code {
+        background: none;
+        padding: 0;
+    }
+    .markdown-body ul, .markdown-body ol {
+        padding-left: 25px;
+        margin: 15px 0;
+    }
+    .markdown-body li {
+        margin: 8px 0;
+    }
+    .markdown-body blockquote {
+        border-left: 4px solid var(--accent);
+        padding-left: 15px;
+        margin: 20px 0;
+        color: var(--text-secondary);
+    }
+    .markdown-body hr {
+        border: none;
+        border-top: 2px solid var(--border);
+        margin: 30px 0;
+    }
+    .feature-box {
+        background: linear-gradient(135deg, var(--accent) 0%, #3399ff 100%);
+        color: white;
+        padding: 25px;
+        border-radius: 12px;
+        margin: 20px 0;
+    }
+    .feature-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 20px;
+        margin: 20px 0;
+    }
+    .feature-card {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 20px;
+    }
+    .feature-card h4 {
+        margin-top: 0;
+        color: var(--accent);
+    }
+    .badge-row {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        justify-content: center;
+        margin: 20px 0;
+    }
+    .badge {
+        display: inline-block;
+        padding: 5px 12px;
+        border-radius: 5px;
+        font-size: 12px;
+        font-weight: 600;
+        color: white;
+    }
+    .badge-red { background: #EE0000; }
+    .badge-blue { background: #3776AB; }
+    .badge-black { background: #333; }
+    .badge-purple { background: #6a1b9a; }
+    .badge-orange { background: #FF6F00; }
+    .step-box {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 16px;
+        margin: 12px 0;
+    }
+    .step-number {
+        display: inline-block;
+        width: 28px;
+        height: 28px;
+        background: var(--accent);
+        color: white;
+        border-radius: 50%;
+        text-align: center;
+        line-height: 28px;
+        font-weight: bold;
+        margin-right: 12px;
+    }
+    /* Hero Section Styles */
+    .hero-section {
+        background: linear-gradient(135deg, #1a237e 0%, #0d47a1 50%, #01579b 100%);
+        border-radius: 16px;
+        padding: 40px;
+        margin-bottom: 30px;
+        text-align: center;
+        color: white;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+    }
+    .hero-title {
+        font-size: 3em;
+        margin: 0 0 10px 0;
+        text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+    }
+    .hero-subtitle {
+        font-size: 1.4em;
+        opacity: 0.95;
+        margin-bottom: 20px;
+    }
+    .hero-tagline {
+        font-size: 1.1em;
+        opacity: 0.9;
+        font-style: italic;
+    }
+    .stats-row {
+        display: flex;
+        justify-content: center;
+        gap: 40px;
+        margin-top: 30px;
+        flex-wrap: wrap;
+    }
+    .stat-item {
+        text-align: center;
+    }
+    .stat-number {
+        font-size: 2.5em;
+        font-weight: 700;
+        display: block;
+    }
+    .stat-label {
+        font-size: 0.9em;
+        opacity: 0.85;
+    }
+    /* Value Proposition Cards */
+    .value-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 20px;
+        margin: 30px 0;
+    }
+    @media (max-width: 900px) {
+        .value-grid { grid-template-columns: 1fr; }
+    }
+    .value-card {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 25px;
+        text-align: center;
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .value-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+    }
+    .value-icon {
+        font-size: 3em;
+        margin-bottom: 15px;
+    }
+    .value-card h4 {
+        color: var(--accent);
+        margin: 0 0 10px 0;
+        font-size: 1.2em;
+    }
+    .value-card p {
+        color: var(--text-secondary);
+        margin: 0;
+        font-size: 0.95em;
+    }
+    /* Highlight Box */
+    .highlight-box {
+        background: linear-gradient(135deg, rgba(33,150,243,0.1), rgba(156,39,176,0.1));
+        border: 2px solid var(--accent);
+        border-radius: 12px;
+        padding: 25px;
+        margin: 25px 0;
+    }
+    .highlight-box h3 {
+        margin-top: 0;
+        color: var(--accent);
+    }
+    /* Capability Cards */
+    .capability-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 15px;
+        margin: 20px 0;
+    }
+    @media (max-width: 700px) {
+        .capability-grid { grid-template-columns: 1fr; }
+    }
+    .capability-item {
+        background: var(--bg-secondary);
+        border-left: 4px solid var(--accent);
+        padding: 15px;
+        border-radius: 0 8px 8px 0;
+    }
+    .capability-item strong {
+        color: var(--accent);
+    }
+    /* Section Tabs */
+    .section-tabs {
+        display: flex;
+        gap: 0;
+        margin-bottom: 30px;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    .section-tab {
+        flex: 1;
+        padding: 20px;
+        text-align: center;
+        cursor: pointer;
+        font-weight: 600;
+        font-size: 1.1em;
+        transition: all 0.3s;
+        border: none;
+        background: var(--bg-tertiary);
+        color: var(--text-secondary);
+    }
+    .section-tab:hover {
+        background: var(--bg-secondary);
+    }
+    .section-tab.active {
+        background: var(--accent);
+        color: white;
+    }
+    .section-tab .tab-icon {
+        font-size: 1.5em;
+        display: block;
+        margin-bottom: 8px;
+    }
+    .section-content {
+        display: none;
+    }
+    .section-content.active {
+        display: block;
+    }
+    /* Section Divider */
+    .section-divider {
+        background: linear-gradient(90deg, var(--accent), #9c27b0);
+        color: white;
+        padding: 20px 30px;
+        border-radius: 12px;
+        margin: 40px 0 30px 0;
+        text-align: center;
+    }
+    .section-divider h2 {
+        margin: 0;
+        border: none;
+        color: white;
+        font-size: 1.8em;
+    }
+    .section-divider p {
+        margin: 10px 0 0 0;
+        opacity: 0.9;
+    }
+    /* View Switcher Button */
+    .view-switcher {
+        display: flex;
+        background: var(--bg-tertiary);
+        border-radius: 8px;
+        padding: 4px;
+        margin-bottom: 15px;
+    }
+    .view-btn {
+        flex: 1;
+        padding: 12px 16px;
+        border: none;
+        background: transparent;
+        cursor: pointer;
+        border-radius: 6px;
+        font-weight: 600;
+        transition: all 0.2s;
+        color: var(--text-secondary);
+    }
+    .view-btn.active {
+        background: var(--accent);
+        color: white;
+    }
+    .view-btn:hover:not(.active) {
+        background: var(--bg-secondary);
+    }
+</style>
+{% endblock %}
+
+{% block breadcrumb %}
+<span>›</span>
+<span>Help & Documentation</span>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <aside class="sidebar">
+        <!-- View Switcher -->
+        <div class="view-switcher">
+            <button onclick="showView('about')" id="btn-about" class="view-btn active">
+                📖 About
+            </button>
+            <button onclick="showView('docs')" id="btn-docs" class="view-btn">
+                📚 Documentation
+            </button>
+        </div>
+        
+        <!-- About Navigation -->
+        <div id="nav-about">
+            <div class="sidebar-section">
+                <div class="sidebar-title">📖 About</div>
+                <a href="#overview" class="sidebar-item active">
+                    <span class="sidebar-icon">📖</span>
+                    Overview
+                </a>
+                <a href="#key-innovations" class="sidebar-item">
+                    <span class="sidebar-icon">🚀</span>
+                    Key Innovations
+                </a>
+            </div>
+            <div class="sidebar-section">
+                <div class="sidebar-title">🧠 AI & Capabilities</div>
+                <a href="#ai-features" class="sidebar-item">
+                    <span class="sidebar-icon">🤖</span>
+                    AI Features
+                </a>
+                <a href="#ai-evolution" class="sidebar-item">
+                    <span class="sidebar-icon">🧬</span>
+                    How AI Evolves
+                </a>
+                <a href="#ai-example" class="sidebar-item">
+                    <span class="sidebar-icon">💡</span>
+                    Real Example
+                </a>
+                <a href="#health-checks-list" class="sidebar-item">
+                    <span class="sidebar-icon">🏥</span>
+                    Health Checks
+                </a>
+                <a href="#performance-engineering" class="sidebar-item">
+                    <span class="sidebar-icon">📊</span>
+                    Performance
+                </a>
+                <a href="#scheduling-automation" class="sidebar-item">
+                    <span class="sidebar-icon">📅</span>
+                    Scheduling
+                </a>
+                <a href="#reporting" class="sidebar-item">
+                    <span class="sidebar-icon">📈</span>
+                    Reporting
+                </a>
+            </div>
+        </div>
+        
+        <!-- Documentation Navigation -->
+        <div id="nav-docs" style="display:none;">
+            <div class="sidebar-section">
+                <div class="sidebar-title">📚 User Guide</div>
+                <a href="#running-builds" class="sidebar-item">
+                    <span class="sidebar-icon">▶️</span>
+                    Running Builds
+                </a>
+                <a href="#build-options" class="sidebar-item">
+                    <span class="sidebar-icon">⚙️</span>
+                    Build Options
+                </a>
+                <a href="#thresholds" class="sidebar-item">
+                    <span class="sidebar-icon">📊</span>
+                    Alert Thresholds
+                </a>
+                <a href="#scheduling" class="sidebar-item">
+                    <span class="sidebar-icon">📅</span>
+                    Scheduling
+                </a>
+                <a href="#jira-integration" class="sidebar-item">
+                    <span class="sidebar-icon">🎫</span>
+                    Jira Integration
+                </a>
+                <a href="#settings" class="sidebar-item">
+                    <span class="sidebar-icon">🔧</span>
+                    Settings
+                </a>
+            </div>
+            <div class="sidebar-section">
+                <div class="sidebar-title">📚 Reference</div>
+                <a href="#health-checks" class="sidebar-item">
+                    <span class="sidebar-icon">🏥</span>
+                    Health Checks
+                </a>
+                <a href="#performance" class="sidebar-item">
+                    <span class="sidebar-icon">⚡</span>
+                    Performance
+                </a>
+                <a href="#configuration" class="sidebar-item">
+                    <span class="sidebar-icon">🔐</span>
+                    Configuration
+                </a>
+            </div>
+            <div class="sidebar-section">
+                <div class="sidebar-title">🏗️ Technical</div>
+                <a href="#architecture" class="sidebar-item">
+                    <span class="sidebar-icon">🏛️</span>
+                    Architecture
+                </a>
+                <a href="#project-structure" class="sidebar-item">
+                    <span class="sidebar-icon">📁</span>
+                    Project Structure
+                </a>
+                <a href="#ai-evolution" class="sidebar-item">
+                    <span class="sidebar-icon">🧬</span>
+                    AI Evolution
+                </a>
+                <a href="#technical-reference" class="sidebar-item">
+                    <span class="sidebar-icon">🔬</span>
+                    Deep Technical
+                </a>
+            </div>
+        </div>
+    </aside>
+    
+    <main class="main">
+        <div class="markdown-body">
+            
+            <!-- ================================================================== -->
+            <!-- MANAGEMENT SECTION -->
+            <!-- ================================================================== -->
+            <div id="section-about" class="section-content active">
+            
+            <!-- HERO SECTION -->
+            <div class="hero-section">
+                <div class="badge-row" style="margin-bottom:15px;">
+                    <span class="badge badge-red">OpenShift</span>
+                    <span class="badge badge-blue">Python</span>
+                    <span class="badge badge-purple">KubeVirt/CNV</span>
+                    <span class="badge badge-orange">AI Powered</span>
+                    <span class="badge" style="background:#666;">Internal Tool</span>
+                </div>
+                <h1 class="hero-title">🔍 CNV HealthCrew AI</h1>
+                <p class="hero-subtitle">
+                    <strong>Internal Cluster Health Monitoring & Root Cause Analysis</strong>
+                </p>
+                <p class="hero-tagline">
+                    🧠 AI-Powered Tool for the Performance Engineering Team
+                </p>
+                <div class="stats-row">
+                    <div class="stat-item">
+                        <span class="stat-number">30+</span>
+                        <span class="stat-label">Health Checks</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-number">3</span>
+                        <span class="stat-label">AI Data Sources</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-number">~1min</span>
+                        <span class="stat-label">Full Scan Time</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-number">24/7</span>
+                        <span class="stat-label">Scheduled Runs</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- OVERVIEW -->
+            <h2 id="overview">📖 What is CNV HealthCrew AI?</h2>
+            
+            <p style="font-size:1.1em;line-height:1.8;">
+                <strong>CNV HealthCrew AI</strong> is an internal tool built by the Performance Engineering team 
+                to automate cluster health monitoring and root cause analysis for our OpenShift/KubeVirt environments. 
+                It saves us hours of manual investigation by automatically detecting issues, matching them to known Jira bugs, 
+                and providing actionable recommendations.
+            </p>
+            
+            <div class="value-grid">
+                <div class="value-card">
+                    <div class="value-icon">⏱️</div>
+                    <h4>Save Time</h4>
+                    <p>Get instant root cause analysis instead of spending hours digging through logs and pods</p>
+                </div>
+                <div class="value-card">
+                    <div class="value-icon">🔍</div>
+                    <h4>Find Issues Fast</h4>
+                    <p>30+ automated checks cover nodes, operators, pods, VMs, storage, and more</p>
+                </div>
+                <div class="value-card">
+                    <div class="value-icon">🧠</div>
+                    <h4>Learn from Jira</h4>
+                    <p>AI matches failures to known bugs and suggests new health checks from recent Jira issues</p>
+                </div>
+            </div>
+            
+            <!-- KEY INNOVATIONS -->
+            <h2 id="key-innovations">🚀 Key Innovations</h2>
+            
+            <div class="feature-grid">
+                <div class="feature-card" style="background:linear-gradient(135deg,#4527a0,#311b92);color:white;">
+                    <h4 style="color:white;">🧠 Self-Evolving AI</h4>
+                    <p><strong>The system learns from multiple sources:</strong></p>
+                    <ul>
+                        <li>🎫 <strong>Jira Bugs</strong> - Discovers new tests from bug reports</li>
+                        <li>📧 <strong>Email</strong> - Learns from team discussions & alerts</li>
+                        <li>🌐 <strong>Web</strong> - Searches docs, forums & knowledge bases</li>
+                        <li>🎯 <strong>Patterns</strong> - Recognizes recurring issues</li>
+                        <li>♾️ <strong>Never stops</strong> - Gets smarter with every run</li>
+                    </ul>
+                </div>
+                <div class="feature-card" style="background:linear-gradient(135deg,#b71c1c,#880e4f);color:white;">
+                    <h4 style="color:white;">⚡ Performance Engineering</h4>
+                    <p><strong>Built for Performance Engineers:</strong></p>
+                    <ul>
+                        <li>📊 <strong>Resource profiling</strong> - CPU, Memory, I/O per node</li>
+                        <li>🔥 <strong>Bottleneck detection</strong> - Find hotspots instantly</li>
+                        <li>📈 <strong>Trend analysis</strong> - Track performance over time</li>
+                        <li>⚠️ <strong>Threshold alerts</strong> - Proactive warnings at 85%+</li>
+                        <li>🎯 <strong>Root cause analysis</strong> - AI-powered investigation</li>
+                    </ul>
+                </div>
+            </div>
+            
+            <!-- AI FEATURES -->
+            <h2 id="ai-features">🧠 AI-Powered Features</h2>
+            
+            <table>
+                <tr>
+                    <th>Feature</th>
+                    <th>Description</th>
+                    <th>Data Sources</th>
+                </tr>
+                <tr>
+                    <td><strong>🎫 Jira Bug Matching</strong></td>
+                    <td>Automatically matches detected issues to known Jira bugs</td>
+                    <td>CNV, OCPBUGS, ODF projects</td>
+                </tr>
+                <tr>
+                    <td><strong>📧 Email Analysis</strong></td>
+                    <td>Searches Gmail for related discussions and RCA threads</td>
+                    <td>Team email communications</td>
+                </tr>
+                <tr>
+                    <td><strong>🌐 Web Knowledge</strong></td>
+                    <td>Searches docs, forums, and knowledge bases for solutions</td>
+                    <td>Red Hat docs, KubeVirt forums, Stack Overflow</td>
+                </tr>
+                <tr>
+                    <td><strong>🎯 Pattern Recognition</strong></td>
+                    <td>Identifies recurring issues across multiple runs</td>
+                    <td>Historical run data</td>
+                </tr>
+                <tr>
+                    <td><strong>🔬 Deep RCA</strong></td>
+                    <td>CrewAI + Llama 3.2 AI performs deep investigation with verification commands</td>
+                    <td>Live cluster data + all sources</td>
+                </tr>
+            </table>
+            
+            <!-- HOW THE AI EVOLVES -->
+            <h2 id="ai-evolution">🧬 How the AI Evolves</h2>
+            
+            <div style="background:linear-gradient(135deg, #1976d2, #2196f3);color:white;padding:20px;border-radius:12px 12px 0 0;text-align:center;">
+                <h3 style="margin:0;color:white;">🔄 CONTINUOUS LEARNING CYCLE</h3>
+                <p style="margin:8px 0 0 0;opacity:0.9;">The system learns from every health check run</p>
+            </div>
+            <table style="margin-top:0;border-radius:0 0 12px 12px;overflow:hidden;">
+                <tr style="background:var(--bg-secondary);">
+                    <th style="text-align:center;padding:15px;">1️⃣ Scan Jira</th>
+                    <th style="text-align:center;padding:15px;">2️⃣ Review & Accept</th>
+                    <th style="text-align:center;padding:15px;">3️⃣ Run Health Check</th>
+                    <th style="text-align:center;padding:15px;">4️⃣ Track Patterns</th>
+                    <th style="text-align:center;padding:15px;">5️⃣ Knowledge Grows</th>
+                </tr>
+                <tr>
+                    <td style="text-align:center;vertical-align:top;padding:20px;">
+                        <div style="font-size:1.5em;">🎫</div>
+                        <div style="margin-top:10px;">If enabled, scans Jira (CNV, OCPBUGS, ODF) for recent bugs</div>
+                    </td>
+                    <td style="text-align:center;vertical-align:top;padding:20px;">
+                        <div style="font-size:1.5em;">👤</div>
+                        <div style="margin-top:10px;">You review suggestions and accept or reject them</div>
+                    </td>
+                    <td style="text-align:center;vertical-align:top;padding:20px;">
+                        <div style="font-size:1.5em;">📊</div>
+                        <div style="margin-top:10px;">Executes health checks and collects cluster data</div>
+                    </td>
+                    <td style="text-align:center;vertical-align:top;padding:20px;">
+                        <div style="font-size:1.5em;">🔍</div>
+                        <div style="margin-top:10px;">Issues appearing 3+ times become auto-discovered patterns</div>
+                    </td>
+                    <td style="text-align:center;vertical-align:top;padding:20px;">
+                        <div style="font-size:1.5em;">🧠</div>
+                        <div style="margin-top:10px;">Patterns gain confidence, data persists to <code>.learning_data.json</code></div>
+                    </td>
+                </tr>
+            </table>
+            
+            <!-- REAL EXAMPLE -->
+            <h2 id="ai-example">🎯 Real Example of AI Evolution</h2>
+            
+            <div style="background:linear-gradient(135deg, #e3f2fd, #bbdefb);border-radius:12px;padding:25px;font-family:monospace;">
+                <div style="margin-bottom:20px;">
+                    <span style="font-size:1.2em;">🎫</span> <strong>Jira Bug:</strong> CNV-75962 "kubevirt-migration-controller OOMKilled at scale"
+                </div>
+                
+                <div style="margin-bottom:20px;">
+                    <div><span style="font-size:1.2em;">🤖</span> <strong>AI Analysis:</strong></div>
+                    <div style="margin-left:25px;margin-top:8px;color:#333;">
+                        ├─ Pattern detected: "OOMKilled" + "migration" + "scale"<br>
+                        ├─ Component: kubevirt-migration-controller<br>
+                        └─ Priority: Critical
+                    </div>
+                </div>
+                
+                <div style="margin-bottom:20px;">
+                    <div><span style="font-size:1.2em;">💡</span> <strong>AI Suggestion:</strong></div>
+                    <div style="margin-left:25px;margin-top:8px;color:#333;">
+                        "Add new health check: <code style="background:#fff;padding:2px 6px;border-radius:4px;">migration_controller_memory</code>"<br>
+                        <div style="margin-top:8px;">
+                            • Monitor memory usage of migration controller pods<br>
+                            • Alert when approaching limits<br>
+                            • Track during large-scale migrations
+                        </div>
+                    </div>
+                </div>
+                
+                <div style="background:#c8e6c9;padding:12px 15px;border-radius:8px;color:#2e7d32;">
+                    <span style="font-size:1.2em;">✅</span> <strong>Result:</strong> New test automatically added to suite!
+                </div>
+            </div>
+            
+            <!-- HEALTH CHECKS LIST -->
+            <h2 id="health-checks-list">🏥 Health Checks</h2>
+            
+            <table>
+                <tr>
+                    <th style="width:20%;">Category</th>
+                    <th style="width:50%;">Checks</th>
+                    <th style="width:30%;">Status Indicators</th>
+                </tr>
+                <tr>
+                    <td><strong>🏗️ Infrastructure</strong></td>
+                    <td>Nodes, Cluster Operators, etcd, MachineConfigPools</td>
+                    <td>Ready/NotReady, Available/Degraded</td>
+                </tr>
+                <tr>
+                    <td><strong>📦 Workloads</strong></td>
+                    <td>Pods (CrashLoop, Pending, OOM, Unknown)</td>
+                    <td>Running/Failed/Pending</td>
+                </tr>
+                <tr>
+                    <td><strong>💻 Virtualization</strong></td>
+                    <td>KubeVirt, VMs, VMIs, Migrations, virt-handler</td>
+                    <td>Running/Stopped/Failed/Migrating</td>
+                </tr>
+                <tr>
+                    <td><strong>💾 Storage</strong></td>
+                    <td>PVCs, CSI, DataVolumes, VolumeSnapshots, ODF</td>
+                    <td>Bound/Pending/Ready</td>
+                </tr>
+                <tr>
+                    <td><strong>📊 Performance</strong></td>
+                    <td>CPU, Memory, I/O per node</td>
+                    <td>% utilization thresholds</td>
+                </tr>
+                <tr>
+                    <td><strong>🚨 Monitoring</strong></td>
+                    <td>Prometheus alerts</td>
+                    <td>Firing/Pending/Resolved</td>
+                </tr>
+            </table>
+            
+            <!-- PERFORMANCE ENGINEERING -->
+            <h2 id="performance-engineering">📊 Performance Engineering</h2>
+            
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+                <div class="feature-card">
+                    <h4 style="color:#e65100;margin-top:0;">🔥 What We Monitor</h4>
+                    <table style="margin:0;">
+                        <tr>
+                            <th>Metric</th>
+                            <th>Threshold</th>
+                        </tr>
+                        <tr>
+                            <td>CPU Usage</td>
+                            <td>>85% ⚠️</td>
+                        </tr>
+                        <tr>
+                            <td>Memory Pressure</td>
+                            <td>>80% ⚠️</td>
+                        </tr>
+                        <tr>
+                            <td>Disk I/O Latency</td>
+                            <td>>100ms ⚠️</td>
+                        </tr>
+                        <tr>
+                            <td>etcd Latency</td>
+                            <td>>100ms 🔴</td>
+                        </tr>
+                        <tr>
+                            <td>Pod Density</td>
+                            <td>>50/node ⚠️</td>
+                        </tr>
+                    </table>
+                </div>
+                <div class="feature-card">
+                    <h4 style="color:#7b1fa2;margin-top:0;">🔬 AI-Powered Insights</h4>
+                    <ul style="margin:0 0 15px 0;">
+                        <li>🎯 Identifies resource hogs</li>
+                        <li>🎯 Predicts capacity issues</li>
+                        <li>🎯 Recommends optimizations</li>
+                        <li>🎯 Tracks degradation trends</li>
+                    </ul>
+                    <div style="font-weight:600;color:var(--accent);margin-bottom:8px;">Actionable Reports:</div>
+                    <ul style="margin:0;font-size:0.9em;">
+                        <li>"Node X is 92% CPU - spread VMs"</li>
+                        <li>"Migration controller needs more memory"</li>
+                        <li>"etcd on slow disk - SSD recommended"</li>
+                    </ul>
+                </div>
+            </div>
+            
+            <!-- SCHEDULING & AUTOMATION -->
+            <h2 id="scheduling-automation">📅 Scheduling & Automation</h2>
+            
+            <div style="background:linear-gradient(135deg, #1976d2, #2196f3);color:white;padding:20px;border-radius:12px;text-align:center;margin-bottom:20px;">
+                <h3 style="margin:0;color:white;">🔄 AUTOMATED HEALTH CHECKS</h3>
+                <p style="margin:8px 0 0 0;opacity:0.9;">Schedule health checks to run automatically at specific times or on a recurring basis</p>
+            </div>
+            
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+                <div class="feature-card">
+                    <h4 style="color:var(--accent);margin-top:0;">📅 One-Time Schedules</h4>
+                    <ul>
+                        <li>Schedule a health check for a specific date & time</li>
+                        <li>Perfect for planned maintenance windows</li>
+                        <li>Automatically marks as "completed" after execution</li>
+                    </ul>
+                </div>
+                <div class="feature-card">
+                    <h4 style="color:var(--accent);margin-top:0;">🔄 Recurring Schedules</h4>
+                    <ul>
+                        <li><strong>Hourly</strong> - Run every hour</li>
+                        <li><strong>Daily</strong> - Run at a specific time each day</li>
+                        <li><strong>Weekly</strong> - Choose specific days of the week</li>
+                        <li><strong>Monthly</strong> - Run on a specific day of the month</li>
+                        <li><strong>Custom</strong> - Use cron expressions for advanced scheduling</li>
+                    </ul>
+                </div>
+            </div>
+            
+            <!-- REPORTING -->
+            <h2 id="reporting">📈 Reports</h2>
+            
+            <div class="capability-grid">
+                <div class="capability-item">
+                    <strong>📊 Dashboard</strong> - Live view of running builds and recent build history
+                </div>
+                <div class="capability-item">
+                    <strong>📝 HTML Reports</strong> - Detailed reports with findings, charts, and recommendations
+                </div>
+                <div class="capability-item">
+                    <strong>📧 Email Reports</strong> - Get reports delivered to your inbox automatically
+                </div>
+                <div class="capability-item">
+                    <strong>📜 Build History</strong> - Track cluster health over time with stored reports
+                </div>
+            </div>
+            
+            <div style="text-align:center;margin-top:40px;padding:30px;background:var(--bg-secondary);border-radius:12px;">
+                <h3 style="margin-top:0;">🚀 Get Started</h3>
+                <p style="margin-bottom:20px;">Check the <strong>Documentation</strong> for setup instructions, build options, and technical details.</p>
+                <button onclick="showView('docs')" style="background:var(--accent);color:white;border:none;padding:12px 30px;border-radius:8px;font-size:1em;cursor:pointer;font-weight:600;">
+                    📚 View Documentation
+                </button>
+            </div>
+            
+            </div>
+            <!-- END ABOUT SECTION -->
+            
+            <!-- ================================================================== -->
+            <!-- ENGINEER SECTION -->
+            <!-- ================================================================== -->
+            <div id="section-docs" class="section-content">
+            
+            <div class="section-divider">
+                <h2>📚 Documentation</h2>
+                <p>Setup guides, configuration options, and technical reference</p>
+            </div>
+            
+            <!-- QUICK START -->
+            <div class="feature-box">
+                <h3 style="margin-top:0;text-align:center;">⚡ Quick Start</h3>
+                <pre style="background:rgba(0,0,0,0.3);padding:15px;border-radius:8px;color:#fff;">
+# 1. Configure credentials
+nano .env
+# Set: RH_LAB_HOST, RH_LAB_USER, SSH_KEY_PATH
+
+# 2. Start Dashboard
+./start_dashboard.sh
+# Or: python run.py
+
+# 3. Open Browser
+http://localhost:5000
+
+# 4. Click "New Build" → Configure → Run</pre>
+            </div>
+            
+            <hr>
+            
+            <!-- Running Builds -->
+            <h2 id="running-builds">▶️ Running Builds</h2>
+            
+            <p>A "build" is a single execution of health checks against your cluster. Here's how to run one:</p>
+            
+            <h3>🚀 Quick Build</h3>
+            <div class="step-box">
+                <span class="step-number">1</span>
+                <strong>Click "New Build"</strong> in the navigation bar, or use the "Quick Build" sidebar link
+            </div>
+            <div class="step-box">
+                <span class="step-number">2</span>
+                <strong>Quick Build</strong> runs with all checks pre-selected - just click "Run Now"
+            </div>
+            
+            <h3>🔧 Configured Build</h3>
+            <div class="step-box">
+                <span class="step-number">1</span>
+                <strong>Go to "New Build"</strong> → Fill in the configuration form
+            </div>
+            <div class="step-box">
+                <span class="step-number">2</span>
+                <strong>Run Name (optional)</strong> - Give your run a descriptive name like "Pre-upgrade check" or "Scale test validation"
+            </div>
+            <div class="step-box">
+                <span class="step-number">3</span>
+                <strong>Target Server</strong> - Enter the bastion hostname or leave empty for local kubeconfig
+            </div>
+            <div class="step-box">
+                <span class="step-number">4</span>
+                <strong>Select Options</strong> - Enable Jira Integration, Email Report, etc.
+            </div>
+            <div class="step-box">
+                <span class="step-number">5</span>
+                <strong>Choose RCA Level</strong> - Checks Only, Bug Digging, or Full RCA
+            </div>
+            <div class="step-box">
+                <span class="step-number">6</span>
+                <strong>Select Health Checks</strong> - Use presets or pick individual checks
+            </div>
+            <div class="step-box">
+                <span class="step-number">7</span>
+                <strong>Click "Run Now"</strong> - Build starts immediately and redirects to dashboard
+            </div>
+            
+            <h3>📊 Build Results</h3>
+            <table>
+                <tr>
+                    <th>Status</th>
+                    <th>Meaning</th>
+                </tr>
+                <tr>
+                    <td style="color:var(--success);">✅ Healthy</td>
+                    <td>All checks passed, no issues found</td>
+                </tr>
+                <tr>
+                    <td style="color:var(--warning);">⚠️ Issues Found</td>
+                    <td>Some warnings detected, review recommended</td>
+                </tr>
+                <tr>
+                    <td style="color:var(--error);">❌ Failed</td>
+                    <td>Critical issues or errors encountered</td>
+                </tr>
+                <tr>
+                    <td style="color:var(--text-secondary);">⏹️ Stopped</td>
+                    <td>Build was manually stopped</td>
+                </tr>
+            </table>
+            
+            <hr>
+            
+            <!-- Build Options -->
+            <h2 id="build-options">⚙️ Build Options</h2>
+            
+            <h3>🔬 Root Cause Analysis Levels</h3>
+            <table>
+                <tr>
+                    <th>Level</th>
+                    <th>Description</th>
+                    <th>Speed</th>
+                </tr>
+                <tr>
+                    <td><strong>📋 Checks Only</strong></td>
+                    <td>Run health checks without any analysis. Just collects data and reports findings.</td>
+                    <td>⚡ Fastest</td>
+                </tr>
+                <tr>
+                    <td><strong>🐛 Bug Digging</strong></td>
+                    <td>Match failures to known Jira bugs using the built-in KNOWN_ISSUES database. No external API calls.</td>
+                    <td>⚡ Fast</td>
+                </tr>
+                <tr>
+                    <td><strong>🔍 Full RCA</strong></td>
+                    <td>Deep AI-powered investigation using CrewAI + Llama 3.2. Runs verification commands, analyzes logs, suggests specific fixes.</td>
+                    <td>🐢 Slower (10-30s/issue)</td>
+                </tr>
+            </table>
+            
+            <h3>📚 Data Sources for Bug Digging</h3>
+            <table>
+                <tr>
+                    <th>Source</th>
+                    <th>Description</th>
+                    <th>Flag</th>
+                </tr>
+                <tr>
+                    <td>🎫 <strong>Jira Bugs</strong></td>
+                    <td>Search Jira for matching bugs in CNV, OCPBUGS, ODF projects</td>
+                    <td><code>--rca-jira</code></td>
+                </tr>
+                <tr>
+                    <td>📧 <strong>Email Search</strong></td>
+                    <td>Search Gmail for related discussions, alerts, and threads</td>
+                    <td><code>--rca-email</code></td>
+                </tr>
+                <tr>
+                    <td>🌐 <strong>Web Search</strong></td>
+                    <td>Search documentation, forums, and knowledge bases</td>
+                    <td><code>--rca-web</code></td>
+                </tr>
+            </table>
+            
+            <h3>📤 Additional Options</h3>
+            <table>
+                <tr>
+                    <th>Option</th>
+                    <th>Description</th>
+                </tr>
+                <tr>
+                    <td>🔍 <strong>Jira Integration</strong></td>
+                    <td>Enable to scan Jira for new bugs and get AI suggestions for new health checks</td>
+                </tr>
+                <tr>
+                    <td>📤 <strong>Email Report</strong></td>
+                    <td>Send the HTML report via email after completion</td>
+                </tr>
+                <tr>
+                    <td>🏷️ <strong>Run Name</strong></td>
+                    <td>Give your build a descriptive name for easy identification in history</td>
+                </tr>
+            </table>
+            
+            <hr>
+            
+            <!-- Alert Thresholds -->
+            <h2 id="thresholds">📊 Alert Thresholds</h2>
+            
+            <p>Thresholds determine when resources are flagged as unhealthy. You can customize them per-run or change the defaults in Settings.</p>
+            
+            <h3>🎚️ Available Thresholds</h3>
+            <table>
+                <tr>
+                    <th>Threshold</th>
+                    <th>Default</th>
+                    <th>Description</th>
+                </tr>
+                <tr>
+                    <td>🔥 <strong>CPU Warning</strong></td>
+                    <td>85%</td>
+                    <td>Nodes with CPU usage above this are flagged as high CPU</td>
+                </tr>
+                <tr>
+                    <td>💾 <strong>Memory Warning</strong></td>
+                    <td>80%</td>
+                    <td>Nodes with memory usage above this are flagged</td>
+                </tr>
+                <tr>
+                    <td>💿 <strong>Disk I/O Latency</strong></td>
+                    <td>100ms</td>
+                    <td>Disk operations taking longer trigger a warning</td>
+                </tr>
+                <tr>
+                    <td>🗄️ <strong>etcd Latency</strong></td>
+                    <td>100ms</td>
+                    <td>etcd latency above this is <strong style="color:var(--error);">CRITICAL</strong></td>
+                </tr>
+                <tr>
+                    <td>📦 <strong>Pod Density</strong></td>
+                    <td>50 pods/node</td>
+                    <td>Warns when nodes have too many pods scheduled</td>
+                </tr>
+                <tr>
+                    <td>🔁 <strong>Pod Restarts</strong></td>
+                    <td>5</td>
+                    <td>Pods with more restarts than this are flagged</td>
+                </tr>
+                <tr>
+                    <td>🖥️ <strong>virt-handler Memory</strong></td>
+                    <td>500Mi</td>
+                    <td>virt-handler pods using more memory are flagged (CNV-66551)</td>
+                </tr>
+            </table>
+            
+            <h3>⚙️ Customizing Thresholds</h3>
+            <ul>
+                <li><strong>Per-run override:</strong> On the New Build page, check "Use Custom Thresholds" and adjust values</li>
+                <li><strong>Change defaults:</strong> Go to <a href="/settings">Settings</a> → Alert Thresholds</li>
+            </ul>
+            
+            <hr>
+            
+            <!-- Scheduling -->
+            <h2 id="scheduling">📅 Scheduling & Automation</h2>
+            
+            <p>Schedule health checks to run automatically at specific times or on a recurring basis.</p>
+            
+            <h3>📅 Schedule Types</h3>
+            <div class="feature-grid">
+                <div class="feature-card">
+                    <h4>▶️ Run Now</h4>
+                    <p>Execute the health check immediately.</p>
+                </div>
+                <div class="feature-card">
+                    <h4>📅 Schedule Once</h4>
+                    <p>Run at a specific date and time. Perfect for planned maintenance windows.</p>
+                </div>
+                <div class="feature-card">
+                    <h4>🔄 Recurring</h4>
+                    <p>Run on a schedule: hourly, daily, weekly, monthly, or custom cron expression.</p>
+                </div>
+            </div>
+            
+            <h3>🔄 Recurring Schedule Options</h3>
+            <table>
+                <tr>
+                    <th>Frequency</th>
+                    <th>Description</th>
+                    <th>Example</th>
+                </tr>
+                <tr>
+                    <td><strong>Hourly</strong></td>
+                    <td>Run every hour</td>
+                    <td>At minute 0 of every hour</td>
+                </tr>
+                <tr>
+                    <td><strong>Daily</strong></td>
+                    <td>Run once per day at a specific time</td>
+                    <td>Every day at 6:00 AM</td>
+                </tr>
+                <tr>
+                    <td><strong>Weekly</strong></td>
+                    <td>Run on specific days of the week</td>
+                    <td>Mon, Wed, Fri at 8:00 AM</td>
+                </tr>
+                <tr>
+                    <td><strong>Monthly</strong></td>
+                    <td>Run on a specific day of each month</td>
+                    <td>1st of every month at 6:00 AM</td>
+                </tr>
+                <tr>
+                    <td><strong>Custom (Cron)</strong></td>
+                    <td>Use cron expression for advanced scheduling</td>
+                    <td><code>0 6 * * 1-5</code> = 6AM weekdays</td>
+                </tr>
+            </table>
+            
+            <h3>🎛️ Managing Schedules</h3>
+            <table>
+                <tr>
+                    <th>Action</th>
+                    <th>How</th>
+                </tr>
+                <tr>
+                    <td><strong>Create</strong></td>
+                    <td>New Build → Select "Schedule Once" or "Recurring" → Configure → Submit</td>
+                </tr>
+                <tr>
+                    <td><strong>View All</strong></td>
+                    <td>Click "Schedules" in the navigation bar</td>
+                </tr>
+                <tr>
+                    <td><strong>Pause/Resume</strong></td>
+                    <td>On Schedules page, click ⏸️ to pause or ▶️ to resume</td>
+                </tr>
+                <tr>
+                    <td><strong>Run Now</strong></td>
+                    <td>Trigger a scheduled task immediately with ▶️ Run Now button</td>
+                </tr>
+                <tr>
+                    <td><strong>Delete</strong></td>
+                    <td>Click 🗑️ to remove a schedule permanently</td>
+                </tr>
+            </table>
+            
+            <hr>
+            
+            <!-- Settings -->
+            <h2 id="settings">🔧 Settings Page</h2>
+            
+            <p>The <a href="/settings">Settings</a> page allows you to configure default values that persist across sessions.</p>
+            
+            <h3>📊 Alert Thresholds</h3>
+            <p>Set default warning thresholds for CPU, memory, disk I/O, etcd latency, pod density, and more.</p>
+            
+            <h3>🔐 SSH Configuration</h3>
+            <p>Configure default SSH host and user for connecting to bastion hosts.</p>
+            
+            <h3>🤖 AI Configuration</h3>
+            <p>Configure the Ollama model and URL for AI-powered root cause analysis.</p>
+            
+            <h3>🎫 Jira Configuration</h3>
+            <p>Set which Jira projects to scan, how far back to look for bugs, and the maximum bugs to analyze.</p>
+            
+            <div class="step-box">
+                <strong>💡 Tip:</strong> Settings are saved to <code>.settings.json</code> and persist across server restarts.
+            </div>
+            
+            <hr>
+            
+            <!-- Jira Integration -->
+            <h2 id="jira-integration">🎫 Jira Integration</h2>
+            
+            <p>The tool can scan Jira for recent bugs and suggest new health checks based on patterns found.</p>
+            
+            <h3>🔍 How It Works</h3>
+            <div class="step-box">
+                <span class="step-number">1</span>
+                <strong>Enable Jira Integration</strong> - Check "Jira Integration" on the New Build page
+            </div>
+            <div class="step-box">
+                <span class="step-number">2</span>
+                <strong>Scan for Suggestions</strong> - Click "Scan Jira for New Test Suggestions"
+            </div>
+            <div class="step-box">
+                <span class="step-number">3</span>
+                <strong>Review Modal</strong> - A modal appears with suggested health checks from recent bugs
+            </div>
+            <div class="step-box">
+                <span class="step-number">4</span>
+                <strong>Accept or Reject</strong> - Review each suggestion and click Accept ✅ or Reject ❌
+            </div>
+            <div class="step-box">
+                <span class="step-number">5</span>
+                <strong>Accepted checks</strong> are added to future health check runs
+            </div>
+            
+            <h3>🎯 Suggestion Modal Fields</h3>
+            <table>
+                <tr>
+                    <th>Field</th>
+                    <th>Description</th>
+                </tr>
+                <tr>
+                    <td><strong>Check Name</strong></td>
+                    <td>Suggested name for the new health check</td>
+                </tr>
+                <tr>
+                    <td><strong>Jira Key</strong></td>
+                    <td>Link to the source Jira bug (clickable)</td>
+                </tr>
+                <tr>
+                    <td><strong>Priority</strong></td>
+                    <td>Bug priority (Critical, Major, Minor, etc.)</td>
+                </tr>
+                <tr>
+                    <td><strong>Description</strong></td>
+                    <td>What the check will monitor</td>
+                </tr>
+                <tr>
+                    <td><strong>Matched Keywords</strong></td>
+                    <td>Keywords that triggered the suggestion</td>
+                </tr>
+            </table>
+            
+            <hr>
+            
+            <!-- ================================================================== -->
+            <!-- REFERENCE SECTION -->
+            <!-- ================================================================== -->
+            
+            <!-- Health Checks -->
+            <h2 id="health-checks">🏥 Health Checks</h2>
+            
+            <p>The tool performs comprehensive health checks across multiple categories.</p>
+            
+            <table>
+                <tr>
+                    <th>Category</th>
+                    <th>Checks</th>
+                </tr>
+                <tr>
+                    <td>🏗️ <strong>Infrastructure</strong></td>
+                    <td>Node status, Cluster operators, etcd health, Certificates, MachineConfigPools</td>
+                </tr>
+                <tr>
+                    <td>📦 <strong>Workloads</strong></td>
+                    <td>Pod health (CrashLoop, Pending, OOM, Unknown), Restart counts, Pod density</td>
+                </tr>
+                <tr>
+                    <td>💻 <strong>Virtualization</strong></td>
+                    <td>KubeVirt/HCO status, VMIs, virt-handler, virt-launcher, VM migrations</td>
+                </tr>
+                <tr>
+                    <td>💾 <strong>Storage</strong></td>
+                    <td>PVCs, DataVolumes, VolumeSnapshots, CSI drivers, ODF health</td>
+                </tr>
+                <tr>
+                    <td>📊 <strong>Resources</strong></td>
+                    <td>CPU/Memory per node, Resource hogs, Pod resource usage</td>
+                </tr>
+                <tr>
+                    <td>🚨 <strong>Monitoring</strong></td>
+                    <td>Active Prometheus alerts, Alert rules</td>
+                </tr>
+            </table>
+            
+            <hr>
+            
+            <!-- Performance -->
+            <h2 id="performance">⚡ Performance Monitoring</h2>
+            
+            <table>
+                <tr>
+                    <th>Metric</th>
+                    <th>Threshold</th>
+                    <th>Action</th>
+                </tr>
+                <tr>
+                    <td>CPU Usage</td>
+                    <td>&gt;85%</td>
+                    <td>⚠️ Warning - consider spreading workload</td>
+                </tr>
+                <tr>
+                    <td>Memory Pressure</td>
+                    <td>&gt;80%</td>
+                    <td>⚠️ Warning - check for memory leaks</td>
+                </tr>
+                <tr>
+                    <td>Disk I/O Latency</td>
+                    <td>&gt;100ms</td>
+                    <td>⚠️ Warning - check storage backend</td>
+                </tr>
+                <tr>
+                    <td>etcd Latency</td>
+                    <td>&gt;100ms</td>
+                    <td>🔴 Critical - can cause cluster instability</td>
+                </tr>
+                <tr>
+                    <td>Pod Density</td>
+                    <td>&gt;50/node</td>
+                    <td>⚠️ Warning - capacity planning needed</td>
+                </tr>
+            </table>
+            
+            <hr>
+            
+            <!-- Configuration -->
+            <h2 id="configuration">🔐 Configuration</h2>
+            
+            <h3>Environment Variables</h3>
+            <table>
+                <tr>
+                    <th>Variable</th>
+                    <th>Description</th>
+                    <th>Example</th>
+                </tr>
+                <tr>
+                    <td><code>RH_LAB_HOST</code></td>
+                    <td>SSH target hostname (bastion)</td>
+                    <td>bastion.example.com</td>
+                </tr>
+                <tr>
+                    <td><code>RH_LAB_USER</code></td>
+                    <td>SSH username</td>
+                    <td>root</td>
+                </tr>
+                <tr>
+                    <td><code>SSH_KEY_PATH</code></td>
+                    <td>Path to SSH private key</td>
+                    <td>~/.ssh/id_rsa</td>
+                </tr>
+            </table>
+            
+            <h3>Command Line Flags</h3>
+            <table>
+                <tr>
+                    <th>Flag</th>
+                    <th>Description</th>
+                </tr>
+                <tr>
+                    <td><code>--server &lt;host&gt;</code></td>
+                    <td>Override SSH target</td>
+                </tr>
+                <tr>
+                    <td><code>--ai</code></td>
+                    <td>Enable full AI root cause analysis</td>
+                </tr>
+                <tr>
+                    <td><code>--rca-bugs</code></td>
+                    <td>Bug matching only (faster)</td>
+                </tr>
+                <tr>
+                    <td><code>--rca-jira</code></td>
+                    <td>Search Jira for related bugs</td>
+                </tr>
+                <tr>
+                    <td><code>--check-jira</code></td>
+                    <td>Scan Jira for new test suggestions</td>
+                </tr>
+                <tr>
+                    <td><code>--email</code></td>
+                    <td>Send report via email</td>
+                </tr>
+            </table>
+            
+            <hr>
+            
+            <!-- ================================================================== -->
+            <!-- TECHNICAL SECTION -->
+            <!-- ================================================================== -->
+            
+            <div class="feature-box" style="background:linear-gradient(135deg,#37474f,#263238);">
+                <h3 style="margin-top:0;text-align:center;">📚 TECHNICAL DOCUMENTATION</h3>
+                <p style="text-align:center;opacity:0.9;">The following sections contain detailed technical information for developers and advanced users.</p>
+            </div>
+            
+            <!-- Architecture -->
+            <h2 id="architecture">🏗️ Architecture</h2>
+            
+            <table>
+                <tr><th colspan="5" style="background:#1a237e;color:white;text-align:center;">🌐 WEB DASHBOARD (Flask:5000)</th></tr>
+                <tr>
+                    <td style="text-align:center;">📊<br><strong>Dashboard</strong><br><sub>Build overview</sub></td>
+                    <td style="text-align:center;">▶️<br><strong>Build Config</strong><br><sub>Configure runs</sub></td>
+                    <td style="text-align:center;">📋<br><strong>History</strong><br><sub>Past builds</sub></td>
+                    <td style="text-align:center;">📅<br><strong>Schedules</strong><br><sub>Automation</sub></td>
+                    <td style="text-align:center;">⚙️<br><strong>Settings</strong><br><sub>Configuration</sub></td>
+                </tr>
+                <tr><th colspan="5" style="background:#283593;color:white;text-align:center;">↓ API Layer (Flask Routes) ↓</th></tr>
+                <tr><th colspan="5" style="background:#1565c0;color:white;text-align:center;">🔍 HEALTH CHECK ENGINE (hybrid_health_check.py)</th></tr>
+                <tr>
+                    <td style="text-align:center;">📡<br><strong>SSH</strong><br><sub>Paramiko</sub></td>
+                    <td style="text-align:center;">🔎<br><strong>Collect</strong><br><sub>oc commands</sub></td>
+                    <td style="text-align:center;">📊<br><strong>Parse</strong><br><sub>Structured data</sub></td>
+                    <td style="text-align:center;">🔍<br><strong>Analyze</strong><br><sub>Pattern match</sub></td>
+                    <td style="text-align:center;">📝<br><strong>Report</strong><br><sub>HTML output</sub></td>
+                </tr>
+                <tr><th colspan="5" style="background:#0277bd;color:white;text-align:center;">🤖 AI LAYER (Optional)</th></tr>
+                <tr>
+                    <td style="text-align:center;" colspan="2">🧠 <strong>CrewAI + Llama 3.2</strong><br><sub>Deep investigation</sub></td>
+                    <td style="text-align:center;">🎫 <strong>Jira MCP</strong><br><sub>Bug correlation</sub></td>
+                    <td style="text-align:center;">📧 <strong>Gmail MCP</strong><br><sub>Email search</sub></td>
+                    <td style="text-align:center;">🌐 <strong>Web Search</strong><br><sub>Documentation</sub></td>
+                </tr>
+                <tr><th colspan="5" style="background:#00838f;color:white;text-align:center;">🖥️ TARGET CLUSTER (via SSH/kubeconfig)</th></tr>
+            </table>
+            
+            <h3>Technology Stack</h3>
+            <table>
+                <tr>
+                    <th>Layer</th>
+                    <th>Technology</th>
+                    <th>Purpose</th>
+                </tr>
+                <tr>
+                    <td>Web Frontend</td>
+                    <td>HTML5, CSS3, JavaScript (vanilla)</td>
+                    <td>Interactive UI, real-time updates</td>
+                </tr>
+                <tr>
+                    <td>Web Backend</td>
+                    <td>Python Flask, Jinja2</td>
+                    <td>REST API, template rendering</td>
+                </tr>
+                <tr>
+                    <td>Health Checks</td>
+                    <td>Python, Paramiko (SSH)</td>
+                    <td>Cluster data collection</td>
+                </tr>
+                <tr>
+                    <td>AI/ML</td>
+                    <td>CrewAI, Ollama (Llama 3.2)</td>
+                    <td>Root cause analysis</td>
+                </tr>
+                <tr>
+                    <td>Integrations</td>
+                    <td>Jira MCP, Gmail MCP</td>
+                    <td>Bug tracking, email search</td>
+                </tr>
+                <tr>
+                    <td>Data Storage</td>
+                    <td>JSON files</td>
+                    <td>Builds, schedules, settings, learning</td>
+                </tr>
+            </table>
+            
+            <hr>
+            
+            <!-- Project Structure -->
+            <h2 id="project-structure">📁 Project Structure</h2>
+            
+            <pre><code>ocp-health-crew/
+├── run.py                       # Flask application entry point
+├── hybrid_health_check.py       # Main health check engine
+├── main.py                      # CrewAI agents for deep RCA
+│
+├── app/                         # Flask application
+│   ├── __init__.py             # Application factory
+│   ├── routes.py               # All Flask routes & API endpoints
+│   ├── scheduler.py            # Background scheduler for recurring tasks
+│   ├── learning.py             # AI learning & pattern recognition
+│   │
+│   ├── templates/              # Jinja2 HTML templates
+│   │   ├── base.html          # Base template with navigation
+│   │   ├── dashboard.html     # Main dashboard
+│   │   ├── configure.html     # Build configuration page
+│   │   ├── history.html       # Build history
+│   │   ├── schedules.html     # Schedule management
+│   │   ├── settings.html      # Settings page
+│   │   ├── build_detail.html  # Individual build details
+│   │   ├── console.html       # Live console output
+│   │   └── help.html          # This documentation
+│   │
+│   └── static/                 # Static assets
+│       └── css/style.css      # Global styles
+│
+├── config/                      # Configuration
+│   └── settings.py             # Centralized settings & thresholds
+│
+├── reports/                     # Generated HTML reports
+│
+├── .builds.json                 # Build history
+├── .settings.json               # User settings (thresholds, etc.)
+├── .learning_data.json          # AI learning data
+├── .suggested_checks.json       # Jira-suggested checks
+└── schedules.json               # Scheduled tasks</code></pre>
+            
+            <hr>
+            
+            <!-- AI Evolution -->
+            <h2 id="ai-evolution">🧠 How the AI Evolves</h2>
+            
+            <div class="feature-box">
+                <h3 style="margin-top:0;text-align:center;">🧬 CONTINUOUS LEARNING CYCLE</h3>
+                <p style="text-align:center;opacity:0.9;">The system learns from every health check run</p>
+            </div>
+            
+            <table>
+                <tr>
+                    <th style="text-align:center;">1️⃣ Scan Jira</th>
+                    <th style="text-align:center;">2️⃣ Review & Accept</th>
+                    <th style="text-align:center;">3️⃣ Run Health Check</th>
+                    <th style="text-align:center;">4️⃣ Track Patterns</th>
+                    <th style="text-align:center;">5️⃣ Knowledge Grows</th>
+                </tr>
+                <tr>
+                    <td style="text-align:center;">🎫<br>If enabled, scans Jira for recent bugs</td>
+                    <td style="text-align:center;">👤<br>You accept or reject suggestions</td>
+                    <td style="text-align:center;">📊<br>Executes checks, collects cluster data</td>
+                    <td style="text-align:center;">🔍<br>Issues appearing 3+ times become patterns</td>
+                    <td style="text-align:center;">🧠<br>Patterns gain confidence over time</td>
+                </tr>
+            </table>
+            
+            <h3>🎯 Pattern Recognition</h3>
+            <table>
+                <tr>
+                    <th>Type</th>
+                    <th>Description</th>
+                </tr>
+                <tr>
+                    <td><strong>Static Patterns</strong></td>
+                    <td>~15 pre-built patterns in <code>KNOWN_ISSUES</code> dictionary, mapped to real Jira bugs</td>
+                </tr>
+                <tr>
+                    <td><strong>Dynamic Patterns</strong></td>
+                    <td>Auto-discovered when an issue appears 3+ times. Stored in <code>.learning_data.json</code></td>
+                </tr>
+            </table>
+            
+            <h3>📊 Learning API Endpoints</h3>
+            <table>
+                <tr>
+                    <th>Endpoint</th>
+                    <th>Description</th>
+                </tr>
+                <tr>
+                    <td><code>GET /api/learning/stats</code></td>
+                    <td>Learning statistics (total issues, patterns, recurring count)</td>
+                </tr>
+                <tr>
+                    <td><code>GET /api/learning/patterns</code></td>
+                    <td>All discovered patterns</td>
+                </tr>
+                <tr>
+                    <td><code>GET /api/learning/recurring</code></td>
+                    <td>Recurring issues with frequency</td>
+                </tr>
+                <tr>
+                    <td><code>GET /api/learning/trends?days=7</code></td>
+                    <td>Issue trends over time</td>
+                </tr>
+            </table>
+            
+            <hr>
+            
+            <!-- Technical Reference -->
+            <h2 id="technical-reference">📚 Technical Reference</h2>
+            
+            <p>Detailed technical documentation for engineers.</p>
+            
+            <h3>📡 Connection Model</h3>
+            <table>
+                <tr>
+                    <th>Component</th>
+                    <th>Details</th>
+                </tr>
+                <tr>
+                    <td><strong>SSH Library</strong></td>
+                    <td><code>paramiko</code> - persistent SSH connection to bastion</td>
+                </tr>
+                <tr>
+                    <td><strong>Kubeconfig</strong></td>
+                    <td><code>/home/kni/clusterconfigs/auth/kubeconfig</code></td>
+                </tr>
+                <tr>
+                    <td><strong>Command Timeout</strong></td>
+                    <td>Default 15s, configurable per check</td>
+                </tr>
+                <tr>
+                    <td><strong>Total Commands</strong></td>
+                    <td>~25 oc commands per health check run</td>
+                </tr>
+            </table>
+            
+            <h3>🔍 Key Data Collection Commands</h3>
+            <table>
+                <tr>
+                    <th>Check</th>
+                    <th>Command</th>
+                </tr>
+                <tr>
+                    <td>Nodes</td>
+                    <td><code>oc get nodes --no-headers</code></td>
+                </tr>
+                <tr>
+                    <td>Operators</td>
+                    <td><code>oc get co --no-headers</code></td>
+                </tr>
+                <tr>
+                    <td>Unhealthy Pods</td>
+                    <td><code>oc get pods -A --field-selector=status.phase!=Running,status.phase!=Succeeded</code></td>
+                </tr>
+                <tr>
+                    <td>etcd</td>
+                    <td><code>oc get pods -n openshift-etcd -l app=etcd</code></td>
+                </tr>
+                <tr>
+                    <td>Resources</td>
+                    <td><code>oc adm top nodes --no-headers</code></td>
+                </tr>
+                <tr>
+                    <td>VMIs</td>
+                    <td><code>oc get vmi -A --no-headers</code></td>
+                </tr>
+                <tr>
+                    <td>Migrations</td>
+                    <td><code>oc get vmim -A --no-headers</code></td>
+                </tr>
+                <tr>
+                    <td>PVCs</td>
+                    <td><code>oc get pvc -A | grep -v Bound</code></td>
+                </tr>
+                <tr>
+                    <td>OOM Events</td>
+                    <td><code>oc get events -A --field-selector reason=OOMKilled</code></td>
+                </tr>
+            </table>
+            
+            <h3>🔄 Data Flow</h3>
+            <pre><code>SSH → oc commands → Raw output → Parse → Structured data → Pattern match → Analysis → Report</code></pre>
+            
+            <h3>📁 Output Files</h3>
+            <table>
+                <tr>
+                    <th>File</th>
+                    <th>Contents</th>
+                </tr>
+                <tr>
+                    <td><code>.builds.json</code></td>
+                    <td>Build history (id, timestamp, status, report path)</td>
+                </tr>
+                <tr>
+                    <td><code>reports/*.html</code></td>
+                    <td>Full HTML reports with findings and charts</td>
+                </tr>
+                <tr>
+                    <td><code>schedules.json</code></td>
+                    <td>Scheduled and recurring tasks</td>
+                </tr>
+                <tr>
+                    <td><code>.settings.json</code></td>
+                    <td>User settings (thresholds, SSH config, AI config)</td>
+                </tr>
+                <tr>
+                    <td><code>.learning_data.json</code></td>
+                    <td>Discovered patterns, issue history, recurring issues</td>
+                </tr>
+                <tr>
+                    <td><code>.suggested_checks.json</code></td>
+                    <td>AI-suggested health checks from Jira</td>
+                </tr>
+            </table>
+            
+            <hr>
+            
+            <p style="text-align:center;color:var(--text-secondary);margin-top:40px;">
+                <strong>🧠 AI-Powered • ⚡ Performance Focused • 🔄 Self-Evolving</strong><br>
+                Built with ❤️ for Performance Engineers & SRE Teams
+            </p>
+            
+            </div>
+            <!-- END ENGINEER SECTION -->
+            
+        </div>
+    </main>
+</div>
+
+<script>
+function showView(view) {
+    // Update buttons
+    document.getElementById('btn-about').classList.toggle('active', view === 'about');
+    document.getElementById('btn-docs').classList.toggle('active', view === 'docs');
+    
+    // Update navigation
+    document.getElementById('nav-about').style.display = view === 'about' ? 'block' : 'none';
+    document.getElementById('nav-docs').style.display = view === 'docs' ? 'block' : 'none';
+    
+    // Update content sections
+    document.getElementById('section-about').classList.toggle('active', view === 'about');
+    document.getElementById('section-docs').classList.toggle('active', view === 'docs');
+    
+    // Save preference
+    localStorage.setItem('helpView', view);
+    
+    // Scroll to top
+    window.scrollTo(0, 0);
+}
+
+// Handle navigation on page load
+window.addEventListener('load', function() {
+    var hash = window.location.hash;
+    var savedView = localStorage.getItem('helpView');
+    
+    // Check hash first
+    if (hash === '#about') {
+        showView('about');
+    } else if (hash === '#docs') {
+        showView('docs');
+    } else if (hash) {
+        // Check if hash belongs to about or docs section
+        var aboutSections = ['#overview', '#key-innovations', '#ai-features', '#ai-evolution', '#ai-example', '#health-checks-list', '#performance-engineering', '#scheduling-automation', '#reporting'];
+        if (aboutSections.includes(hash)) {
+            showView('about');
+        } else {
+            showView('docs');
+        }
+        // Scroll to the element after a short delay
+        setTimeout(function() {
+            var el = document.querySelector(hash);
+            if (el) el.scrollIntoView({ behavior: 'smooth' });
+        }, 100);
+    } else if (savedView) {
+        // Use saved preference
+        showView(savedView);
+    }
+    // Default is 'about' which is already active
+});
+</script>
+{% endblock %}
