@@ -18,17 +18,26 @@ from app import create_app
 from config.settings import Config
 
 
+def ensure_dirs():
+    """Create data directories if they don't exist."""
+    os.makedirs(Config.REPORTS_DIR, exist_ok=True)
+    data_dir = getattr(Config, 'DATA_DIR', None)
+    if data_dir:
+        os.makedirs(os.path.join(data_dir, "logs"), exist_ok=True)
+
+
 def main():
     """Main entry point for CNV HealthCrew AI."""
+    ensure_dirs()
     app = create_app()
     
     print(f"""
 ╔════════════════════════════════════════════════════════════╗
 ║                  CNV HealthCrew AI                          ║
 ║                                                              ║
-║  🌐 Running at: http://{Config.FLASK_HOST}:{Config.FLASK_PORT}                      ║
-║  📋 Build history: {Config.BUILDS_FILE}            ║
-║  📊 Reports: {Config.REPORTS_DIR}                         ║
+║  Running at: http://{Config.FLASK_HOST}:{Config.FLASK_PORT}
+║  Build history: {Config.BUILDS_FILE}
+║  Reports: {Config.REPORTS_DIR}
 ║                                                              ║
 ║  Press Ctrl+C to stop                                       ║
 ╚════════════════════════════════════════════════════════════╝

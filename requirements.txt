@@ -1,0 +1,20 @@
+# CNV HealthCrew AI - Python Dependencies
+# Core
+Flask>=3.1,<4
+python-dotenv>=1.0,<2
+paramiko>=3.2,<5
+Jinja2>=3.1,<4
+Werkzeug>=3.0,<4
+
+# CrewAI (AI-powered root cause analysis)
+crewai>=1.9,<2
+crewai-tools>=1.9,<2
+litellm>=1.70,<2
+
+# Google Gemini AI
+google-genai>=1.50,<2
+
+# Utilities
+beautifulsoup4>=4.12,<5
+APScheduler>=3.10,<4
+requests>=2.31,<3

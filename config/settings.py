@@ -1,10 +1,30 @@
 """
 CNV HealthCrew AI - Configuration Settings
+
+Supports two modes:
+  - Dev mode:  Reads .env from project root, stores data locally
+  - Installed:  Reads ~/.config/cnv-healthcrew/config.env, stores in XDG dirs
 """
 import os
+from pathlib import Path
 from dotenv import load_dotenv
 
-load_dotenv()
+# Load config: installed path first, then fall back to local .env
+_INSTALLED_CONFIG = Path.home() / ".config" / "cnv-healthcrew" / "config.env"
+if _INSTALLED_CONFIG.exists():
+    load_dotenv(_INSTALLED_CONFIG)
+else:
+    load_dotenv()  # loads .env from cwd
+
+
+def _xdg_data_dir():
+    """Get XDG data directory for installed mode"""
+    return Path.home() / ".local" / "share" / "cnv-healthcrew"
+
+
+def _is_installed():
+    """Check if running in installed mode (config.env exists in XDG config dir)"""
+    return _INSTALLED_CONFIG.exists()
 
 
 class Config:
@@ -12,7 +32,17 @@ class Config:
     
     # Base paths
     BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    REPORTS_DIR = os.path.join(BASE_DIR, "reports")
+    
+    # In installed mode, use XDG directories; in dev mode, use project-local paths
+    if _is_installed():
+        DATA_DIR = str(_xdg_data_dir())
+        REPORTS_DIR = str(_xdg_data_dir() / "reports")
+        BUILDS_FILE = str(_xdg_data_dir() / "builds.json")
+    else:
+        DATA_DIR = BASE_DIR
+        REPORTS_DIR = os.path.join(BASE_DIR, "reports")
+        BUILDS_FILE = os.path.join(BASE_DIR, ".builds.json")
+    
     TEMPLATES_DIR = os.path.join(BASE_DIR, "app", "templates")
     STATIC_DIR = os.path.join(BASE_DIR, "app", "static")
     
@@ -20,18 +50,17 @@ class Config:
     SSH_HOST = os.getenv("RH_LAB_HOST")
     SSH_USER = os.getenv("RH_LAB_USER", "root")
     SSH_KEY_PATH = os.getenv("SSH_KEY_PATH")
-    KUBECONFIG = "/home/kni/clusterconfigs/auth/kubeconfig"
+    KUBECONFIG = os.getenv("KUBECONFIG_REMOTE", "/home/kni/clusterconfigs/auth/kubeconfig")
     
     # Email Configuration
-    DEFAULT_EMAIL = "guchen@redhat.com"
+    DEFAULT_EMAIL = os.getenv("EMAIL_TO", "guchen@redhat.com")
     
     # Flask Configuration
-    FLASK_HOST = "0.0.0.0"
-    FLASK_PORT = 5000
+    FLASK_HOST = os.getenv("FLASK_HOST", "0.0.0.0")
+    FLASK_PORT = int(os.getenv("FLASK_PORT", "5000"))
     FLASK_DEBUG = False
     
     # Build Configuration
-    BUILDS_FILE = os.path.join(BASE_DIR, ".builds.json")
     MAX_BUILDS_HISTORY = 100
     
     # Health Check Thresholds

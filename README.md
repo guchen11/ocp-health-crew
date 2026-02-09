@@ -1,0 +1,244 @@
+<p align="center">
+  <img src="https://img.shields.io/badge/OpenShift-EE0000?style=for-the-badge&logo=redhatopenshift&logoColor=white" alt="OpenShift"/>
+  <img src="https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python"/>
+  <img src="https://img.shields.io/badge/Flask-000000?style=for-the-badge&logo=flask&logoColor=white" alt="Flask"/>
+  <img src="https://img.shields.io/badge/KubeVirt-326CE5?style=for-the-badge&logo=kubernetes&logoColor=white" alt="KubeVirt"/>
+  <img src="https://img.shields.io/badge/AI_Powered-FF6F00?style=for-the-badge&logo=tensorflow&logoColor=white" alt="AI"/>
+</p>
+
+<h1 align="center">CNV HealthCrew AI</h1>
+
+<p align="center">
+  <strong>AI-Powered Health Monitoring & Root Cause Analysis for OpenShift + CNV</strong><br>
+  <em>Self-evolving test suite that learns from Jira bugs, emails, and the web</em>
+</p>
+
+---
+
+## What It Does
+
+CNV HealthCrew AI connects to your OpenShift cluster via SSH and runs **15+ health checks** across infrastructure, virtualization, storage, and networking. It generates beautiful HTML reports, sends email notifications, and uses AI to perform root cause analysis on detected issues.
+
+**Key capabilities:**
+- **Health Checks** -- Nodes, operators, pods, etcd, KubeVirt/CNV, VMs, migrations, storage (ODF/CSI), network, certificates, alerts
+- **Web Dashboard** -- Jenkins-like UI to configure, run, schedule, and review health checks
+- **AI Root Cause Analysis** -- Matches failures against Jira bugs, team emails, and web docs
+- **Self-Evolving** -- Learns from every run, discovers patterns, and suggests new checks from Jira bugs
+- **Reports & Notifications** -- Professional HTML reports with email delivery
+
+---
+
+## Quick Install (RHEL / Fedora)
+
+One command:
+
+```bash
+curl -sL https://raw.githubusercontent.com/guchen11/ocp-health-crew/main/install.sh | bash
+```
+
+This will:
+1. Check your system (Python 3.11+, git)
+2. Clone the repo to `~/cnv-healthcrew/`
+3. Create a Python virtual environment and install dependencies
+4. Set up configuration at `~/.config/cnv-healthcrew/config.env`
+5. Install a systemd user service
+
+Then configure and start:
+
+```bash
+# 1. Edit config with your cluster details
+vi ~/.config/cnv-healthcrew/config.env
+
+# 2. Start the service
+systemctl --user start cnv-healthcrew
+systemctl --user enable cnv-healthcrew  # auto-start on boot
+
+# 3. Open the dashboard
+xdg-open http://localhost:5000
+```
+
+### Update
+
+```bash
+cd ~/cnv-healthcrew && git pull && systemctl --user restart cnv-healthcrew
+```
+
+### Uninstall
+
+```bash
+bash ~/cnv-healthcrew/uninstall.sh
+```
+
+---
+
+## Manual Setup (Development)
+
+```bash
+git clone https://github.com/guchen11/ocp-health-crew.git
+cd ocp-health-crew
+
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+
+# Configure
+cp config.env.example .env
+vi .env   # set RH_LAB_HOST, SSH_KEY_PATH, etc.
+
+# Run
+python run.py
+```
+
+Open http://localhost:5000 in your browser.
+
+---
+
+## Configuration
+
+Edit `~/.config/cnv-healthcrew/config.env` (installed) or `.env` (dev mode):
+
+| Variable | Required | Description |
+|:---------|:--------:|:------------|
+| `RH_LAB_HOST` | Yes | Remote host with `oc` access (SSH target) |
+| `RH_LAB_USER` | Yes | SSH username (default: `root`) |
+| `SSH_KEY_PATH` | Yes | Path to your SSH private key |
+| `KUBECONFIG_REMOTE` | Yes | KUBECONFIG path on the remote host |
+| `EMAIL_TO` | No | Email recipient for reports |
+| `SMTP_SERVER` | No | SMTP server for email delivery |
+| `GOOGLE_API_KEY` | No | Google Gemini API key for AI-powered RCA |
+| `FLASK_HOST` | No | Dashboard bind address (default: `0.0.0.0`) |
+| `FLASK_PORT` | No | Dashboard port (default: `5000`) |
+
+---
+
+## Command Line Usage
+
+Run health checks directly without the dashboard:
+
+```bash
+# Basic health check
+python hybrid_health_check.py
+
+# With AI root cause analysis
+python hybrid_health_check.py --ai
+
+# Bug matching only (faster than full AI)
+python hybrid_health_check.py --rca-bugs
+
+# Search Jira for related bugs during RCA
+python hybrid_health_check.py --rca-jira
+
+# Enable self-evolving AI (scan Jira for new test suggestions)
+python hybrid_health_check.py --check-jira
+
+# Send report via email
+python hybrid_health_check.py --email --email-to user@example.com
+
+# Override SSH target
+python hybrid_health_check.py --server my-other-host.example.com
+```
+
+---
+
+## Health Checks
+
+| Category | Checks |
+|:---------|:-------|
+| **Infrastructure** | Node status, Cluster Operators, etcd health, MachineConfigPools |
+| **Workloads** | Pod health (CrashLoop, Pending, OOM, Unknown) |
+| **Virtualization** | KubeVirt operator, VMs, VMIs, migrations, virt-handler, CDI, HCO |
+| **Storage** | PVCs, CSI drivers, DataVolumes, VolumeSnapshots, ODF |
+| **Performance** | CPU/Memory utilization per node, resource thresholds |
+| **Security** | Certificate expiration checks |
+| **Monitoring** | Active Prometheus alerts |
+
+---
+
+## Project Structure
+
+```
+ocp-health-crew/
+├── run.py                    # Entry point - starts web dashboard
+├── hybrid_health_check.py    # Core health check engine (3400+ lines)
+├── main.py                   # CrewAI agent system for AI analysis
+├── app/
+│   ├── __init__.py           # Flask application factory
+│   ├── routes.py             # Web dashboard routes & API endpoints
+│   ├── scheduler.py          # Background task scheduler
+│   ├── learning.py           # Pattern recognition & learning module
+│   ├── templates/            # HTML templates (dashboard, configure, history, etc.)
+│   └── static/css/           # Stylesheet
+├── config/
+│   └── settings.py           # Configuration (supports dev + installed modes)
+├── tools/
+│   └── ssh_tool.py           # CrewAI SSH tool for remote oc commands
+├── install.sh                # One-command installer for RHEL/Fedora
+├── uninstall.sh              # Clean removal script
+├── config.env.example        # Example configuration file
+├── requirements.txt          # Python dependencies
+└── docs/
+    └── DESIGN.md             # Detailed architecture & design document
+```
+
+---
+
+## How the AI Evolves
+
+```
+Jira Bug: CNV-75962 "kubevirt-migration-controller OOMKilled at scale"
+     |
+     v
+AI Analysis:
+  - Pattern detected: "OOMKilled" + "migration" + "scale"
+  - Component: kubevirt-migration-controller
+  - Priority: Critical
+     |
+     v
+AI Suggestion: "Add health check: migration_controller_memory"
+  - Monitor memory usage of migration controller pods
+  - Alert when approaching limits
+     |
+     v
+Result: New test added to the suite automatically
+```
+
+The system learns from:
+- **Jira** -- Scans CNV, OCPBUGS, ODF bug reports for patterns
+- **Email** -- Searches team discussions and alert notifications
+- **Web** -- Queries Red Hat docs, knowledge bases, and forums
+- **History** -- Tracks recurring issues across runs and discovers patterns
+
+See [docs/DESIGN.md](docs/DESIGN.md) for the full architecture and design details.
+
+---
+
+## Security
+
+| Aspect | Implementation |
+|:-------|:---------------|
+| SSH Keys | Stored locally, never committed to git |
+| Command Validation | Only `oc`/`kubectl` commands are allowed |
+| KUBECONFIG | Injected per-command via environment variable |
+| Process Isolation | Health check builds run in separate process groups |
+| Config | `.env` is gitignored; installed config at `~/.config/` |
+
+---
+
+## Useful Commands
+
+```bash
+# Service management
+systemctl --user status cnv-healthcrew    # Check status
+systemctl --user restart cnv-healthcrew   # Restart
+systemctl --user stop cnv-healthcrew      # Stop
+journalctl --user -u cnv-healthcrew -f    # View logs
+
+# Quick update
+cd ~/cnv-healthcrew && git pull && systemctl --user restart cnv-healthcrew
+```
+
+---
+
+<p align="center">
+  Built with care for Performance Engineers & SRE Teams at Red Hat
+</p>
