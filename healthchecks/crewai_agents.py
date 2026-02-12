@@ -1,5 +1,21 @@
+#!/usr/bin/env python3
+"""
+CrewAI-based multi-agent health check system.
+
+Uses AI agents (Infrastructure SRE, Virtualization Specialist, Performance Auditor)
+to run oc commands via SSH and produce a Markdown health report.
+
+Usage:
+    python healthchecks/crewai_agents.py
+"""
+
 import os
+import sys
 from datetime import datetime
+
+# Ensure project root is in path (for `tools` package)
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from crewai import Agent, Task, Crew, Process, LLM
 from tools.ssh_tool import RemoteOCPTool
 

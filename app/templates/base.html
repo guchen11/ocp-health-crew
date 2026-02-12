@@ -97,15 +97,15 @@
     <header class="header">
         <div class="header-inner">
             <a href="/" class="logo">
-                <div class="logo-img">🔍</div>
+                <img src="{{ url_for('static', filename='img/redhat-logo.png') }}" alt="Red Hat" class="logo-rh">
                 <span class="logo-text">CNV HealthCrew AI</span>
             </a>
             <nav class="header-nav">
                 <a href="/" {% if active_page == 'dashboard' %}class="active"{% endif %}>Dashboard</a>
                 {% if current_user.is_authenticated and current_user.is_operator %}
-                <a href="/job/configure" {% if active_page == 'configure' %}class="active"{% endif %}>New Build</a>
+                <a href="/job/configure" {% if active_page == 'configure' %}class="active"{% endif %}>New Run</a>
                 {% endif %}
-                <a href="/job/history" {% if active_page == 'history' %}class="active"{% endif %}>Build History</a>
+                <a href="/job/history" {% if active_page == 'history' %}class="active"{% endif %}>Run History</a>
                 <a href="/schedules" {% if active_page == 'schedules' %}class="active"{% endif %}>Schedules</a>
                 <a href="/settings" {% if active_page == 'settings' %}class="active"{% endif %}>Settings</a>
                 {% if current_user.is_authenticated and current_user.is_admin %}

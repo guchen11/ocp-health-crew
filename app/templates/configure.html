@@ -1,24 +1,24 @@
 {% extends "base.html" %}
 
-{% block title %}{% if preset == 'all' %}Quick Build{% else %}Build with Parameters{% endif %} - CNV HealthCrew AI{% endblock %}
+{% block title %}{% if preset == 'all' %}Quick Run{% else %}Run with Parameters{% endif %} - CNV HealthCrew AI{% endblock %}
 
 {% block breadcrumb %}
 <span>›</span>
-<a href="/job/configure">Build with Parameters</a>
+<a href="/job/configure">Run with Parameters</a>
 {% endblock %}
 
 {% block content %}
 <div class="container">
     <aside class="sidebar">
         <div class="sidebar-section">
-            <div class="sidebar-title">Build Options</div>
+            <div class="sidebar-title">Run Options</div>
             <a href="/job/configure" class="sidebar-item active">
                 <span class="sidebar-icon">⚙️</span>
-                Configure Build
+                Configure Run
             </a>
             <a href="/job/quick-run" class="sidebar-item">
                 <span class="sidebar-icon">⚡</span>
-                Quick Build
+                Quick Run
             </a>
         </div>
         <div class="sidebar-section">
@@ -47,7 +47,7 @@
         <div style="background:var(--success-light);border:1px solid var(--success);border-radius:8px;padding:16px 20px;margin-bottom:20px;display:flex;align-items:center;gap:12px;">
             <span style="font-size:24px;">⚡</span>
             <div>
-                <div style="font-weight:600;color:var(--success);font-size:16px;">Quick Build Mode</div>
+                <div style="font-weight:600;color:var(--success);font-size:16px;">Quick Run Mode</div>
                 <div style="color:var(--text-secondary);font-size:13px;">All checks are pre-selected. Review and click "Run Now" to start.</div>
             </div>
         </div>
@@ -73,27 +73,20 @@
                 </div>
             </div>
             
-            <!-- Target Host -->
+            <!-- Jump Host -->
             <div class="card">
                 <div class="card-header" onclick="toggleCard(this)">
-                    🖥️ Target Host
+                    🖥️ Jump Host
                     <span class="collapse-icon" style="margin-left:auto;">▼</span>
                 </div>
                 <div class="card-body">
-                    {% if ssh_config.jumphost_host %}
-                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;padding:10px 14px;background:var(--bg-secondary);border-radius:8px;font-size:13px;color:var(--text-secondary);">
-                        <span style="font-size:16px;">🔀</span>
-                        Connection via jumphost: <strong style="color:var(--text);">{{ ssh_config.jumphost_user }}@{{ ssh_config.jumphost_host }}</strong>
-                    </div>
-                    {% endif %}
-                    
-                    <label for="server_host" style="display:block;font-weight:600;margin-bottom:8px;color:var(--text);">Select Target Host</label>
+                    <label for="server_host" style="display:block;font-weight:600;margin-bottom:8px;color:var(--text);">Select Jump Host</label>
                     {% if saved_hosts %}
                     <select name="server_host" id="server_host" 
                         style="width:100%;padding:12px 16px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:var(--bg-secondary);cursor:pointer;">
                         {% for h in saved_hosts %}
                         <option value="{{ h.host }}" {% if h.host == server_host %}selected{% endif %}>
-                            {{ h.name }}{% if h.name != h.host %} ({{ h.user or 'root' }}@{{ h.host }}){% endif %}
+                            {{ h.name }}
                         </option>
                         {% endfor %}
                     </select>
@@ -111,35 +104,247 @@
                 </div>
             </div>
             
-            <!-- Agent Selection -->
+            <input type="hidden" name="agent" value="all">
+
+            <!-- Task Type Selector -->
             <div class="card">
                 <div class="card-header" onclick="toggleCard(this)">
-                    🤖 AI Agent
+                    🎯 Task Type
                     <span class="collapse-icon" style="margin-left:auto;">▼</span>
                 </div>
                 <div class="card-body">
-                    <p style="color:var(--text-secondary);margin-bottom:16px;font-size:13px;">
-                        Select which AI agent runs the analysis. Each agent specializes in a different domain.
-                    </p>
-                    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;" id="agent-grid">
-                        <label class="agent-option" style="display:flex;flex-direction:column;padding:16px;border:2px solid var(--accent);border-radius:10px;cursor:pointer;transition:all 0.2s;background:var(--accent-light);">
-                            <input type="radio" name="agent" value="all" style="margin-bottom:8px;" onchange="updateAgentStyles()" checked>
-                            <span style="font-size:20px;margin-bottom:4px;">🚀</span>
-                            <span style="font-weight:600;color:var(--text);font-size:14px;">All Agents (Crew)</span>
-                            <span style="color:var(--text-secondary);font-size:11px;margin-top:4px;">Run full crew sequentially — most thorough</span>
+                    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;">
+                        <label class="task-type-option" style="display:flex;flex-direction:column;padding:20px;border:2px solid var(--accent);border-radius:10px;cursor:pointer;transition:all 0.2s;background:var(--accent-light);">
+                            <input type="radio" name="task_type" value="health_check" style="margin-bottom:10px;" onchange="switchTaskType()" checked>
+                            <span style="font-size:28px;margin-bottom:8px;">🩺</span>
+                            <span style="font-weight:700;color:var(--text);font-size:15px;">Health Check</span>
+                            <span style="color:var(--text-secondary);font-size:12px;margin-top:4px;">Run OCP/CNV health diagnostics with optional root cause analysis</span>
                         </label>
-                        {% for agent_id, agent in agents.items() %}
-                        <label class="agent-option" style="display:flex;flex-direction:column;padding:16px;border:2px solid var(--border);border-radius:10px;cursor:pointer;transition:all 0.2s;">
-                            <input type="radio" name="agent" value="{{ agent_id }}" style="margin-bottom:8px;" onchange="updateAgentStyles()">
-                            <span style="font-size:20px;margin-bottom:4px;">{{ agent.icon }}</span>
-                            <span style="font-weight:600;color:var(--text);font-size:14px;">{{ agent.name }}</span>
-                            <span style="color:var(--text-secondary);font-size:11px;margin-top:4px;">{{ agent.description }}</span>
+                        <label class="task-type-option" style="display:flex;flex-direction:column;padding:20px;border:2px solid var(--border);border-radius:10px;cursor:pointer;transition:all 0.2s;">
+                            <input type="radio" name="task_type" value="cnv_scenarios" style="margin-bottom:10px;" onchange="switchTaskType()">
+                            <span style="font-size:28px;margin-bottom:8px;">🔥</span>
+                            <span style="font-weight:700;color:var(--text);font-size:15px;">CNV Scenarios</span>
+                            <span style="color:var(--text-secondary);font-size:12px;margin-top:4px;">Run kube-burner workload tests: CPU, memory, disk, hot-plug, scale</span>
                         </label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ═══════════════════════════════════════════════════════════ -->
+            <!-- CNV SCENARIOS SECTION (hidden by default) -->
+            <!-- ═══════════════════════════════════════════════════════════ -->
+            <div id="cnv-scenarios-section" style="display:none;">
+                <!-- Test Selection -->
+                <div class="card">
+                    <div class="card-header" onclick="toggleCard(this)">
+                        🧪 Select Scenarios
+                        <span class="collapse-icon" style="margin-left:auto;">▼</span>
+                    </div>
+                    <div class="card-body">
+                        <div style="display:flex;gap:8px;margin-bottom:16px;">
+                            <button type="button" class="btn" onclick="selectAllScenarios()" style="font-size:12px;">✅ Select All</button>
+                            <button type="button" class="btn" onclick="deselectAllScenarios()" style="font-size:12px;">⬜ Deselect All</button>
+                            <button type="button" class="btn" onclick="selectDefaultScenarios()" style="font-size:12px;">🎯 Defaults</button>
+                        </div>
+                        {% for cat in cnv_category_order %}
+                        <div class="category-header" onclick="toggleCategory(this)" style="cursor:pointer;display:flex;align-items:center;">
+                            {{ cnv_categories[cat].icon }} {{ cat }}
+                            <span style="margin-left:8px;font-size:11px;color:var(--text-muted);font-weight:400;">{{ cnv_categories[cat].description }}</span>
+                            <span class="collapse-icon" style="margin-left:auto;font-size:12px;">▼</span>
+                        </div>
+                        <div class="checkbox-grid category-content">
+                            {% for sid, sc in cnv_scenarios.items() %}
+                            {% if sc.category == cat %}
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="scenario_{{ sid }}" name="scenario_tests" value="{{ sc.remote_name }}"
+                                    class="scenario-input" data-category="{{ sc.category }}">
+                                <label for="scenario_{{ sid }}">
+                                    <span class="check-name">{{ sc.icon }} {{ sc.name }}</span>
+                                    <span class="check-desc">{{ sc.description }}</span>
+                                </label>
+                            </div>
+                            {% endif %}
+                            {% endfor %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <!-- Execution Options -->
+                <div class="card">
+                    <div class="card-header" onclick="toggleCard(this)">
+                        ⚙️ Execution Options
+                        <span class="collapse-icon" style="margin-left:auto;">▼</span>
+                    </div>
+                    <div class="card-body">
+                        <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:20px;margin-bottom:20px;">
+                            <div>
+                                <label style="display:block;font-weight:600;margin-bottom:8px;color:var(--text);font-size:14px;">Test Mode</label>
+                                <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;">
+                                    <label class="mode-option" style="display:flex;flex-direction:column;padding:14px;border:2px solid {{ 'var(--accent)' if cnv_config.mode == 'sanity' else 'var(--border)' }};border-radius:8px;cursor:pointer;{{ 'background:var(--accent-light);' if cnv_config.mode == 'sanity' else '' }}">
+                                        <input type="radio" name="scenario_mode" value="sanity" {{ 'checked' if cnv_config.mode == 'sanity' }} style="margin-bottom:6px;" onchange="updateModeStyles()">
+                                        <span style="font-weight:600;font-size:13px;">⚡ Sanity</span>
+                                        <span style="color:var(--text-secondary);font-size:11px;">Quick validation (~5 min)</span>
+                                    </label>
+                                    <label class="mode-option" style="display:flex;flex-direction:column;padding:14px;border:2px solid {{ 'var(--accent)' if cnv_config.mode == 'full' else 'var(--border)' }};border-radius:8px;cursor:pointer;{{ 'background:var(--accent-light);' if cnv_config.mode == 'full' else '' }}">
+                                        <input type="radio" name="scenario_mode" value="full" {{ 'checked' if cnv_config.mode == 'full' }} style="margin-bottom:6px;" onchange="updateModeStyles()">
+                                        <span style="font-weight:600;font-size:13px;">🔬 Full</span>
+                                        <span style="color:var(--text-secondary);font-size:11px;">Complete test suite (~30+ min)</span>
+                                    </label>
+                                </div>
+                            </div>
+                            <div>
+                                <label style="display:block;font-weight:600;margin-bottom:8px;color:var(--text);font-size:14px;">Execution</label>
+                                <div class="checkbox-item" style="padding:14px;border:1px solid var(--border);border-radius:8px;">
+                                    <input type="checkbox" id="scenario_parallel" name="scenario_parallel" {{ 'checked' if cnv_config.parallel }}>
+                                    <label for="scenario_parallel">
+                                        <span class="check-name">🚀 Parallel Execution</span>
+                                        <span class="check-desc">Run selected scenarios in parallel (faster but more resource-intensive)</span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:16px;">
+                            <div>
+                                <label style="display:block;font-weight:600;margin-bottom:8px;color:var(--text);font-size:14px;">CNV Scenarios Path</label>
+                                <input type="text" name="cnv_path" value="{{ cnv_config.cnv_path }}"
+                                    style="width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:monospace;background:var(--bg-secondary);">
+                                <span style="font-size:11px;color:var(--text-muted);margin-top:4px;display:block;">
+                                    Path to cnv-scenarios on the jump host
+                                </span>
+                            </div>
+                            <div>
+                                <label style="display:block;font-weight:600;margin-bottom:8px;color:var(--text);font-size:14px;">kube-burner Log Level</label>
+                                <select name="kb_log_level"
+                                    style="width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--bg-secondary);">
+                                    <option value="" {{ 'selected' if not cnv_config.kb_log_level }}>Default (info)</option>
+                                    <option value="debug" {{ 'selected' if cnv_config.kb_log_level == 'debug' }}>debug</option>
+                                    <option value="info" {{ 'selected' if cnv_config.kb_log_level == 'info' }}>info</option>
+                                    <option value="warn" {{ 'selected' if cnv_config.kb_log_level == 'warn' }}>warn</option>
+                                    <option value="error" {{ 'selected' if cnv_config.kb_log_level == 'error' }}>error</option>
+                                </select>
+                                <span style="font-size:11px;color:var(--text-muted);margin-top:4px;display:block;">
+                                    Passed to kube-burner --log-level
+                                </span>
+                            </div>
+                            <div>
+                                <label style="display:block;font-weight:600;margin-bottom:8px;color:var(--text);font-size:14px;">kube-burner Timeout</label>
+                                <input type="text" name="kb_timeout" value="{{ cnv_config.kb_timeout }}" placeholder="e.g. 1h, 2h, 30m"
+                                    style="width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--bg-secondary);">
+                                <span style="font-size:11px;color:var(--text-muted);margin-top:4px;display:block;">
+                                    Passed to kube-burner --timeout
+                                </span>
+                            </div>
+                        </div>
+
+                        <!-- Email Report -->
+                        <div style="margin-top:20px;padding:16px;border:1px solid var(--border);border-radius:8px;background:var(--bg-secondary);">
+                            <div style="display:flex;align-items:flex-start;gap:12px;">
+                                <input type="checkbox" id="cnv_send_email" name="cnv_send_email" style="margin-top:3px;">
+                                <label for="cnv_send_email" style="flex:1;">
+                                    <span style="font-weight:600;font-size:14px;display:block;">📧 Email Report When Done</span>
+                                    <span style="color:var(--text-secondary);font-size:12px;">Send a summary report to your email when the run completes</span>
+                                </label>
+                            </div>
+                            <div id="cnv-email-field" style="display:none;margin-top:12px;padding-left:28px;">
+                                <input type="email" name="cnv_email_to" id="cnv_email_to" placeholder="Enter email address"
+                                    value="{{ current_user.email }}"
+                                    style="width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:8px;font-size:13px;">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Variable Overrides -->
+                <div class="card">
+                    <div class="card-header collapsed" onclick="toggleCard(this)">
+                        🔧 Variable Overrides (Advanced)
+                        <span class="collapse-icon" style="margin-left:auto;">▼</span>
+                    </div>
+                    <div class="card-body collapsed">
+                        <!-- ── Global Parameters ────────────────────────────── -->
+                        <div style="margin-bottom:24px;">
+                            <div style="font-weight:700;font-size:14px;color:var(--text);margin-bottom:6px;display:flex;align-items:center;gap:8px;">
+                                🌍 Global Parameters
+                            </div>
+                            <p style="font-size:12px;color:var(--text-muted);margin-bottom:12px;">
+                                Apply to all selected scenarios. Leave empty to use defaults.
+                            </p>
+                            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;">
+                                {% for var_name, var_info in cnv_global_vars.items() %}
+                                <div>
+                                    <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:4px;">
+                                        {{ var_info.icon }} <strong>{{ var_info.label }}</strong>
+                                    </label>
+                                    <input type="text" name="cnv_var_{{ var_name }}"
+                                        value="{{ cnv_config.global_vars[var_name] if cnv_config.global_vars is defined and var_name in cnv_config.global_vars and cnv_config.global_vars[var_name] else '' }}"
+                                        placeholder="{{ var_info.placeholder or ('Default: ' + (var_info.default|string)) }}"
+                                        style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;background:var(--bg-secondary);">
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+
+                        <hr style="border:none;border-top:1px solid var(--border);margin:20px 0;">
+
+                        <!-- ── Test-Specific Parameters ──────────────────────── -->
+                        <div style="font-weight:700;font-size:14px;color:var(--text);margin-bottom:6px;display:flex;align-items:center;gap:8px;">
+                            🎛️ Test-Specific Parameters
+                        </div>
+                        <p style="font-size:12px;color:var(--text-muted);margin-bottom:16px;">
+                            Parameters for individual scenarios. Sections for unselected tests are grayed out.
+                        </p>
+
+                        {% for sid, sc in cnv_scenarios.items() %}
+                        {% if sc.variables %}
+                        <div class="cnv-test-vars-group" data-scenario="{{ sid }}" style="margin-bottom:16px;padding:14px 16px;border:1px solid var(--border);border-radius:8px;transition:opacity 0.25s, filter 0.25s;">
+                            <div style="font-weight:600;font-size:13px;color:var(--text);margin-bottom:10px;display:flex;align-items:center;gap:6px;">
+                                {{ sc.icon }} {{ sc.name }}
+                                <span class="cnv-test-badge" style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;background:var(--success-light);color:var(--success);margin-left:auto;">SELECTED</span>
+                            </div>
+                            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">
+                                {% for var_name, var_info in sc.variables.items() %}
+                                <div>
+                                    <label style="display:block;font-size:11px;color:var(--text-secondary);margin-bottom:3px;">
+                                        <strong>{{ var_info.label }}</strong>
+                                    </label>
+                                    {% if var_info.type == 'bool' %}
+                                    <select name="cnv_var_{{ var_name }}" class="cnv-var-input" data-scenario="{{ sid }}" style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;background:var(--bg-secondary);">
+                                        <option value="">Default ({{ 'true' if var_info.default else 'false' }})</option>
+                                        <option value="true">true</option>
+                                        <option value="false">false</option>
+                                    </select>
+                                    {% elif var_info.type == 'choice' %}
+                                    <select name="cnv_var_{{ var_name }}" class="cnv-var-input" data-scenario="{{ sid }}" style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;background:var(--bg-secondary);">
+                                        <option value="">Default ({{ var_info.default }})</option>
+                                        {% for choice in var_info.choices %}
+                                        <option value="{{ choice }}">{{ choice }}</option>
+                                        {% endfor %}
+                                    </select>
+                                    {% elif var_info.type == 'int' %}
+                                    <input type="number" name="cnv_var_{{ var_name }}" class="cnv-var-input" data-scenario="{{ sid }}" placeholder="Default: {{ var_info.default }}"
+                                        {% if var_info.min is defined %}min="{{ var_info.min }}"{% endif %}
+                                        {% if var_info.max is defined %}max="{{ var_info.max }}"{% endif %}
+                                        style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;background:var(--bg-secondary);">
+                                    {% else %}
+                                    <input type="text" name="cnv_var_{{ var_name }}" class="cnv-var-input" data-scenario="{{ sid }}" placeholder="{{ var_info.placeholder or ('Default: ' + (var_info.default|string)) }}"
+                                        style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;background:var(--bg-secondary);">
+                                    {% endif %}
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endif %}
                         {% endfor %}
                     </div>
                 </div>
             </div>
-            
+
+            <!-- ═══════════════════════════════════════════════════════════ -->
+            <!-- HEALTH CHECK SECTIONS (shown by default) -->
+            <!-- ═══════════════════════════════════════════════════════════ -->
+            <div id="health-check-section">
             <!-- General Options -->
             <div class="card">
                 <div class="card-header" onclick="toggleCard(this)">
@@ -173,7 +378,7 @@
                             </div>
                             <input type="email" name="email_to" id="email_to" placeholder="Enter email address (e.g. user@redhat.com)" 
                                 style="margin-top:10px;padding:8px 12px;border:1px solid var(--border);border-radius:6px;font-size:13px;width:100%;"
-                                value="guchen@redhat.com">
+                                value="{{ current_user.email }}">
                         </div>
                     </div>
                 </div>
@@ -477,19 +682,31 @@
                 <div class="card-body">
                     {% for category in categories %}
                     <div class="category-header" onclick="toggleCategory(this)" style="cursor:pointer;display:flex;align-items:center;">
-                        {{ category }}
+                        {{ category_icons.get(category, '') }} {{ category }}
                         <span class="collapse-icon" style="margin-left:auto;font-size:12px;">▼</span>
                     </div>
                     <div class="checkbox-grid category-content">
                         {% for check_id, check in checks.items() %}
                         {% if check.category == category %}
-                        <div class="checkbox-item">
+                        <div class="checkbox-item has-commands">
                             <input type="checkbox" id="check_{{ check_id }}" name="checks" value="{{ check_id }}" 
                                 {{ 'checked' if (preset == 'all' or check.default) else '' }} class="check-input" data-category="{{ check.category }}">
                             <label for="check_{{ check_id }}">
                                 <span class="check-name">{{ check.name }}</span>
                                 <span class="check-desc">{{ check.description }}</span>
                             </label>
+                            {% if check.commands is defined and check.commands %}
+                            <button type="button" class="cmd-toggle-btn" onclick="event.stopPropagation();this.closest('.checkbox-item').classList.toggle('show-cmds');" title="Show validation details">⌘</button>
+                            <div class="cmd-panel">
+                                <div class="cmd-panel-label">Validation Details</div>
+                                {% for entry in check.commands %}
+                                <div class="cmd-entry">
+                                    <code class="cmd-line">{{ entry.cmd }}</code>
+                                    <div class="cmd-validates">{{ entry.validates }}</div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
                         </div>
                         {% endif %}
                         {% endfor %}
@@ -497,6 +714,7 @@
                     {% endfor %}
                 </div>
             </div>
+            </div><!-- /health-check-section -->
             
             <!-- Submit -->
             <div style="display:flex;gap:12px;margin-top:20px;">
@@ -513,19 +731,6 @@
 
 {% block scripts %}
 <script>
-    function updateAgentStyles() {
-        document.querySelectorAll('.agent-option').forEach(opt => {
-            var radio = opt.querySelector('input[type="radio"]');
-            if (radio.checked) {
-                opt.style.borderColor = 'var(--accent)';
-                opt.style.background = 'var(--accent-light)';
-            } else {
-                opt.style.borderColor = 'var(--border)';
-                opt.style.background = 'transparent';
-            }
-        });
-    }
-    
     function toggleCard(header) {
         header.classList.toggle('collapsed');
         var body = header.nextElementSibling;
@@ -693,6 +898,118 @@
     
     // Initialize threshold section
     toggleThresholdInputs();
+
+    // ── Task Type Switching ──────────────────────────────────────────────
+    function switchTaskType() {
+        var taskType = document.querySelector('input[name="task_type"]:checked').value;
+        var hcSection = document.getElementById('health-check-section');
+        var cnvSection = document.getElementById('cnv-scenarios-section');
+        var submitBtn = document.getElementById('submit-btn');
+
+        if (taskType === 'cnv_scenarios') {
+            hcSection.style.display = 'none';
+            cnvSection.style.display = 'block';
+            if (submitBtn.textContent.includes('Run Now')) {
+                submitBtn.innerHTML = '🔥 Run Scenarios';
+            }
+        } else {
+            hcSection.style.display = 'block';
+            cnvSection.style.display = 'none';
+            if (submitBtn.textContent.includes('Run Scenarios')) {
+                submitBtn.innerHTML = '▶️ Run Now';
+            }
+        }
+        updateTaskTypeStyles();
+    }
+
+    function updateTaskTypeStyles() {
+        document.querySelectorAll('.task-type-option').forEach(function(opt) {
+            var radio = opt.querySelector('input[type="radio"]');
+            if (radio.checked) {
+                opt.style.borderColor = 'var(--accent)';
+                opt.style.background = 'var(--accent-light)';
+            } else {
+                opt.style.borderColor = 'var(--border)';
+                opt.style.background = 'transparent';
+            }
+        });
+    }
+
+    function selectAllScenarios() {
+        document.querySelectorAll('.scenario-input').forEach(function(cb) { cb.checked = true; });
+        return false;
+    }
+    function deselectAllScenarios() {
+        document.querySelectorAll('.scenario-input').forEach(function(cb) { cb.checked = false; });
+        return false;
+    }
+    function selectDefaultScenarios() {
+        document.querySelectorAll('.scenario-input').forEach(function(cb) { cb.checked = false; });
+        {% for sid, sc in cnv_scenarios.items() %}
+        {% if sc.default %}
+        var el = document.getElementById('scenario_{{ sid }}');
+        if (el) el.checked = true;
+        {% endif %}
+        {% endfor %}
+        return false;
+    }
+
+    function updateModeStyles() {
+        document.querySelectorAll('.mode-option').forEach(function(opt) {
+            var radio = opt.querySelector('input[type="radio"]');
+            if (radio.checked) {
+                opt.style.borderColor = 'var(--accent)';
+                opt.style.background = 'var(--accent-light)';
+            } else {
+                opt.style.borderColor = 'var(--border)';
+                opt.style.background = 'transparent';
+            }
+        });
+    }
+
+    // ── Show only selected test-specific variable groups ─
+    function updateScenarioVarGroups() {
+        document.querySelectorAll('.cnv-test-vars-group').forEach(function(group) {
+            var sid = group.getAttribute('data-scenario');
+            var cb = document.getElementById('scenario_' + sid);
+            var inputs = group.querySelectorAll('.cnv-var-input');
+            if (cb && cb.checked) {
+                group.style.display = '';
+                inputs.forEach(function(inp) { inp.disabled = false; });
+            } else {
+                group.style.display = 'none';
+                inputs.forEach(function(inp) { inp.disabled = true; });
+            }
+        });
+    }
+
+    // Attach to all scenario checkboxes
+    document.querySelectorAll('.scenario-input').forEach(function(cb) {
+        cb.addEventListener('change', updateScenarioVarGroups);
+    });
+
+    // Also update when select-all/deselect/defaults are clicked
+    var _origSelectAll = selectAllScenarios;
+    selectAllScenarios = function() { _origSelectAll(); updateScenarioVarGroups(); return false; };
+    var _origDeselect = deselectAllScenarios;
+    deselectAllScenarios = function() { _origDeselect(); updateScenarioVarGroups(); return false; };
+    var _origDefaults = selectDefaultScenarios;
+    selectDefaultScenarios = function() { _origDefaults(); updateScenarioVarGroups(); return false; };
+
+    // Initial state
+    updateScenarioVarGroups();
+
+    // Init task type
+    document.querySelectorAll('input[name="task_type"]').forEach(function(r) { r.addEventListener('change', switchTaskType); });
+    switchTaskType();
+
+    // CNV email toggle
+    var cnvEmailCb = document.getElementById('cnv_send_email');
+    if (cnvEmailCb) {
+        cnvEmailCb.addEventListener('change', function() {
+            document.getElementById('cnv-email-field').style.display = this.checked ? 'block' : 'none';
+        });
+    }
     
     // Jira Integration functions
     function toggleJiraScan() {
@@ -753,6 +1070,15 @@
         document.getElementById('modal-description').textContent = suggestion.check_description;
         document.getElementById('modal-reason').textContent = suggestion.reason;
         document.getElementById('modal-counter').textContent = (currentSuggestionIndex + 1) + ' of ' + jiraSuggestions.length;
+        
+        // Command
+        var cmdSection = document.getElementById('modal-cmd-section');
+        if (suggestion.command) {
+            document.getElementById('modal-command').textContent = suggestion.command;
+            cmdSection.style.display = 'block';
+        } else {
+            cmdSection.style.display = 'none';
+        }
         
         // Show modal
         modal.style.display = 'flex';
@@ -918,6 +1244,15 @@
         document.getElementById('pre-run-description').textContent = suggestion.check_description;
         document.getElementById('pre-run-reason').textContent = suggestion.bug_summary || 'Detected from recent Jira bugs';
         
+        // Command
+        var cmdSection = document.getElementById('pre-run-cmd-section');
+        if (suggestion.command) {
+            document.getElementById('pre-run-command').textContent = suggestion.command;
+            cmdSection.style.display = 'block';
+        } else {
+            cmdSection.style.display = 'none';
+        }
+        
         modal.style.display = 'flex';
     }
     
@@ -981,120 +1316,152 @@
 </script>
 
 <!-- Pre-Run Jira Suggestions Modal -->
-<div id="pre-run-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);z-index:10000;justify-content:center;align-items:center;">
-    <div style="background:var(--bg-card);border-radius:16px;max-width:550px;width:90%;box-shadow:0 25px 80px rgba(0,0,0,0.4);">
+<div id="pre-run-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(10,10,20,0.75);backdrop-filter:blur(4px);z-index:10000;justify-content:center;align-items:center;">
+    <div style="background:#fff;border-radius:14px;max-width:560px;width:92%;box-shadow:0 24px 80px rgba(0,0,0,0.25);border:1px solid #e5e7eb;">
         <!-- Header -->
-        <div style="background:linear-gradient(135deg,var(--purple),var(--accent));color:white;padding:20px 24px;border-radius:16px 16px 0 0;">
-            <div style="display:flex;justify-content:space-between;align-items:center;">
-                <h3 style="margin:0;font-size:18px;">🎫 New Test Suggestion from Jira</h3>
-                <span id="pre-run-counter" style="background:rgba(255,255,255,0.2);padding:4px 12px;border-radius:12px;font-size:12px;">1 of 3</span>
+        <div style="padding:20px 24px 16px;border-bottom:1px solid #f0f0f0;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <span style="background:linear-gradient(135deg,#f59e0b,#d97706);width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;">🎫</span>
+                    <span style="font-size:16px;font-weight:700;color:#111;">New Test Suggestion from Jira</span>
+                </div>
+                <span id="pre-run-counter" style="background:#eef2ff;padding:4px 12px;border-radius:20px;font-size:11px;font-weight:700;color:#4338ca;">1 of 3</span>
             </div>
-            <p style="margin:8px 0 0;opacity:0.9;font-size:13px;">Add this check to your health check run?</p>
+            <p style="margin:0;font-size:13px;color:#4b5563;padding-left:40px;font-weight:500;">Add this check to your health check run?</p>
         </div>
         
         <!-- Content -->
-        <div style="padding:24px;">
-            <div style="background:var(--bg-tertiary);border-radius:12px;padding:16px;margin-bottom:16px;">
-                <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">Suggested Check</div>
-                <div id="pre-run-check-name" style="font-size:18px;font-weight:700;color:var(--accent);"></div>
+        <div style="padding:20px 24px;">
+            <!-- Check Name -->
+            <div style="margin-bottom:20px;">
+                <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#1f2937;margin-bottom:6px;">Suggested Check</div>
+                <div id="pre-run-check-name" style="font-size:18px;font-weight:700;color:#111;font-family:'SF Mono','Consolas',monospace;background:#f8fafc;border:1px solid #e2e8f0;padding:12px 16px;border-radius:8px;"></div>
             </div>
             
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
-                <div style="background:var(--bg-secondary);border-radius:8px;padding:12px;">
-                    <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">Source Bug</div>
-                    <a id="pre-run-jira-key" href="#" target="_blank" style="font-weight:600;color:var(--accent);text-decoration:none;font-size:14px;"></a>
+            <!-- Jira + Priority row -->
+            <div style="display:flex;gap:16px;margin-bottom:20px;">
+                <div style="flex:1;">
+                    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#1f2937;margin-bottom:4px;">Source Bug</div>
+                    <a id="pre-run-jira-key" href="#" target="_blank" style="font-weight:600;color:#0066cc;text-decoration:none;font-size:14px;"></a>
                 </div>
-                <div style="background:var(--bg-secondary);border-radius:8px;padding:12px;">
-                    <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">Priority</div>
+                <div>
+                    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#1f2937;margin-bottom:4px;">Priority</div>
                     <span id="pre-run-priority" class="priority-badge"></span>
                 </div>
             </div>
             
-            <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:16px;">
-                <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px;">📋 What This Check Does</div>
-                <div id="pre-run-description" style="font-size:13px;color:var(--text);line-height:1.5;"></div>
+            <!-- Description -->
+            <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:14px 16px;margin-bottom:20px;">
+                <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#15803d;margin-bottom:6px;">What This Check Does</div>
+                <div id="pre-run-description" style="font-size:13px;color:#166534;line-height:1.6;font-weight:500;"></div>
             </div>
             
-            <div style="font-size:12px;color:var(--text-secondary);margin-bottom:20px;">
-                <strong>Why:</strong> <span id="pre-run-reason"></span>
+            <!-- Command -->
+            <div id="pre-run-cmd-section" style="margin-bottom:20px;">
+                <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#1f2937;margin-bottom:6px;">Validation Command</div>
+                <div style="background:#1e1e2e;border-radius:8px;padding:12px 14px;position:relative;">
+                    <code id="pre-run-command" style="display:block;color:#a5f3fc;font-family:'SF Mono','Consolas','Courier New',monospace;font-size:12px;white-space:pre-wrap;word-break:break-all;line-height:1.6;"></code>
+                    <span style="position:absolute;top:8px;right:10px;font-size:9px;color:#94a3b8;background:#2d2d3d;padding:2px 6px;border-radius:4px;font-weight:600;">oc</span>
+                </div>
             </div>
             
-            <!-- Actions -->
-            <div style="display:flex;gap:12px;">
-                <button type="button" onclick="acceptPreRunSuggestion()" style="flex:1;padding:14px;border:none;border-radius:10px;background:var(--success);color:white;font-weight:600;cursor:pointer;font-size:14px;transition:transform 0.1s;">
-                    ✅ Add to This Run
+            <!-- Reason -->
+            <div style="font-size:13px;color:#374151;margin-bottom:24px;padding-left:2px;">
+                <strong style="color:#111827;">Why:</strong> <span id="pre-run-reason"></span>
+            </div>
+        </div>
+        
+        <!-- Actions -->
+        <div style="padding:0 24px 20px;display:flex;flex-direction:column;gap:8px;">
+            <div style="display:flex;gap:10px;">
+                <button type="button" onclick="acceptPreRunSuggestion()" style="flex:1;padding:12px 20px;border:none;border-radius:8px;background:#16a34a;color:white;font-weight:600;cursor:pointer;font-size:13px;transition:all 0.15s;" onmouseover="this.style.background='#15803d'" onmouseout="this.style.background='#16a34a'">
+                    Add to This Run
                 </button>
-                <button type="button" onclick="rejectPreRunSuggestion()" style="flex:1;padding:14px;border:none;border-radius:10px;background:var(--bg-tertiary);color:var(--text);font-weight:600;cursor:pointer;font-size:14px;">
-                    ⏭️ Skip
+                <button type="button" onclick="rejectPreRunSuggestion()" style="flex:1;padding:12px 20px;border:1px solid #d1d5db;border-radius:8px;background:#fff;color:#374151;font-weight:600;cursor:pointer;font-size:13px;transition:all 0.15s;" onmouseover="this.style.background='#f9fafb'" onmouseout="this.style.background='#fff'">
+                    Skip
                 </button>
             </div>
-            <button type="button" onclick="skipAllPreRunSuggestions()" style="width:100%;margin-top:10px;padding:10px;border:1px solid var(--border);border-radius:8px;background:transparent;color:var(--text-muted);cursor:pointer;font-size:12px;">
-                Skip All & Start Run
+            <button type="button" onclick="skipAllPreRunSuggestions()" style="width:100%;padding:10px;border:none;border-radius:8px;background:#fef2f2;color:#b91c1c;cursor:pointer;font-size:13px;font-weight:600;transition:all 0.15s;" onmouseover="this.style.background='#fee2e2';this.style.color='#dc2626'" onmouseout="this.style.background='#fef2f2';this.style.color='#b91c1c'">
+                Skip all & start run
             </button>
         </div>
     </div>
 </div>
 
 <!-- Jira Suggestion Modal (for during build) -->
-<div id="jira-suggestion-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:9999;justify-content:center;align-items:center;">
-    <div style="background:var(--bg-card);border-radius:16px;max-width:600px;width:90%;max-height:90vh;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+<div id="jira-suggestion-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(10,10,20,0.75);backdrop-filter:blur(4px);z-index:9999;justify-content:center;align-items:center;">
+    <div style="background:#fff;border-radius:14px;max-width:560px;width:92%;max-height:90vh;overflow:auto;box-shadow:0 24px 80px rgba(0,0,0,0.25);border:1px solid #e5e7eb;">
         <!-- Header -->
-        <div style="background:linear-gradient(135deg,var(--purple),var(--accent));color:white;padding:20px 24px;border-radius:16px 16px 0 0;">
-            <div style="display:flex;justify-content:space-between;align-items:center;">
-                <h3 style="margin:0;font-size:18px;">🤖 New Health Check Suggestion</h3>
-                <span id="modal-counter" style="background:rgba(255,255,255,0.2);padding:4px 12px;border-radius:12px;font-size:12px;">1 of 3</span>
+        <div style="padding:20px 24px 16px;border-bottom:1px solid #f0f0f0;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <span style="background:linear-gradient(135deg,#6366f1,#8b5cf6);width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;">🤖</span>
+                    <span style="font-size:16px;font-weight:700;color:#111;">New Health Check Suggestion</span>
+                </div>
+                <span id="modal-counter" style="background:#eef2ff;padding:4px 12px;border-radius:20px;font-size:11px;font-weight:700;color:#4338ca;">1 of 3</span>
             </div>
-            <p style="margin:8px 0 0;opacity:0.9;font-size:14px;">AI found a potential new test based on Jira bugs</p>
+            <p style="margin:0;font-size:13px;color:#4b5563;padding-left:40px;font-weight:500;">AI found a potential new test from Jira bugs</p>
         </div>
         
         <!-- Content -->
-        <div style="padding:24px;">
+        <div style="padding:20px 24px;">
             <!-- Check Name -->
-            <div style="background:var(--bg-tertiary);border-radius:12px;padding:16px;margin-bottom:16px;">
-                <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px;">Suggested Check Name</div>
-                <div id="modal-check-name" style="font-size:20px;font-weight:600;color:var(--accent);font-family:monospace;"></div>
+            <div style="margin-bottom:20px;">
+                <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#1f2937;margin-bottom:6px;">Suggested Check</div>
+                <div id="modal-check-name" style="font-size:18px;font-weight:700;color:#111;font-family:'SF Mono','Consolas',monospace;background:#f8fafc;border:1px solid #e2e8f0;padding:12px 16px;border-radius:8px;"></div>
             </div>
             
-            <!-- Jira Info -->
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
-                <div style="background:var(--bg-secondary);border-radius:8px;padding:12px;">
-                    <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">Source Bug</div>
-                    <a id="modal-jira-key" href="#" target="_blank" style="font-weight:600;color:var(--accent);text-decoration:none;"></a>
+            <!-- Jira + Priority row -->
+            <div style="display:flex;gap:16px;margin-bottom:20px;">
+                <div style="flex:1;">
+                    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#1f2937;margin-bottom:4px;">Source Bug</div>
+                    <a id="modal-jira-key" href="#" target="_blank" style="font-weight:600;color:#0066cc;text-decoration:none;font-size:14px;"></a>
                 </div>
-                <div style="background:var(--bg-secondary);border-radius:8px;padding:12px;">
-                    <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">Priority</div>
+                <div>
+                    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#1f2937;margin-bottom:4px;">Priority</div>
                     <span id="modal-priority" class="priority-badge"></span>
                 </div>
             </div>
             
             <!-- Summary -->
-            <div style="margin-bottom:16px;">
-                <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px;">Bug Summary</div>
-                <div id="modal-summary" style="font-size:14px;line-height:1.5;color:var(--text);"></div>
+            <div style="margin-bottom:20px;">
+                <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#1f2937;margin-bottom:6px;">Bug Summary</div>
+                <div id="modal-summary" style="font-size:14px;line-height:1.6;color:#111827;font-weight:500;"></div>
             </div>
             
             <!-- Description -->
-            <div style="background:var(--bg-secondary);border-radius:8px;padding:16px;margin-bottom:16px;">
-                <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px;">📋 What This Check Will Do</div>
-                <div id="modal-description" style="font-size:14px;color:var(--text);"></div>
+            <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:14px 16px;margin-bottom:20px;">
+                <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#15803d;margin-bottom:6px;">What This Check Does</div>
+                <div id="modal-description" style="font-size:13px;color:#166534;line-height:1.6;font-weight:500;"></div>
+            </div>
+            
+            <!-- Command -->
+            <div id="modal-cmd-section" style="margin-bottom:20px;">
+                <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#1f2937;margin-bottom:6px;">Validation Command</div>
+                <div style="background:#1e1e2e;border-radius:8px;padding:12px 14px;position:relative;">
+                    <code id="modal-command" style="display:block;color:#a5f3fc;font-family:'SF Mono','Consolas','Courier New',monospace;font-size:12px;white-space:pre-wrap;word-break:break-all;line-height:1.6;"></code>
+                    <span style="position:absolute;top:8px;right:10px;font-size:9px;color:#94a3b8;background:#2d2d3d;padding:2px 6px;border-radius:4px;font-weight:600;">oc</span>
+                </div>
             </div>
             
             <!-- Reason -->
-            <div style="font-size:12px;color:var(--text-secondary);margin-bottom:20px;">
-                <strong>Why suggested:</strong> <span id="modal-reason"></span>
+            <div style="font-size:13px;color:#374151;margin-bottom:24px;padding-left:2px;">
+                <strong style="color:#111827;">Why suggested:</strong> <span id="modal-reason"></span>
             </div>
-            
-            <!-- Actions -->
-            <div style="display:flex;gap:12px;">
-                <button type="button" onclick="acceptJiraSuggestion()" style="flex:1;padding:14px;border:none;border-radius:10px;background:var(--success);color:white;font-weight:600;cursor:pointer;font-size:14px;">
-                    ✅ Accept & Add Check
+        </div>
+        
+        <!-- Actions -->
+        <div style="padding:0 24px 20px;display:flex;flex-direction:column;gap:8px;">
+            <div style="display:flex;gap:10px;">
+                <button type="button" onclick="acceptJiraSuggestion()" style="flex:1;padding:12px 20px;border:none;border-radius:8px;background:#16a34a;color:white;font-weight:600;cursor:pointer;font-size:13px;transition:all 0.15s;" onmouseover="this.style.background='#15803d'" onmouseout="this.style.background='#16a34a'">
+                    Accept & Add
                 </button>
-                <button type="button" onclick="rejectJiraSuggestion()" style="flex:1;padding:14px;border:none;border-radius:10px;background:var(--bg-tertiary);color:var(--text);font-weight:600;cursor:pointer;font-size:14px;">
-                    ⏭️ Skip This One
+                <button type="button" onclick="rejectJiraSuggestion()" style="flex:1;padding:12px 20px;border:1px solid #d1d5db;border-radius:8px;background:#fff;color:#374151;font-weight:600;cursor:pointer;font-size:13px;transition:all 0.15s;" onmouseover="this.style.background='#f9fafb'" onmouseout="this.style.background='#fff'">
+                    Skip
                 </button>
             </div>
-            <button type="button" onclick="skipAllJiraSuggestions()" style="width:100%;margin-top:10px;padding:10px;border:1px solid var(--border);border-radius:8px;background:transparent;color:var(--text-muted);cursor:pointer;font-size:13px;">
-                Skip All Remaining
+            <button type="button" onclick="skipAllJiraSuggestions()" style="width:100%;padding:10px;border:none;border-radius:8px;background:#fef2f2;color:#b91c1c;cursor:pointer;font-size:13px;font-weight:600;transition:all 0.15s;" onmouseover="this.style.background='#fee2e2';this.style.color='#dc2626'" onmouseout="this.style.background='#fef2f2';this.style.color='#b91c1c'">
+                Skip all remaining
             </button>
         </div>
     </div>
@@ -1123,6 +1490,94 @@
     @keyframes slideIn {
         from { transform: translateX(100px); opacity: 0; }
         to { transform: translateX(0); opacity: 1; }
+    }
+
+    /* Command toggle for health check items */
+    .checkbox-item.has-commands {
+        flex-wrap: wrap;
+        position: relative;
+    }
+    .cmd-toggle-btn {
+        background: linear-gradient(135deg, #6366f1, #8b5cf6);
+        border: none;
+        color: white;
+        width: 28px;
+        height: 28px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s;
+        flex-shrink: 0;
+        margin-top: 2px;
+        opacity: 0.7;
+        box-shadow: 0 1px 3px rgba(99,102,241,0.3);
+    }
+    .cmd-toggle-btn:hover {
+        opacity: 1;
+        transform: scale(1.1);
+        box-shadow: 0 2px 8px rgba(99,102,241,0.4);
+    }
+    .checkbox-item.show-cmds .cmd-toggle-btn {
+        opacity: 1;
+        background: linear-gradient(135deg, #4f46e5, #7c3aed);
+        box-shadow: 0 2px 8px rgba(99,102,241,0.4);
+    }
+    .cmd-panel {
+        display: none;
+        width: 100%;
+        padding: 10px 12px 4px;
+        margin-top: 8px;
+        border-top: 2px solid #6366f120;
+        background: linear-gradient(135deg, #f0f0ff, #f8f7ff);
+        border-radius: 0 0 8px 8px;
+        margin-left: -14px;
+        margin-right: -14px;
+        margin-bottom: -14px;
+        width: calc(100% + 28px);
+    }
+    .checkbox-item.show-cmds .cmd-panel {
+        display: block;
+    }
+    .cmd-panel-label {
+        font-size: 10px;
+        font-weight: 700;
+        color: #6366f1;
+        text-transform: uppercase;
+        letter-spacing: 0.8px;
+        margin-bottom: 6px;
+    }
+    .cmd-entry {
+        margin-bottom: 10px;
+    }
+    .cmd-entry:last-child {
+        margin-bottom: 0;
+    }
+    .cmd-line {
+        display: block;
+        background: #1e1e2e;
+        color: #a5f3fc;
+        font-family: 'SF Mono', 'Consolas', 'Courier New', monospace;
+        font-size: 11.5px;
+        padding: 8px 12px;
+        border-radius: 6px 6px 0 0;
+        white-space: pre-wrap;
+        word-break: break-all;
+        line-height: 1.5;
+        border: none;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+    }
+    .cmd-validates {
+        background: #f0fdf4;
+        border: 1px solid #bbf7d0;
+        border-top: none;
+        color: #166534;
+        font-size: 11.5px;
+        padding: 6px 12px;
+        border-radius: 0 0 6px 6px;
+        line-height: 1.5;
     }
 </style>
 {% endblock %}

@@ -16,10 +16,11 @@ from datetime import datetime
 from flask import Blueprint, render_template, jsonify, request, send_from_directory, redirect, url_for
 from flask_login import login_required, current_user
 from functools import wraps
+from app.models import db, Host
 
 # Import configuration
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from config.settings import Config, AVAILABLE_CHECKS
+from config.settings import Config, AVAILABLE_CHECKS, CATEGORY_ICONS, CNV_SCENARIOS, CNV_SCENARIO_CATEGORIES, CNV_CATEGORY_ORDER, CNV_GLOBAL_VARIABLES
 
 # Create Blueprint
 dashboard_bp = Blueprint('dashboard', __name__)
@@ -27,7 +28,8 @@ dashboard_bp = Blueprint('dashboard', __name__)
 # Configuration
 BASE_DIR = Config.BASE_DIR
 REPORTS_DIR = Config.REPORTS_DIR
-SCRIPT_PATH = os.path.join(BASE_DIR, "hybrid_health_check.py")
+SCRIPT_PATH = os.path.join(BASE_DIR, "healthchecks", "hybrid_health_check.py")
+CNV_SCRIPT_PATH = os.path.join(BASE_DIR, "healthchecks", "cnv_scenarios.py")
 BUILDS_FILE = Config.BUILDS_FILE
 SCHEDULES_FILE = os.path.join(BASE_DIR, "schedules.json")
 SETTINGS_FILE = os.path.join(BASE_DIR, ".settings.json")
@@ -93,13 +95,24 @@ AVAILABLE_AGENTS = {
     },
 }
 
+# Default CNV Scenarios settings (built from config)
+_DEFAULT_CNV_SETTINGS = {
+    'cnv_path': '/home/kni/git/cnv-scenarios',
+    'mode': 'sanity',
+    'parallel': False,
+    'kb_log_level': '',
+    'kb_timeout': '',
+    'global_vars': {var: info['default'] for var, info in CNV_GLOBAL_VARIABLES.items()},
+    'scenario_vars': {},
+}
+
 # Default settings
 DEFAULT_SETTINGS = {
     'thresholds': DEFAULT_THRESHOLDS,
-    'ssh': {'host': '', 'user': 'root', 'jumphost_host': '', 'jumphost_user': ''},
-    'hosts': [],
+    'ssh': {'host': '', 'user': 'root'},
     'ai': {'model': 'ollama/llama3.2:3b', 'url': 'http://localhost:11434'},
-    'jira': {'projects': ['CNV', 'OCPBUGS', 'ODF'], 'scan_days': 30, 'bug_limit': 50}
+    'jira': {'projects': ['CNV', 'OCPBUGS', 'ODF'], 'scan_days': 30, 'bug_limit': 50},
+    'cnv': _DEFAULT_CNV_SETTINGS,
 }
 
 
@@ -173,10 +186,304 @@ def save_settings(settings):
         json.dump(settings, f, indent=2)
 
 
+def _collect_scenario_var_defaults(form):
+    """Collect per-scenario variable defaults from a settings form POST."""
+    result = {}
+    for sid, scenario in CNV_SCENARIOS.items():
+        svars = scenario.get('variables', {})
+        if not svars:
+            continue
+        saved = {}
+        for var_name, var_info in svars.items():
+            key = f'cnv_var_{sid}_{var_name}'
+            if var_info['type'] == 'bool':
+                saved[var_name] = form.get(key) == 'on'
+            elif var_info['type'] == 'int':
+                try:
+                    saved[var_name] = int(form.get(key, var_info.get('default', 0)))
+                except (ValueError, TypeError):
+                    saved[var_name] = var_info.get('default', 0)
+            else:
+                saved[var_name] = form.get(key, str(var_info.get('default', ''))).strip()
+        result[sid] = saved
+    return result
+
+
+def _send_cnv_email_report(recipient, build_num, build_name, status, status_text,
+                            duration, checks, options, output):
+    """Send a CNV scenario results email."""
+    import smtplib
+    from email.mime.multipart import MIMEMultipart
+    from email.mime.text import MIMEText
+
+    smtp_server = os.getenv('SMTP_SERVER', 'smtp.corp.redhat.com')
+    smtp_port = int(os.getenv('SMTP_PORT', '25'))
+    email_from = os.getenv('EMAIL_FROM', 'cnv-healthcrew@redhat.com')
+
+    mode = options.get('scenario_mode', 'sanity')
+    tests = checks if isinstance(checks, list) else []
+    test_count = len(tests)
+
+    status_colors = {
+        'success': '#73BF69',
+        'unstable': '#FF9830',
+        'failed': '#F2495C',
+    }
+    status_emoji = {'success': '✅', 'unstable': '⚠️', 'failed': '❌'}.get(status, '🔵')
+    color = status_colors.get(status, '#5794F2')
+
+    # Extract result lines from the output (last ~60 lines usually contain summary)
+    output_lines = output.strip().split('\n')
+    # Find summary section
+    summary_start = None
+    for i, line in enumerate(output_lines):
+        if any(k in line for k in ['Results:', 'SUMMARY', 'Summary:', 'scenarios complete', 'PASS', 'FAIL']):
+            if summary_start is None or i < summary_start:
+                summary_start = max(0, i - 2)
+    if summary_start is not None:
+        summary_lines = output_lines[summary_start:]
+    else:
+        summary_lines = output_lines[-40:]
+
+    # Strip ANSI codes for plain text
+    import re
+    ansi_re = re.compile(r'\x1b\[[0-9;]*m')
+
+    def strip_ansi(s):
+        return ansi_re.sub('', s)
+
+    plain_summary = '\n'.join(strip_ansi(l) for l in summary_lines)
+    html_summary = '<br>'.join(
+        strip_ansi(l).replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+        for l in summary_lines
+    )
+
+    subject = f'{status_emoji} CNV Scenarios #{build_num} — {status_text}'
+    if build_name:
+        subject += f' ({build_name})'
+
+    # Build a nice HTML email
+    html = f'''<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0d1117;color:#c9d1d9;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#0d1117;padding:20px 0;">
+<tr><td align="center">
+<table width="640" cellpadding="0" cellspacing="0" style="background:#161b22;border-radius:12px;overflow:hidden;border:1px solid #30363d;">
+
+<!-- Header -->
+<tr><td style="background:linear-gradient(135deg,#1a1a2e,#16213e);padding:28px 32px;">
+<table width="100%"><tr>
+<td><span style="font-size:28px;">🔥</span></td>
+<td style="padding-left:14px;">
+<div style="font-size:22px;font-weight:700;color:#e6edf3;">CNV Scenarios Report</div>
+<div style="font-size:13px;color:#8b949e;margin-top:4px;">Build #{build_num} · {duration}</div>
+</td>
+<td align="right">
+<div style="display:inline-block;padding:8px 20px;border-radius:20px;background:{color}22;border:1px solid {color}44;">
+<span style="font-size:16px;font-weight:700;color:{color};">{status_emoji} {status_text}</span>
+</div>
+</td>
+</tr></table>
+</td></tr>
+
+<!-- Summary Stats -->
+<tr><td style="padding:24px 32px;">
+<table width="100%" cellpadding="0" cellspacing="0">
+<tr>
+<td width="33%" style="padding:12px;background:#0d111788;border-radius:8px;text-align:center;border:1px solid #30363d;">
+<div style="font-size:24px;font-weight:700;color:{color};">{status_text}</div>
+<div style="font-size:11px;color:#8b949e;margin-top:4px;">STATUS</div>
+</td>
+<td width="8"></td>
+<td width="33%" style="padding:12px;background:#0d111788;border-radius:8px;text-align:center;border:1px solid #30363d;">
+<div style="font-size:24px;font-weight:700;color:#e6edf3;">{test_count}</div>
+<div style="font-size:11px;color:#8b949e;margin-top:4px;">SCENARIOS</div>
+</td>
+<td width="8"></td>
+<td width="33%" style="padding:12px;background:#0d111788;border-radius:8px;text-align:center;border:1px solid #30363d;">
+<div style="font-size:24px;font-weight:700;color:#e6edf3;">{mode.upper()}</div>
+<div style="font-size:11px;color:#8b949e;margin-top:4px;">MODE</div>
+</td>
+</tr>
+</table>
+</td></tr>
+
+<!-- Scenarios List -->
+<tr><td style="padding:0 32px 20px;">
+<div style="font-size:13px;font-weight:600;color:#8b949e;margin-bottom:10px;">SCENARIOS EXECUTED</div>
+<div style="background:#0d1117;border:1px solid #30363d;border-radius:8px;padding:14px 18px;font-family:monospace;font-size:13px;color:#c9d1d9;">
+{'  ·  '.join(tests)}
+</div>
+</td></tr>
+
+<!-- Output Summary -->
+<tr><td style="padding:0 32px 24px;">
+<div style="font-size:13px;font-weight:600;color:#8b949e;margin-bottom:10px;">OUTPUT SUMMARY</div>
+<div style="background:#0d1117;border:1px solid #30363d;border-radius:8px;padding:16px 18px;font-family:monospace;font-size:12px;line-height:1.6;color:#c9d1d9;max-height:400px;overflow:auto;">
+{html_summary}
+</div>
+</td></tr>
+
+<!-- Footer -->
+<tr><td style="padding:20px 32px;background:#0d111788;border-top:1px solid #30363d;text-align:center;">
+<span style="font-size:12px;color:#8b949e;">
+🔥 CNV HealthCrew · Automated scenario report · <a href="#" style="color:#58a6ff;">View full output in dashboard</a>
+</span>
+</td></tr>
+
+</table>
+</td></tr>
+</table>
+</body>
+</html>'''
+
+    plain = f"""CNV Scenarios Report — Build #{build_num}
+Status: {status_text}
+Duration: {duration}
+Mode: {mode}
+Scenarios: {', '.join(tests)}
+
+--- Output Summary ---
+{plain_summary}
+"""
+
+    msg = MIMEMultipart('alternative')
+    msg['Subject'] = subject
+    msg['From'] = email_from
+    msg['To'] = recipient
+    msg.attach(MIMEText(plain, 'plain'))
+    msg.attach(MIMEText(html, 'html'))
+
+    with smtplib.SMTP(smtp_server, smtp_port, timeout=30) as server:
+        server.sendmail(email_from, [recipient], msg.as_string())
+
+
 def get_thresholds():
     """Get current threshold settings"""
     settings = load_settings()
     return settings.get('thresholds', DEFAULT_THRESHOLDS)
+
+
+def get_hosts_for_user(user, **_kwargs):
+    """Get all hosts — everyone can see all hosts."""
+    return Host.query.order_by(Host.created_at).all()
+
+
+def _setup_passwordless_ssh(host, user, password):
+    """Setup passwordless SSH to a host. Returns (success, message)."""
+    import paramiko
+    home = os.path.expanduser("~")
+    ssh_dir = os.path.join(home, ".ssh")
+    key_path = os.path.join(ssh_dir, "id_ed25519")
+    pub_path = key_path + ".pub"
+
+    try:
+        os.makedirs(ssh_dir, mode=0o700, exist_ok=True)
+        if not os.path.exists(key_path):
+            key = paramiko.Ed25519Key.generate()
+            key.write_private_key_file(key_path)
+            os.chmod(key_path, 0o600)
+            pub_key_str = f"{key.get_name()} {key.get_base64()} cnv-healthcrew"
+            with open(pub_path, 'w') as f:
+                f.write(pub_key_str + "\n")
+            os.chmod(pub_path, 0o644)
+        else:
+            key = paramiko.Ed25519Key(filename=key_path)
+            pub_key_str = f"{key.get_name()} {key.get_base64()} cnv-healthcrew"
+
+        client = paramiko.SSHClient()
+        client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        client.connect(host, username=user, password=password, timeout=15)
+
+        commands = (
+            "mkdir -p ~/.ssh && chmod 700 ~/.ssh && "
+            f"grep -qxF '{pub_key_str}' ~/.ssh/authorized_keys 2>/dev/null || "
+            f"echo '{pub_key_str}' >> ~/.ssh/authorized_keys && "
+            "chmod 600 ~/.ssh/authorized_keys"
+        )
+        stdin, stdout, stderr = client.exec_command(commands)
+        exit_status = stdout.channel.recv_exit_status()
+        err_output = stderr.read().decode().strip()
+        client.close()
+
+        if exit_status != 0:
+            return False, f'Failed to install key: {err_output}'
+
+        # Verify key-based login works
+        verify_client = paramiko.SSHClient()
+        verify_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        verify_client.connect(host, username=user, key_filename=key_path, timeout=15)
+        verify_client.close()
+        return True, 'OK'
+    except Exception as e:
+        return False, str(e)
+
+
+def sync_hosts_from_form(host_ids, host_names, host_addrs, host_users, host_passwords, user):
+    """
+    Sync the host list from form submission for the current user.
+    - Existing hosts (with id) are updated.
+    - New hosts (no id) are created.
+    - If a password is provided for a new host, passwordless SSH is set up first.
+    Returns (first_host, first_user, ssh_messages).
+    """
+    first_host = ''
+    first_user = 'root'
+    ssh_messages = []
+    submitted_ids = set()
+
+    # First pass: collect IDs of existing hosts still in the form
+    for hid in host_ids:
+        hid = hid.strip()
+        if hid:
+            submitted_ids.add(int(hid))
+
+    # Delete hosts that were removed from the form (before adding new ones)
+    if user.is_admin:
+        all_hosts = Host.query.all()
+    else:
+        all_hosts = Host.query.filter_by(created_by=user.id).all()
+    for h in all_hosts:
+        if h.id not in submitted_ids:
+            db.session.delete(h)
+    db.session.flush()
+
+    # Second pass: update existing and create new hosts
+    for hid, name, addr, usr, pwd in zip(host_ids, host_names, host_addrs, host_users, host_passwords):
+        addr = addr.strip()
+        if not addr:
+            continue
+        name = name.strip() or addr
+        usr = usr.strip() or 'root'
+        pwd = pwd.strip() if pwd else ''
+
+        if not first_host:
+            first_host = addr
+            first_user = usr
+
+        hid = hid.strip()
+        if hid:
+            # Update existing host
+            host_obj = Host.query.get(int(hid))
+            if host_obj and (host_obj.created_by == user.id or user.is_admin):
+                host_obj.name = name
+                host_obj.host = addr
+                host_obj.user = usr
+        else:
+            # New host — setup passwordless SSH if password provided
+            if pwd:
+                ok, msg = _setup_passwordless_ssh(addr, usr, pwd)
+                if ok:
+                    ssh_messages.append(f'SSH key installed on {usr}@{addr}')
+                else:
+                    ssh_messages.append(f'SSH setup failed for {usr}@{addr}: {msg}')
+            label = f'{name} [{user.username}]' if not name.endswith(f'[{user.username}]') else name
+            host_obj = Host(name=label, host=addr, user=usr, created_by=user.id)
+            db.session.add(host_obj)
+
+    db.session.commit()
+    return first_host, first_user, ssh_messages
 
 
 # ── Build helpers (DB-backed) ────────────────────────────────────────────────
@@ -334,7 +641,12 @@ load_schedules()
 @login_required
 def help_page():
     """Help and documentation page"""
-    return render_template('help.html', active_page='help')
+    categories = sorted(set(c['category'] for c in AVAILABLE_CHECKS.values()))
+    return render_template('help.html',
+                           active_page='help',
+                           checks=AVAILABLE_CHECKS,
+                           categories=categories,
+                           category_icons=CATEGORY_ICONS)
 
 
 @dashboard_bp.route('/')
@@ -382,20 +694,26 @@ def configure():
     thresholds = settings.get('thresholds', DEFAULT_THRESHOLDS)
     ssh_config = settings.get('ssh', DEFAULT_SETTINGS['ssh'])
 
-    saved_hosts = settings.get('hosts', [])
-    default_host = ssh_config.get('host', '')
-    if default_host and not any(h.get('host') == default_host for h in saved_hosts):
-        saved_hosts.insert(0, {'name': default_host, 'host': default_host, 'user': ssh_config.get('user', 'root')})
+    host_objects = get_hosts_for_user(current_user)
+    saved_hosts = [h.to_dict() for h in host_objects]
+
+    cnv_config = settings.get('cnv', _DEFAULT_CNV_SETTINGS)
 
     return render_template('configure.html',
                            checks=AVAILABLE_CHECKS,
                            categories=categories,
+                           category_icons=CATEGORY_ICONS,
                            preset=preset,
                            thresholds=thresholds,
                            agents=AVAILABLE_AGENTS,
                            ssh_config=ssh_config,
                            saved_hosts=saved_hosts,
                            server_host=ssh_config.get('host', ''),
+                           cnv_scenarios=CNV_SCENARIOS,
+                           cnv_categories=CNV_SCENARIO_CATEGORIES,
+                           cnv_category_order=CNV_CATEGORY_ORDER,
+                           cnv_global_vars=CNV_GLOBAL_VARIABLES,
+                           cnv_config=cnv_config,
                            active_page='configure')
 
 
@@ -405,48 +723,97 @@ def run_build():
     """Start a new build or schedule one"""
     import uuid
 
-    selected_checks = request.form.getlist('checks')
-    if not selected_checks:
-        selected_checks = list(AVAILABLE_CHECKS.keys())
-
-    rca_level = request.form.get('rca_level', 'none')
+    task_type = request.form.get('task_type', 'health_check')
     run_name = request.form.get('run_name', '').strip()
-
-    current_thresholds = get_thresholds()
-    use_custom = 'use_custom_thresholds' in request.form
-
-    thresholds = {
-        'cpu_warning': int(request.form.get('cpu_threshold', current_thresholds['cpu_warning'])) if use_custom else current_thresholds['cpu_warning'],
-        'memory_warning': int(request.form.get('memory_threshold', current_thresholds['memory_warning'])) if use_custom else current_thresholds['memory_warning'],
-        'disk_latency': int(request.form.get('disk_latency_threshold', current_thresholds['disk_latency'])) if use_custom else current_thresholds['disk_latency'],
-        'etcd_latency': int(request.form.get('etcd_latency_threshold', current_thresholds['etcd_latency'])) if use_custom else current_thresholds['etcd_latency'],
-        'pod_density': int(request.form.get('pod_density_threshold', current_thresholds['pod_density'])) if use_custom else current_thresholds['pod_density'],
-        'restart_count': int(request.form.get('restart_threshold', current_thresholds['restart_count'])) if use_custom else current_thresholds['restart_count'],
-    }
-
-    selected_agent = request.form.get('agent', 'all')
     server_host = request.form.get('server_host', '').strip()
 
-    options = {
-        'server_host': server_host,
-        'rca_level': rca_level,
-        'rca_jira': 'rca_jira' in request.form,
-        'rca_email': 'rca_email' in request.form,
-        'rca_web': 'rca_web' in request.form,
-        'jira': 'check_jira' in request.form,
-        'email': 'send_email' in request.form,
-        'email_to': request.form.get('email_to', Config.DEFAULT_EMAIL),
-        'run_name': run_name,
-        'thresholds': thresholds,
-        'agent': selected_agent
-    }
+    # ── CNV Scenarios task ───────────────────────────────────────────────
+    if task_type == 'cnv_scenarios':
+        selected_tests = request.form.getlist('scenario_tests')
+        if not selected_tests:
+            selected_tests = [s['remote_name'] for s in CNV_SCENARIOS.values() if s.get('default')]
+
+        scenario_mode = request.form.get('scenario_mode', 'sanity')
+        scenario_parallel = 'scenario_parallel' in request.form
+        cnv_path = request.form.get('cnv_path', '/home/kni/git/cnv-scenarios').strip()
+
+        # Collect env-var overrides from the form
+        env_overrides = []
+        for key in request.form:
+            if key.startswith('cnv_var_') and request.form[key].strip():
+                var_name = key[len('cnv_var_'):]
+                env_overrides.append(f"{var_name}={request.form[key].strip()}")
+
+        kb_log_level = request.form.get('kb_log_level', '').strip()
+        kb_timeout = request.form.get('kb_timeout', '').strip()
+
+        options = {
+            'task_type': 'cnv_scenarios',
+            'server_host': server_host,
+            'run_name': run_name,
+            'scenario_tests': selected_tests,
+            'scenario_mode': scenario_mode,
+            'scenario_parallel': scenario_parallel,
+            'cnv_path': cnv_path,
+            'env_vars': ','.join(env_overrides) if env_overrides else '',
+            'kb_log_level': kb_log_level,
+            'kb_timeout': kb_timeout,
+            'email': 'cnv_send_email' in request.form,
+            'email_to': request.form.get('cnv_email_to', Config.DEFAULT_EMAIL),
+        }
+
+        schedule_type = request.form.get('schedule_type', 'now')
+        if schedule_type == 'now':
+            user_id = current_user.id if current_user.is_authenticated else None
+            build_num = start_build(selected_tests, options, user_id=user_id)
+            return redirect(url_for('dashboard.console_output', build_num=build_num))
+
+        # Fall through to scheduling code below (reuses same schedule logic)
+        selected_checks = selected_tests
+
+    # ── Health Check task (default) ──────────────────────────────────────
+    else:
+        selected_checks = request.form.getlist('checks')
+        if not selected_checks:
+            selected_checks = list(AVAILABLE_CHECKS.keys())
+
+        rca_level = request.form.get('rca_level', 'none')
+
+        current_thresholds = get_thresholds()
+        use_custom = 'use_custom_thresholds' in request.form
+
+        thresholds = {
+            'cpu_warning': int(request.form.get('cpu_threshold', current_thresholds['cpu_warning'])) if use_custom else current_thresholds['cpu_warning'],
+            'memory_warning': int(request.form.get('memory_threshold', current_thresholds['memory_warning'])) if use_custom else current_thresholds['memory_warning'],
+            'disk_latency': int(request.form.get('disk_latency_threshold', current_thresholds['disk_latency'])) if use_custom else current_thresholds['disk_latency'],
+            'etcd_latency': int(request.form.get('etcd_latency_threshold', current_thresholds['etcd_latency'])) if use_custom else current_thresholds['etcd_latency'],
+            'pod_density': int(request.form.get('pod_density_threshold', current_thresholds['pod_density'])) if use_custom else current_thresholds['pod_density'],
+            'restart_count': int(request.form.get('restart_threshold', current_thresholds['restart_count'])) if use_custom else current_thresholds['restart_count'],
+        }
+
+        selected_agent = request.form.get('agent', 'all')
+
+        options = {
+            'task_type': 'health_check',
+            'server_host': server_host,
+            'rca_level': rca_level,
+            'rca_jira': 'rca_jira' in request.form,
+            'rca_email': 'rca_email' in request.form,
+            'rca_web': 'rca_web' in request.form,
+            'jira': 'check_jira' in request.form,
+            'email': 'send_email' in request.form,
+            'email_to': request.form.get('email_to', Config.DEFAULT_EMAIL),
+            'run_name': run_name,
+            'thresholds': thresholds,
+            'agent': selected_agent
+        }
 
     schedule_type = request.form.get('schedule_type', 'now')
 
     if schedule_type == 'now':
         user_id = current_user.id if current_user.is_authenticated else None
-        start_build(selected_checks, options, user_id=user_id)
-        return redirect(url_for('dashboard.dashboard'))
+        build_num = start_build(selected_checks, options, user_id=user_id)
+        return redirect(url_for('dashboard.console_output', build_num=build_num))
 
     elif schedule_type == 'once':
         schedule_date = request.form.get('schedule_date', '')
@@ -505,8 +872,8 @@ def run_build():
         return redirect(url_for('dashboard.schedules_page'))
 
     user_id = current_user.id if current_user.is_authenticated else None
-    start_build(selected_checks, options, user_id=user_id)
-    return redirect(url_for('dashboard.dashboard'))
+    build_num = start_build(selected_checks, options, user_id=user_id)
+    return redirect(url_for('dashboard.console_output', build_num=build_num))
 
 
 @dashboard_bp.route('/job/quick-run')
@@ -617,7 +984,8 @@ def rebuild(build_num):
         checks = build.get('checks', list(AVAILABLE_CHECKS.keys()))
         options = build.get('options', {'rca_level': 'none', 'jira': False, 'email': False})
         user_id = current_user.id if current_user.is_authenticated else None
-        start_build(checks, options, user_id=user_id)
+        new_build_num = start_build(checks, options, user_id=user_id)
+        return redirect(url_for('dashboard.console_output', build_num=new_build_num))
 
     return redirect(url_for('dashboard.dashboard'))
 
@@ -968,7 +1336,7 @@ def api_jira_suggestions():
     """API endpoint to get Jira-based test suggestions"""
     try:
         sys.path.insert(0, BASE_DIR)
-        from hybrid_health_check import (
+        from healthchecks.hybrid_health_check import (
             get_known_recent_bugs,
             get_existing_check_names,
             analyze_bugs_for_new_checks,
@@ -992,6 +1360,12 @@ def api_jira_suggestions():
             if s.get('status') == 'rejected' and s.get('rejected_at')
         }
         suggestions = [s for s in suggestions if s['suggested_check'] not in rejected_recently]
+
+        # Enrich suggestions with command info
+        from healthchecks.hybrid_health_check import generate_check_code
+        for s in suggestions:
+            check_code = generate_check_code(s)
+            s['command'] = check_code.get('command', '')
 
         return jsonify({
             'success': True,
@@ -1185,9 +1559,10 @@ def start_build(checks, options, user_id=None):
     with _jobs_lock:
         if len(running_jobs) >= MAX_CONCURRENT:
             queued_jobs.append((job_id, checks, options, user_id))
-            return
+            return build_num
 
     _execute_build(job_id, checks, options, user_id=user_id)
+    return build_num
 
 
 def _execute_build(job_id, checks, options, user_id=None):
@@ -1205,65 +1580,126 @@ def _execute_build(job_id, checks, options, user_id=None):
         except Exception:
             pass
 
-    cmd = [sys.executable, SCRIPT_PATH]
+    is_cnv = options.get('task_type') == 'cnv_scenarios'
 
-    server_host = options.get('server_host', '')
-    if server_host:
-        cmd.extend(['--server', server_host])
+    # ── Build the command and phase list based on task type ───────────────
+    if is_cnv:
+        cmd = [sys.executable, CNV_SCRIPT_PATH]
+        server_host = options.get('server_host', '')
+        if server_host:
+            cmd.extend(['--server', server_host])
+            host_obj = Host.query.filter_by(host=server_host).first()
+            if host_obj and host_obj.name:
+                import re
+                clean_name = re.sub(r'\s*\[.*?\]\s*$', '', host_obj.name).strip() or host_obj.host
+                cmd.extend(['--lab-name', clean_name])
 
-    rca_level = options.get('rca_level', 'none')
-    if rca_level == 'bugs':
-        cmd.append('--rca-bugs')
-    elif rca_level == 'full':
-        cmd.append('--ai')
+        scenario_tests = options.get('scenario_tests', [])
+        tests_str = ','.join(scenario_tests) if scenario_tests else 'all'
+        cmd.extend(['--tests', tests_str])
+        cmd.extend(['--mode', options.get('scenario_mode', 'sanity')])
+        if options.get('scenario_parallel'):
+            cmd.append('--parallel')
+        if options.get('cnv_path'):
+            cmd.extend(['--cnv-path', options['cnv_path']])
+        if options.get('env_vars'):
+            cmd.extend(['--env-vars', options['env_vars']])
+        if options.get('kb_log_level'):
+            cmd.extend(['--log-level', options['kb_log_level']])
+        if options.get('kb_timeout'):
+            cmd.extend(['--timeout', options['kb_timeout']])
 
-    if options.get('rca_jira'):
-        cmd.append('--rca-jira')
-    if options.get('rca_email'):
-        cmd.append('--rca-email')
-    if options.get('jira'):
-        cmd.append('--check-jira')
-    if options.get('email'):
-        cmd.append('--email')
-        if options.get('email_to'):
-            cmd.extend(['--email-to', options.get('email_to')])
+        phases = [
+            {'name': 'Initialize', 'status': 'pending', 'start_time': None, 'duration': None},
+            {'name': 'Connect', 'status': 'pending', 'start_time': None, 'duration': None},
+            {'name': 'Verify Setup', 'status': 'pending', 'start_time': None, 'duration': None},
+            {'name': 'Run Scenarios', 'status': 'pending', 'start_time': None, 'duration': None},
+            {'name': 'Collect Results', 'status': 'pending', 'start_time': None, 'duration': None},
+            {'name': 'Summary', 'status': 'pending', 'start_time': None, 'duration': None},
+        ]
 
-    phases = [
-        {'name': 'Initialize', 'status': 'pending', 'start_time': None, 'duration': None},
-    ]
-    if options.get('jira'):
-        phases.append({'name': 'Scan Jira', 'status': 'pending', 'start_time': None, 'duration': None})
+        if options.get('email'):
+            phases.append({'name': 'Send Email', 'status': 'pending', 'start_time': None, 'duration': None})
 
-    phases.extend([
-        {'name': 'Connect', 'status': 'pending', 'start_time': None, 'duration': None},
-        {'name': 'Collect Data', 'status': 'pending', 'start_time': None, 'duration': None},
-        {'name': 'Console Report', 'status': 'pending', 'start_time': None, 'duration': None},
-        {'name': 'Analyze', 'status': 'pending', 'start_time': None, 'duration': None},
-        {'name': 'Generate Report', 'status': 'pending', 'start_time': None, 'duration': None},
-    ])
+    else:
+        cmd = [sys.executable, SCRIPT_PATH]
 
-    rca_phase_idx = len(phases) - 1
-    if rca_level != 'none':
-        if options.get('rca_jira') or rca_level == 'full':
-            phases.insert(rca_phase_idx, {'name': 'Search Jira', 'status': 'pending', 'start_time': None, 'duration': None})
-            rca_phase_idx += 1
-        if options.get('rca_email') or rca_level == 'full':
-            phases.insert(rca_phase_idx, {'name': 'Search Email', 'status': 'pending', 'start_time': None, 'duration': None})
-            rca_phase_idx += 1
-        if options.get('rca_web'):
-            phases.insert(rca_phase_idx, {'name': 'Search Web', 'status': 'pending', 'start_time': None, 'duration': None})
-            rca_phase_idx += 1
-        if rca_level == 'full':
-            phases.insert(rca_phase_idx, {'name': 'Deep RCA', 'status': 'pending', 'start_time': None, 'duration': None})
+        server_host = options.get('server_host', '')
+        if server_host:
+            cmd.extend(['--server', server_host])
+            host_obj = Host.query.filter_by(host=server_host).first()
+            if host_obj and host_obj.name:
+                import re
+                clean_name = re.sub(r'\s*\[.*?\]\s*$', '', host_obj.name).strip() or host_obj.host
+                cmd.extend(['--lab-name', clean_name])
 
-    if options.get('email'):
-        phases.append({'name': 'Send Email', 'status': 'pending', 'start_time': None, 'duration': None})
+        rca_level = options.get('rca_level', 'none')
+        if rca_level == 'bugs':
+            cmd.append('--rca-bugs')
+        elif rca_level == 'full':
+            cmd.append('--ai')
+
+        if options.get('rca_jira'):
+            cmd.append('--rca-jira')
+        if options.get('rca_email'):
+            cmd.append('--rca-email')
+        if options.get('jira'):
+            cmd.append('--check-jira')
+        if options.get('email'):
+            cmd.append('--email')
+            if options.get('email_to'):
+                cmd.extend(['--email-to', options.get('email_to')])
+
+        phases = [
+            {'name': 'Initialize', 'status': 'pending', 'start_time': None, 'duration': None},
+        ]
+        if options.get('jira'):
+            phases.append({'name': 'Scan Jira', 'status': 'pending', 'start_time': None, 'duration': None})
+
+        phases.extend([
+            {'name': 'Connect', 'status': 'pending', 'start_time': None, 'duration': None},
+            {'name': 'Collect Data', 'status': 'pending', 'start_time': None, 'duration': None},
+            {'name': 'Console Report', 'status': 'pending', 'start_time': None, 'duration': None},
+            {'name': 'Analyze', 'status': 'pending', 'start_time': None, 'duration': None},
+            {'name': 'Generate Report', 'status': 'pending', 'start_time': None, 'duration': None},
+        ])
+
+        rca_phase_idx = len(phases) - 1
+        if rca_level != 'none':
+            if options.get('rca_jira') or rca_level == 'full':
+                phases.insert(rca_phase_idx, {'name': 'Search Jira', 'status': 'pending', 'start_time': None, 'duration': None})
+                rca_phase_idx += 1
+            if options.get('rca_email') or rca_level == 'full':
+                phases.insert(rca_phase_idx, {'name': 'Search Email', 'status': 'pending', 'start_time': None, 'duration': None})
+                rca_phase_idx += 1
+            if options.get('rca_web'):
+                phases.insert(rca_phase_idx, {'name': 'Search Web', 'status': 'pending', 'start_time': None, 'duration': None})
+                rca_phase_idx += 1
+            if rca_level == 'full':
+                phases.insert(rca_phase_idx, {'name': 'Deep RCA', 'status': 'pending', 'start_time': None, 'duration': None})
+
+        if options.get('email'):
+            phases.append({'name': 'Send Email', 'status': 'pending', 'start_time': None, 'duration': None})
 
     run_name = options.get('run_name', '')
+    # Include lab name (jumphost label) in the build name
+    server_host = options.get('server_host', '')
+    lab_name = ''
+    if server_host:
+        host_obj = Host.query.filter_by(host=server_host).first()
+        if host_obj and host_obj.name:
+            import re
+            lab_name = re.sub(r'\s*\[.*?\]\s*$', '', host_obj.name).strip()
+    if run_name and lab_name:
+        display_name = f'{run_name} ({lab_name})'
+    elif lab_name:
+        display_name = lab_name
+    else:
+        display_name = run_name
 
     job = {
         'number': build_num,
-        'name': run_name,
+        'name': display_name,
         'status': 'running',
         'status_text': 'Running',
         'output': f'[{datetime.now().strftime("%H:%M:%S")}] Starting build #{build_num}' + (f' "{run_name}"' if run_name else '') + f' (by {username})...\n',
@@ -1302,8 +1738,13 @@ def _execute_build(job_id, checks, options, user_id=None):
 
         try:
             set_phase(job, 0, 'running', 'Initializing build environment...')
-            job['output'] += f'[{datetime.now().strftime("%H:%M:%S")}] Options: RCA={options.get("rca_level")}, Jira={options.get("jira")}, Email={options.get("email")}\n'
-            job['output'] += f'[{datetime.now().strftime("%H:%M:%S")}] Checks: {len(checks)} selected\n'
+            if is_cnv:
+                tests_list = options.get('scenario_tests', [])
+                job['output'] += f'[{datetime.now().strftime("%H:%M:%S")}] Task: CNV Scenarios ({options.get("scenario_mode", "sanity")} mode)\n'
+                job['output'] += f'[{datetime.now().strftime("%H:%M:%S")}] Tests: {len(tests_list)} selected\n'
+            else:
+                job['output'] += f'[{datetime.now().strftime("%H:%M:%S")}] Options: RCA={options.get("rca_level")}, Jira={options.get("jira")}, Email={options.get("email")}\n'
+                job['output'] += f'[{datetime.now().strftime("%H:%M:%S")}] Checks: {len(checks)} selected\n'
             job['output'] += '-' * 60 + '\n'
             job['progress'] = 5
             set_phase(job, 0, 'done')
@@ -1333,62 +1774,95 @@ def _execute_build(job_id, checks, options, user_id=None):
                         return i
                 return -1
 
-            scan_jira_idx = find_phase_idx('Scan Jira')
-            connect_idx = find_phase_idx('Connect')
-            collect_idx = find_phase_idx('Collect Data')
-            console_idx = find_phase_idx('Console Report')
-            analyze_idx = find_phase_idx('Analyze')
-            jira_rca_idx = find_phase_idx('Search Jira')
-            email_rca_idx = find_phase_idx('Search Email')
-            web_rca_idx = find_phase_idx('Search Web')
-            deep_rca_idx = find_phase_idx('Deep RCA')
-            report_idx = find_phase_idx('Generate Report')
-            email_idx = find_phase_idx('Send Email')
+            # ── Build phase keyword map based on task type ───────────────
+            if is_cnv:
+                connect_idx = find_phase_idx('Connect')
+                verify_idx = find_phase_idx('Verify Setup')
+                run_idx = find_phase_idx('Run Scenarios')
+                results_idx = find_phase_idx('Collect Results')
+                summary_idx = find_phase_idx('Summary')
 
-            phase_keywords = {
-                'Checking Jira for new test suggestions': (scan_jira_idx, 'Scanning Jira for new tests...', 3),
-                'Checking Jira for recent bugs': (scan_jira_idx, 'Checking Jira for bugs...', 4),
-                'Analyzed': (scan_jira_idx, 'Analyzing Jira bugs...', 5),
-                'new checks will be included': (scan_jira_idx, 'Jira scan complete', 6),
-                'HealthCrew AI Starting': (connect_idx, 'Initializing...', 8),
-                'Connecting to cluster': (connect_idx, 'Connecting to cluster...', 10),
-                'Connected to': (connect_idx, 'Connected to cluster', 15),
-                'Collecting cluster data': (collect_idx, 'Collecting cluster data...', 18),
-                'Checking nodes': (collect_idx, 'Checking nodes...', 22),
-                'Checking node resources': (collect_idx, 'Checking node resources...', 25),
-                'Getting cluster version': (collect_idx, 'Getting cluster version...', 28),
-                'Checking etcd': (collect_idx, 'Checking etcd health...', 30),
-                'Checking certificates': (collect_idx, 'Checking certificates...', 32),
-                'Checking PVC': (collect_idx, 'Checking PVC status...', 35),
-                'Checking VM migrations': (collect_idx, 'Checking VM migrations...', 38),
-                'Checking alerts': (collect_idx, 'Checking alerts...', 40),
-                'Checking CSI': (collect_idx, 'Checking CSI drivers...', 42),
-                'Checking OOM': (collect_idx, 'Checking OOM events...', 44),
-                'Checking virt-handler': (collect_idx, 'Checking virt-handler pods...', 46),
-                'Checking virt-launcher': (collect_idx, 'Checking virt-launcher pods...', 48),
-                'Checking DataVolumes': (collect_idx, 'Checking DataVolumes...', 50),
-                'Checking HyperConverged': (collect_idx, 'Checking HyperConverged...', 52),
-                'Data collection complete': (collect_idx, 'Data collection complete', 54),
-                'Generating console report': (console_idx, 'Generating console report...', 56),
-                'HEALTH REPORT': (console_idx, 'Displaying health report...', 58),
-                'Starting Root Cause Analysis': (analyze_idx, 'Starting root cause analysis...', 60),
-                '🔬 Starting Root Cause Analysis': (analyze_idx, 'Starting root cause analysis...', 60),
-                'Matching failures to known issues': (analyze_idx, 'Matching failures to known issues...', 62),
-                'issue(s) to analyze': (analyze_idx, 'Analyzing issues...', 64),
-                '→ Searching Jira': (jira_rca_idx, 'Searching Jira for bugs...', 66),
-                'Searching Jira for related bugs': (jira_rca_idx, 'Searching Jira for bugs...', 66),
-                '→ Searching emails': (email_rca_idx, 'Searching emails...', 70),
-                'Searching emails for related': (email_rca_idx, 'Searching emails...', 70),
-                '→ Searching web': (web_rca_idx, 'Searching web docs...', 74),
-                'Running deep investigation': (deep_rca_idx, 'Running deep investigation...', 78),
-                'Deep investigation complete': (deep_rca_idx, 'Deep investigation complete', 82),
-                'Saving HTML report': (report_idx, 'Saving HTML report...', 85),
-                'Saved:': (report_idx, 'Report saved', 88),
-                'Reports saved': (report_idx, 'Reports saved', 90),
-                'Health check complete': (report_idx, 'Complete!', 95),
-                'Sending email report': (email_idx, 'Sending email...', 96),
-                'Email sent successfully': (email_idx, 'Email sent!', 99),
-            }
+                phase_keywords = {
+                    'Connecting to': (connect_idx, 'Connecting to jump host...', 10),
+                    'Connected to': (connect_idx, 'Connected to jump host', 15),
+                    'SSH connection established': (connect_idx, 'Connected to jump host', 15),
+                    'Verifying cnv-scenarios': (verify_idx, 'Verifying cnv-scenarios setup...', 20),
+                    'KUBECONFIG': (verify_idx, 'Setting up environment...', 22),
+                    'kubeconfig': (verify_idx, 'Setting up environment...', 22),
+                    'Running command': (run_idx, 'Running workload scenarios...', 30),
+                    'run-workloads.sh': (run_idx, 'Running workload scenarios...', 30),
+                    'Running test': (run_idx, 'Running test scenarios...', 35),
+                    'RUNNING': (run_idx, 'Running scenarios...', 40),
+                    'kube-burner': (run_idx, 'Running kube-burner workloads...', 50),
+                    'Waiting for': (run_idx, 'Waiting for workloads...', 55),
+                    'PASS': (run_idx, 'Tests progressing...', 60),
+                    'FAIL': (run_idx, 'Tests progressing...', 60),
+                    'Collecting results': (results_idx, 'Collecting results...', 75),
+                    'summary.json': (results_idx, 'Parsing summary...', 80),
+                    'Results:': (summary_idx, 'Generating summary...', 85),
+                    'Summary:': (summary_idx, 'Generating summary...', 85),
+                    'SUMMARY': (summary_idx, 'Generating summary...', 85),
+                    'scenarios complete': (summary_idx, 'Complete!', 95),
+                    'All tests': (summary_idx, 'Complete!', 95),
+                    'Done': (summary_idx, 'Complete!', 95),
+                }
+            else:
+                scan_jira_idx = find_phase_idx('Scan Jira')
+                connect_idx = find_phase_idx('Connect')
+                collect_idx = find_phase_idx('Collect Data')
+                console_idx = find_phase_idx('Console Report')
+                analyze_idx = find_phase_idx('Analyze')
+                jira_rca_idx = find_phase_idx('Search Jira')
+                email_rca_idx = find_phase_idx('Search Email')
+                web_rca_idx = find_phase_idx('Search Web')
+                deep_rca_idx = find_phase_idx('Deep RCA')
+                report_idx = find_phase_idx('Generate Report')
+                email_idx = find_phase_idx('Send Email')
+
+                phase_keywords = {
+                    'Checking Jira for new test suggestions': (scan_jira_idx, 'Scanning Jira for new tests...', 3),
+                    'Checking Jira for recent bugs': (scan_jira_idx, 'Checking Jira for bugs...', 4),
+                    'Analyzed': (scan_jira_idx, 'Analyzing Jira bugs...', 5),
+                    'new checks will be included': (scan_jira_idx, 'Jira scan complete', 6),
+                    'HealthCrew AI Starting': (connect_idx, 'Initializing...', 8),
+                    'Connecting to cluster': (connect_idx, 'Connecting to cluster...', 10),
+                    'Connected to': (connect_idx, 'Connected to cluster', 15),
+                    'Collecting cluster data': (collect_idx, 'Collecting cluster data...', 18),
+                    'Checking nodes': (collect_idx, 'Checking nodes...', 22),
+                    'Checking node resources': (collect_idx, 'Checking node resources...', 25),
+                    'Getting cluster version': (collect_idx, 'Getting cluster version...', 28),
+                    'Checking etcd': (collect_idx, 'Checking etcd health...', 30),
+                    'Checking certificates': (collect_idx, 'Checking certificates...', 32),
+                    'Checking PVC': (collect_idx, 'Checking PVC status...', 35),
+                    'Checking VM migrations': (collect_idx, 'Checking VM migrations...', 38),
+                    'Checking alerts': (collect_idx, 'Checking alerts...', 40),
+                    'Checking CSI': (collect_idx, 'Checking CSI drivers...', 42),
+                    'Checking OOM': (collect_idx, 'Checking OOM events...', 44),
+                    'Checking virt-handler': (collect_idx, 'Checking virt-handler pods...', 46),
+                    'Checking virt-launcher': (collect_idx, 'Checking virt-launcher pods...', 48),
+                    'Checking DataVolumes': (collect_idx, 'Checking DataVolumes...', 50),
+                    'Checking HyperConverged': (collect_idx, 'Checking HyperConverged...', 52),
+                    'Data collection complete': (collect_idx, 'Data collection complete', 54),
+                    'Generating console report': (console_idx, 'Generating console report...', 56),
+                    'HEALTH REPORT': (console_idx, 'Displaying health report...', 58),
+                    'Starting Root Cause Analysis': (analyze_idx, 'Starting root cause analysis...', 60),
+                    '🔬 Starting Root Cause Analysis': (analyze_idx, 'Starting root cause analysis...', 60),
+                    'Matching failures to known issues': (analyze_idx, 'Matching failures to known issues...', 62),
+                    'issue(s) to analyze': (analyze_idx, 'Analyzing issues...', 64),
+                    '→ Searching Jira': (jira_rca_idx, 'Searching Jira for bugs...', 66),
+                    'Searching Jira for related bugs': (jira_rca_idx, 'Searching Jira for bugs...', 66),
+                    '→ Searching emails': (email_rca_idx, 'Searching emails...', 70),
+                    'Searching emails for related': (email_rca_idx, 'Searching emails...', 70),
+                    '→ Searching web': (web_rca_idx, 'Searching web docs...', 74),
+                    'Running deep investigation': (deep_rca_idx, 'Running deep investigation...', 78),
+                    'Deep investigation complete': (deep_rca_idx, 'Deep investigation complete', 82),
+                    'Saving HTML report': (report_idx, 'Saving HTML report...', 85),
+                    'Saved:': (report_idx, 'Report saved', 88),
+                    'Reports saved': (report_idx, 'Reports saved', 90),
+                    'Health check complete': (report_idx, 'Complete!', 95),
+                    'Sending email report': (email_idx, 'Sending email...', 96),
+                    'Email sent successfully': (email_idx, 'Email sent!', 99),
+                }
 
             while True:
                 line = process.stdout.readline()
@@ -1412,7 +1886,7 @@ def _execute_build(job_id, checks, options, user_id=None):
                             job['current_phase'] = phase_msg
                             break
 
-                    if 'Report saved' in line or 'health_report_' in line:
+                    if not is_cnv and ('Report saved' in line or 'health_report_' in line):
                         import re
                         match = re.search(r'(health_report_\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}\.html)', line)
                         if match:
@@ -1429,22 +1903,36 @@ def _execute_build(job_id, checks, options, user_id=None):
             duration = f"{duration_secs // 60}m {duration_secs % 60}s"
 
             full_output = ''.join(stdout_lines)
-            has_issues = 'WARNING' in full_output or 'Issues:' in full_output or 'ISSUES' in full_output or '⚠️' in full_output
-            has_errors = 'ERROR' in full_output or 'CRITICAL' in full_output or '❌' in full_output
 
-            if return_code != 0 or has_errors:
-                status = 'failed'
-                status_text = 'Failed'
-            elif has_issues:
-                status = 'unstable'
-                status_text = 'Issues Found'
+            if is_cnv:
+                # CNV scenario status detection
+                has_fail = 'FAIL' in full_output or 'failed' in full_output.lower()
+                has_pass = 'PASS' in full_output
+                if return_code != 0 or (has_fail and not has_pass):
+                    status = 'failed'
+                    status_text = 'Failed'
+                elif has_fail:
+                    status = 'unstable'
+                    status_text = 'Partial Pass'
+                else:
+                    status = 'success'
+                    status_text = 'All Passed'
             else:
-                status = 'success'
-                status_text = 'Healthy'
+                has_issues = 'WARNING' in full_output or 'Issues:' in full_output or 'ISSUES' in full_output or '⚠️' in full_output
+                has_errors = 'ERROR' in full_output or 'CRITICAL' in full_output or '❌' in full_output
+                if return_code != 0 or has_errors:
+                    status = 'failed'
+                    status_text = 'Failed'
+                elif has_issues:
+                    status = 'unstable'
+                    status_text = 'Issues Found'
+                else:
+                    status = 'success'
+                    status_text = 'Healthy'
 
             build_record = {
                 'number': build_num,
-                'name': run_name,
+                'name': job.get('name', run_name),
                 'status': status,
                 'status_text': status_text,
                 'checks': checks,
@@ -1459,14 +1947,40 @@ def _execute_build(job_id, checks, options, user_id=None):
             with app.app_context():
                 save_build_to_db(build_record, user_id=user_id)
 
-                # Record issues for learning
-                try:
-                    from app.learning import record_health_check_run
-                    detected_issues = extract_issues_from_output(full_output)
-                    if detected_issues:
-                        record_health_check_run(detected_issues)
-                except Exception:
-                    pass
+                # Record issues for learning (health checks only)
+                if not is_cnv:
+                    try:
+                        from app.learning import record_health_check_run
+                        detected_issues = extract_issues_from_output(full_output)
+                        if detected_issues:
+                            record_health_check_run(detected_issues)
+                    except Exception:
+                        pass
+
+                # Send email report if requested
+                if options.get('email') and options.get('email_to'):
+                    email_phase_idx = find_phase_idx('Send Email')
+                    if email_phase_idx is not None:
+                        set_phase(job, email_phase_idx, 'running', 'Sending email report...')
+                    try:
+                        _send_cnv_email_report(
+                            recipient=options['email_to'],
+                            build_num=build_num,
+                            build_name=job.get('name', run_name),
+                            status=status,
+                            status_text=status_text,
+                            duration=duration,
+                            checks=checks,
+                            options=options,
+                            output=full_output,
+                        )
+                        job['output'] += f'[{datetime.now().strftime("%H:%M:%S")}] ✅ Email sent to {options["email_to"]}\n'
+                        if email_phase_idx is not None:
+                            set_phase(job, email_phase_idx, 'done', 'Email sent!')
+                    except Exception as e:
+                        job['output'] += f'[{datetime.now().strftime("%H:%M:%S")}] ⚠️ Email failed: {e}\n'
+                        if email_phase_idx is not None:
+                            set_phase(job, email_phase_idx, 'done', f'Email failed: {e}')
 
         except Exception as e:
             job['output'] += f'\n[{datetime.now().strftime("%H:%M:%S")}] ❌ Error: {str(e)}\n'
@@ -1516,20 +2030,18 @@ def settings_page():
         if not current_user.is_operator:
             return "Access denied. Operator role required.", 403
 
+        # Sync hosts to DB (per-user)
+        host_ids = request.form.getlist('host_id[]')
         host_names = request.form.getlist('host_name[]')
         host_addrs = request.form.getlist('host_addr[]')
         host_users = request.form.getlist('host_user[]')
-        hosts_list = []
-        first_host = ''
-        first_user = 'root'
-        for n, a, u in zip(host_names, host_addrs, host_users):
-            a = a.strip()
-            if a:
-                entry = {'name': n.strip() or a, 'host': a, 'user': u.strip() or 'root'}
-                hosts_list.append(entry)
-                if not first_host:
-                    first_host = a
-                    first_user = entry['user']
+        host_passwords = request.form.getlist('host_password[]')
+        # Pad passwords list to match hosts (existing hosts don't have password fields)
+        while len(host_passwords) < len(host_ids):
+            host_passwords.append('')
+        first_host, first_user, ssh_messages = sync_hosts_from_form(
+            host_ids, host_names, host_addrs, host_users, host_passwords, current_user
+        )
 
         new_settings = {
             'thresholds': {
@@ -1544,10 +2056,7 @@ def settings_page():
             'ssh': {
                 'host': first_host,
                 'user': first_user,
-                'jumphost_host': request.form.get('jumphost_host', '').strip(),
-                'jumphost_user': request.form.get('jumphost_user', '').strip()
             },
-            'hosts': hosts_list,
             'ai': {
                 'model': request.form.get('ollama_model', 'ollama/llama3.2:3b').strip(),
                 'url': request.form.get('ollama_url', 'http://localhost:11434').strip()
@@ -1556,28 +2065,42 @@ def settings_page():
                 'projects': [p.strip() for p in request.form.get('jira_projects', 'CNV, OCPBUGS, ODF').split(',')],
                 'scan_days': int(request.form.get('jira_scan_days', 30)),
                 'bug_limit': int(request.form.get('jira_bug_limit', 50))
+            },
+            'cnv': {
+                'cnv_path': request.form.get('cnv_path', '/home/kni/git/cnv-scenarios').strip(),
+                'mode': request.form.get('cnv_mode', 'sanity').strip(),
+                'parallel': 'cnv_parallel' in request.form,
+                'kb_log_level': request.form.get('cnv_kb_log_level', '').strip(),
+                'kb_timeout': request.form.get('cnv_kb_timeout', '').strip(),
+                'global_vars': {
+                    'storageClassName': request.form.get('cnv_default_storageClassName', '').strip(),
+                    'nodeSelector': request.form.get('cnv_default_nodeSelector', '').strip(),
+                    'maxWaitTimeout': request.form.get('cnv_default_maxWaitTimeout', '').strip(),
+                    'jobPause': request.form.get('cnv_default_jobPause', '').strip(),
+                },
+                'scenario_vars': _collect_scenario_var_defaults(request.form),
             }
         }
 
         save_settings(new_settings)
 
-        ssh = new_settings['ssh']
         if first_host:
             _update_env_var('RH_LAB_HOST', first_host)
             _update_env_var('RH_LAB_USER', first_user)
-        if ssh.get('jumphost_host'):
-            _update_env_var('JUMPHOST_HOST', ssh['jumphost_host'])
-        if ssh.get('jumphost_user'):
-            _update_env_var('JUMPHOST_USER', ssh['jumphost_user'])
 
         log_audit('settings_update', details='Settings updated')
         message = "Your settings have been saved successfully."
+        if ssh_messages:
+            message += " " + " | ".join(ssh_messages)
 
     settings = load_settings()
-    ssh_config = settings.get('ssh', {'host': '', 'user': 'root', 'jumphost_host': '', 'jumphost_user': ''})
-    saved_hosts = settings.get('hosts', [])
-    if ssh_config.get('host') and not any(h.get('host') == ssh_config['host'] for h in saved_hosts):
-        saved_hosts.insert(0, {'name': ssh_config['host'], 'host': ssh_config['host'], 'user': ssh_config.get('user', 'root')})
+    ssh_config = settings.get('ssh', {'host': '', 'user': 'root'})
+
+    # Load hosts from DB (user's own + admin sees all)
+    host_objects = get_hosts_for_user(current_user)
+    saved_hosts = [h.to_dict() for h in host_objects]
+
+    cnv_config = settings.get('cnv', _DEFAULT_CNV_SETTINGS)
 
     return render_template('settings.html',
                            thresholds=settings.get('thresholds', DEFAULT_THRESHOLDS),
@@ -1585,6 +2108,9 @@ def settings_page():
                            saved_hosts=saved_hosts,
                            ai_config=settings.get('ai', {'model': 'ollama/llama3.2:3b', 'url': 'http://localhost:11434'}),
                            jira_config=settings.get('jira', {'projects': ['CNV', 'OCPBUGS', 'ODF'], 'scan_days': 30, 'bug_limit': 50}),
+                           cnv_config=cnv_config,
+                           cnv_global_vars=CNV_GLOBAL_VARIABLES,
+                           cnv_scenarios=CNV_SCENARIOS,
                            message=message,
                            active_page='settings')
 
@@ -1599,6 +2125,46 @@ def api_get_settings():
 @login_required
 def api_get_thresholds():
     return jsonify(get_thresholds())
+
+
+# =============================================================================
+# Host Management API Routes
+# =============================================================================
+
+@dashboard_bp.route('/api/hosts', methods=['POST'])
+@operator_required
+def api_add_host():
+    """Add a new jump host (persisted to DB immediately)."""
+    data = request.get_json(force=True)
+    addr = data.get('host', '').strip()
+    name = data.get('name', '').strip() or addr
+    user = data.get('user', '').strip() or 'root'
+
+    if not addr:
+        return jsonify({'success': False, 'error': 'Host address is required.'})
+
+    label = f'{name} [{current_user.username}]' if not name.endswith(f'[{current_user.username}]') else name
+    host_obj = Host(name=label, host=addr, user=user, created_by=current_user.id)
+    db.session.add(host_obj)
+    db.session.commit()
+    log_audit('host_add', target=f'{user}@{addr}', details=f'Added host {label}')
+    return jsonify({'success': True, 'host': host_obj.to_dict()})
+
+
+@dashboard_bp.route('/api/hosts/<int:host_id>', methods=['DELETE'])
+@operator_required
+def api_delete_host(host_id):
+    """Delete a jump host from the DB."""
+    host_obj = Host.query.get(host_id)
+    if not host_obj:
+        return jsonify({'success': False, 'error': 'Host not found.'}), 404
+    # Only owner or admin can delete
+    if host_obj.created_by != current_user.id and not current_user.is_admin:
+        return jsonify({'success': False, 'error': 'Permission denied.'}), 403
+    log_audit('host_delete', target=f'{host_obj.user}@{host_obj.host}', details=f'Deleted host {host_obj.name}')
+    db.session.delete(host_obj)
+    db.session.commit()
+    return jsonify({'success': True})
 
 
 # =============================================================================
@@ -1669,9 +2235,23 @@ def api_ssh_setup():
         _update_env_var('RH_LAB_USER', user)
         _update_env_var('SSH_KEY_PATH', key_path)
 
+        # Also save the host to DB if requested (from the combined add-host flow)
+        save_host = data.get('save_host', False)
+        host_dict = None
+        if save_host:
+            host_name = data.get('name', '').strip() or host
+            label = f'{host_name} [{current_user.username}]' if not host_name.endswith(f'[{current_user.username}]') else host_name
+            host_obj = Host(name=label, host=host, user=user, created_by=current_user.id)
+            db.session.add(host_obj)
+            db.session.commit()
+            host_dict = host_obj.to_dict()
+
         log_audit('ssh_setup', target=f'{user}@{host}', details='SSH key setup completed')
 
-        return jsonify({'success': True, 'message': f'Passwordless SSH to {user}@{host} is now configured.', 'key_path': key_path})
+        result = {'success': True, 'message': f'Passwordless SSH to {user}@{host} is now configured.', 'key_path': key_path}
+        if host_dict:
+            result['host'] = host_dict
+        return jsonify(result)
 
     except paramiko.AuthenticationException:
         return jsonify({'success': False, 'error': 'Authentication failed — wrong password or user.'})
@@ -1681,80 +2261,6 @@ def api_ssh_setup():
         return jsonify({'success': False, 'error': f'Unexpected error: {str(e)}'})
 
 
-@dashboard_bp.route('/api/jumphost/setup', methods=['POST'])
-@operator_required
-def api_jumphost_setup():
-    import paramiko
-    data = request.get_json(force=True)
-    host = data.get('host', '').strip()
-    user = data.get('user', '').strip()
-    password = data.get('password', '')
-
-    if not host or not user or not password:
-        return jsonify({'success': False, 'error': 'Host, user, and password are all required.'})
-
-    home = os.path.expanduser("~")
-    ssh_dir = os.path.join(home, ".ssh")
-    key_path = os.path.join(ssh_dir, "id_ed25519_jumphost")
-    pub_path = key_path + ".pub"
-
-    try:
-        os.makedirs(ssh_dir, mode=0o700, exist_ok=True)
-        if not os.path.exists(key_path):
-            key = paramiko.Ed25519Key.generate()
-            key.write_private_key_file(key_path)
-            os.chmod(key_path, 0o600)
-            pub_key_str = f"{key.get_name()} {key.get_base64()} cnv-healthcrew-jumphost"
-            with open(pub_path, 'w') as f:
-                f.write(pub_key_str + "\n")
-            os.chmod(pub_path, 0o644)
-        else:
-            key = paramiko.Ed25519Key(filename=key_path)
-            pub_key_str = f"{key.get_name()} {key.get_base64()} cnv-healthcrew-jumphost"
-
-        client = paramiko.SSHClient()
-        client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        client.connect(host, username=user, password=password, timeout=15)
-
-        commands = (
-            "mkdir -p ~/.ssh && chmod 700 ~/.ssh && "
-            f"grep -qxF '{pub_key_str}' ~/.ssh/authorized_keys 2>/dev/null || "
-            f"echo '{pub_key_str}' >> ~/.ssh/authorized_keys && "
-            "chmod 600 ~/.ssh/authorized_keys"
-        )
-        stdin, stdout, stderr = client.exec_command(commands)
-        exit_status = stdout.channel.recv_exit_status()
-        err_output = stderr.read().decode().strip()
-        client.close()
-
-        if exit_status != 0:
-            return jsonify({'success': False, 'error': f'Failed to install public key on jumphost: {err_output}'})
-
-        verify_client = paramiko.SSHClient()
-        verify_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        verify_client.connect(host, username=user, key_filename=key_path, timeout=15)
-        verify_client.close()
-
-        settings = load_settings()
-        settings.setdefault('ssh', {})
-        settings['ssh']['jumphost_host'] = host
-        settings['ssh']['jumphost_user'] = user
-        save_settings(settings)
-
-        _update_env_var('JUMPHOST_HOST', host)
-        _update_env_var('JUMPHOST_USER', user)
-        _update_env_var('JUMPHOST_KEY_PATH', key_path)
-
-        log_audit('jumphost_setup', target=f'{user}@{host}', details='Jumphost SSH key setup completed')
-
-        return jsonify({'success': True, 'message': f'Passwordless SSH to {user}@{host} is now configured.', 'key_path': key_path})
-
-    except paramiko.AuthenticationException:
-        return jsonify({'success': False, 'error': 'Authentication failed — wrong password or user.'})
-    except paramiko.SSHException as e:
-        return jsonify({'success': False, 'error': f'SSH error: {str(e)}'})
-    except Exception as e:
-        return jsonify({'success': False, 'error': f'Unexpected error: {str(e)}'})
 
 
 def _update_env_var(key, value):

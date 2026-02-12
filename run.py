@@ -5,7 +5,7 @@ CNV HealthCrew AI - Main Entry Point
 Run this script to start the web dashboard:
     python run.py
 
-Or use the start_dashboard.sh script which also opens the browser.
+Or use the scripts/start_dashboard.sh script which also opens the browser.
 """
 
 import os

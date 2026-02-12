@@ -13,18 +13,19 @@
             <div class="sidebar-content">
                 <a href="/job/configure" class="sidebar-item">
                     <span class="sidebar-icon">▶️</span>
-                    Build with Parameters
+                    Run with Parameters
                 </a>
                 <a href="/job/quick-run" class="sidebar-item">
                     <span class="sidebar-icon">⚡</span>
-                    Quick Build (All Checks)
+                    Quick Run (All Checks)
                 </a>
                 <a href="/job/history" class="sidebar-item">
                     <span class="sidebar-icon">📋</span>
-                    Build History
+                    Run History
                 </a>
             </div>
         </div>
+        {% if current_user.is_admin %}
         <div class="sidebar-section">
             <div class="sidebar-title" onclick="toggleSidebarSection(this)" style="cursor:pointer;display:flex;align-items:center;">
                 Cleanup
@@ -41,13 +42,14 @@
                 </a>
                 <a href="#" onclick="deleteBulk('all'); return false;" class="sidebar-item" style="color:var(--error);">
                     <span class="sidebar-icon">🗑️</span>
-                    Delete All Builds
+                    Delete All Runs
                 </a>
             </div>
         </div>
+        {% endif %}
         <div class="sidebar-section">
             <div class="sidebar-title" onclick="toggleSidebarSection(this)" style="cursor:pointer;display:flex;align-items:center;">
-                Recent Builds
+                Recent Runs
                 <span class="collapse-icon" style="margin-left:auto;font-size:10px;">▼</span>
             </div>
             <div class="sidebar-content">
@@ -66,14 +68,14 @@
         <!-- Stats -->
         <div class="card">
             <div class="card-header" onclick="toggleCard(this)">
-                📊 Build Statistics
+                📊 Run Statistics
                 <span class="collapse-icon" style="margin-left:auto;">▼</span>
             </div>
             <div class="card-body">
                 <div class="stats-grid">
                     <div class="stat-box info">
                         <div class="stat-value">{{ stats.total }}</div>
-                        <div class="stat-label">Total Builds</div>
+                        <div class="stat-label">Total Runs</div>
                     </div>
                     <div class="stat-box success">
                         <div class="stat-value">{{ stats.success }}</div>
@@ -97,10 +99,12 @@
         <div class="card">
             <div class="card-header">
                 <span class="status-icon running"></span>
-                Build #{{ running_build.number }}{% if running_build.name %} "{{ running_build.name }}"{% endif %} - Running
+                Run #{{ running_build.number }}{% if running_build.name %} "{{ running_build.name }}"{% endif %} - Running
+                {% if current_user.is_admin or running_build.user_id == current_user.id %}
                 <button onclick="stopBuild()" class="btn btn-danger" style="margin-left:auto;padding:6px 16px;">
-                    ⏹️ Stop Build
+                    ⏹️ Stop Run
                 </button>
+                {% endif %}
                 <span class="collapse-icon" style="margin-left:12px;cursor:pointer;" onclick="toggleCard(this.parentElement)">▼</span>
             </div>
             <div class="card-body">
@@ -164,10 +168,10 @@
         <!-- Build History -->
         <div class="card">
             <div class="card-header" onclick="toggleCard(this)">
-                📋 Recent Build History
+                📋 Recent Run History
                 <div style="margin-left:auto;display:flex;align-items:center;gap:8px;">
-                    <a href="/?view=all" class="btn" style="padding:4px 12px;font-size:11px;{% if current_view != 'mine' %}background:var(--accent);color:white;{% endif %}">All Builds</a>
-                    <a href="/?view=mine" class="btn" style="padding:4px 12px;font-size:11px;{% if current_view == 'mine' %}background:var(--accent);color:white;{% endif %}">My Builds</a>
+                    <a href="/?view=all" class="btn" style="padding:4px 12px;font-size:11px;{% if current_view != 'mine' %}background:var(--accent);color:white;{% endif %}">All Runs</a>
+                    <a href="/?view=mine" class="btn" style="padding:4px 12px;font-size:11px;{% if current_view == 'mine' %}background:var(--accent);color:white;{% endif %}">My Runs</a>
                     <span class="collapse-icon" style="margin-left:8px;">▼</span>
                 </div>
                 <button id="deleteSelectedBtn" onclick="event.stopPropagation(); deleteSelected()" class="btn btn-danger" style="margin-left:16px;display:none;">
@@ -180,8 +184,11 @@
                     <thead>
                         <tr>
                             <th style="width:40px;"><input type="checkbox" id="selectAll" onchange="toggleSelectAll()"></th>
-                            <th style="width:60px;">Build</th>
+                            <th style="width:60px;">Run</th>
+                            <th>Type</th>
                             <th>Status</th>
+                            <th>Lab</th>
+                            <th>Jump Host</th>
                             <th>Triggered By</th>
                             <th>Checks Run</th>
                             <th>Started</th>
@@ -192,20 +199,30 @@
                     <tbody>
                         {% for build in builds %}
                         <tr>
-                            <td><input type="checkbox" class="build-checkbox" value="{{ build.number }}" onchange="updateSelectedCount()"></td>
+                            <td>{% if current_user.is_admin or build.triggered_by == current_user.username %}<input type="checkbox" class="build-checkbox" value="{{ build.number }}" onchange="updateSelectedCount()">{% endif %}</td>
                             <td>
                                 <a href="/job/{{ build.number }}" class="build-link">
                                     <span class="status-icon {{ build.status }}"></span>
                                     #{{ build.number }}
                                 </a>
-                                {% if build.name %}
-                                <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">{{ build.name[:30] }}{% if build.name|length > 30 %}...{% endif %}</div>
+                            </td>
+                            <td>
+                                {% if build.options.task_type == 'cnv_scenarios' %}
+                                <span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;background:linear-gradient(135deg,#f97316,#ea580c);color:white;">🔥 CNV</span>
+                                {% else %}
+                                <span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;background:linear-gradient(135deg,#3b82f6,#2563eb);color:white;">🩺 Health</span>
                                 {% endif %}
                             </td>
                             <td>
                                 <span class="status-badge status-{{ build.status }}">
                                     {{ build.status_text }}
                                 </span>
+                            </td>
+                            <td style="font-size:11px;color:var(--text);font-weight:600;">
+                                {{ build.name or '—' }}
+                            </td>
+                            <td style="font-size:11px;color:var(--text);font-weight:600;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{{ build.options.server_host or '' }}">
+                                {{ build.options.server_host.split('.')[0] if build.options.server_host else '—' }}
                             </td>
                             <td style="font-size:12px;">
                                 <span style="display:inline-flex;align-items:center;gap:4px;">
@@ -221,7 +238,9 @@
                                 <a href="/report/{{ build.report_file }}" class="btn" target="_blank">📄 Report</a>
                                 {% endif %}
                                 <a href="/job/{{ build.number }}/console" class="btn">📝 Console</a>
+                                {% if current_user.is_admin or build.triggered_by == current_user.username %}
                                 <button onclick="deleteBuild({{ build.number }})" class="btn" style="color:var(--error);" title="Delete">🗑️</button>
+                                {% endif %}
                             </td>
                         </tr>
                         {% endfor %}
@@ -230,7 +249,7 @@
                 {% else %}
                 <div class="empty-state">
                     <h3>No builds yet</h3>
-                    <p>Click "Build with Parameters" to run your first health check</p>
+                    <p>Click "Run with Parameters" to run your first health check</p>
                 </div>
                 {% endif %}
             </div>
@@ -290,7 +309,7 @@
     }
     
     function deleteBuild(buildNum) {
-        if (confirm('Are you sure you want to delete Build #' + buildNum + ' and its report?')) {
+        if (confirm('Are you sure you want to delete Run #' + buildNum + ' and its report?')) {
             fetch('/api/delete/' + buildNum, { method: 'POST' })
                 .then(r => r.json())
                 .then(data => {

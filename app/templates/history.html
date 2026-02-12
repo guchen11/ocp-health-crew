@@ -1,10 +1,10 @@
 {% extends "base.html" %}
 
-{% block title %}Build History - CNV HealthCrew AI{% endblock %}
+{% block title %}Run History - CNV HealthCrew AI{% endblock %}
 
 {% block breadcrumb %}
 <span>›</span>
-<span>Build History</span>
+<span>Run History</span>
 {% endblock %}
 
 {% block content %}
@@ -18,7 +18,7 @@
             <div class="sidebar-content">
                 <a href="/job/history" class="sidebar-item active">
                     <span class="sidebar-icon">📋</span>
-                    All Builds
+                    All Runs
                 </a>
                 <a href="/job/history?status=success" class="sidebar-item">
                     <span class="sidebar-icon">✅</span>
@@ -34,6 +34,7 @@
                 </a>
             </div>
         </div>
+        {% if current_user.is_admin %}
         <div class="sidebar-section">
             <div class="sidebar-title" onclick="toggleSidebarSection(this)" style="cursor:pointer;display:flex;align-items:center;">
                 Cleanup
@@ -50,16 +51,17 @@
                 </a>
                 <a href="#" onclick="deleteBulk('all'); return false;" class="sidebar-item" style="color:var(--error);">
                     <span class="sidebar-icon">🗑️</span>
-                    Delete All Builds
+                    Delete All Runs
                 </a>
             </div>
         </div>
+        {% endif %}
     </aside>
     
     <main class="main">
         <div class="card">
             <div class="card-header">
-                📋 Build History
+                📋 Run History
                 <div style="margin-left:auto;display:flex;align-items:center;gap:8px;">
                     <span style="font-weight:normal;color:var(--text-muted);">{{ builds|length }} builds</span>
                     <a href="/job/history?view=all" class="btn" style="padding:4px 12px;font-size:11px;{% if current_view != 'mine' %}background:var(--accent);color:white;{% endif %}">All</a>
@@ -75,8 +77,11 @@
                     <thead>
                         <tr>
                             <th style="width:40px;"><input type="checkbox" id="selectAll" onchange="toggleSelectAll()"></th>
-                            <th>Build</th>
+                            <th>Run</th>
+                            <th>Type</th>
                             <th>Status</th>
+                            <th>Lab</th>
+                            <th>Jump Host</th>
                             <th>Triggered By</th>
                             <th>Checks</th>
                             <th>Options</th>
@@ -88,20 +93,30 @@
                     <tbody>
                         {% for build in builds %}
                         <tr>
-                            <td><input type="checkbox" class="build-checkbox" value="{{ build.number }}" onchange="updateSelectedCount()"></td>
+                            <td>{% if current_user.is_admin or build.triggered_by == current_user.username %}<input type="checkbox" class="build-checkbox" value="{{ build.number }}" onchange="updateSelectedCount()">{% endif %}</td>
                             <td>
                                 <a href="/job/{{ build.number }}" class="build-link">
                                     <span class="status-icon {{ build.status }}"></span>
                                     #{{ build.number }}
                                 </a>
-                                {% if build.name %}
-                                <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">🏷️ {{ build.name[:30] }}{% if build.name|length > 30 %}...{% endif %}</div>
+                            </td>
+                            <td>
+                                {% if build.options.task_type == 'cnv_scenarios' %}
+                                <span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;background:linear-gradient(135deg,#f97316,#ea580c);color:white;">🔥 CNV</span>
+                                {% else %}
+                                <span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;background:linear-gradient(135deg,#3b82f6,#2563eb);color:white;">🩺 Health</span>
                                 {% endif %}
                             </td>
                             <td>
                                 <span class="status-badge status-{{ build.status }}">
                                     {{ build.status_text }}
                                 </span>
+                            </td>
+                            <td style="font-size:11px;color:var(--text);font-weight:600;">
+                                {{ build.name or '—' }}
+                            </td>
+                            <td style="font-size:11px;color:var(--text);font-weight:600;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{{ build.options.server_host or '' }}">
+                                {{ build.options.server_host.split('.')[0] if build.options.server_host else '—' }}
                             </td>
                             <td style="font-size:12px;">
                                 <span style="display:inline-flex;align-items:center;gap:4px;">
@@ -111,11 +126,15 @@
                             </td>
                             <td>{{ build.checks_count }}</td>
                             <td>
+                                {% if build.options.task_type == 'cnv_scenarios' %}
+                                <span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;background:linear-gradient(135deg,#f97316,#ea580c);color:white;">🔥 CNV</span>
+                                {% else %}
                                 {% if build.options.rca_level == 'full' %}🔍{% elif build.options.rca_level == 'bugs' %}🐛{% else %}📋{% endif %}
                                 {% if build.options.rca_jira %}🎫{% endif %}
                                 {% if build.options.rca_email %}📧{% endif %}
                                 {% if build.options.rca_web %}🌐{% endif %}
                                 {% if build.options.email %}📤{% endif %}
+                                {% endif %}
                             </td>
                             <td>{{ build.timestamp }}</td>
                             <td>{{ build.duration }}</td>
@@ -125,7 +144,9 @@
                                 {% endif %}
                                 <a href="/job/{{ build.number }}/console" class="btn">📝</a>
                                 <a href="/job/rebuild/{{ build.number }}" class="btn">🔄</a>
+                                {% if current_user.is_admin or build.triggered_by == current_user.username %}
                                 <button onclick="deleteBuild({{ build.number }})" class="btn" style="color:var(--error);" title="Delete">🗑️</button>
+                                {% endif %}
                             </td>
                         </tr>
                         {% endfor %}
@@ -184,7 +205,7 @@
     }
     
     function deleteBuild(buildNum) {
-        if (confirm('Are you sure you want to delete Build #' + buildNum + ' and its report?')) {
+        if (confirm('Are you sure you want to delete Run #' + buildNum + ' and its report?')) {
             fetch('/api/delete/' + buildNum, { method: 'POST' })
                 .then(r => r.json())
                 .then(data => {

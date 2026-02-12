@@ -33,7 +33,7 @@ CNV HealthCrew AI connects to your OpenShift cluster via SSH and runs **15+ heal
 One command:
 
 ```bash
-curl -sL https://raw.githubusercontent.com/guchen11/ocp-health-crew/main/install.sh | bash
+curl -sL https://raw.githubusercontent.com/guchen11/ocp-health-crew/main/scripts/install.sh | bash
 ```
 
 This will:
@@ -66,7 +66,7 @@ cd ~/cnv-healthcrew && git pull && systemctl --user restart cnv-healthcrew
 ### Uninstall
 
 ```bash
-bash ~/cnv-healthcrew/uninstall.sh
+bash ~/cnv-healthcrew/scripts/uninstall.sh
 ```
 
 ---
@@ -117,25 +117,31 @@ Run health checks directly without the dashboard:
 
 ```bash
 # Basic health check
-python hybrid_health_check.py
+python healthchecks/hybrid_health_check.py
 
 # With AI root cause analysis
-python hybrid_health_check.py --ai
+python healthchecks/hybrid_health_check.py --ai
 
 # Bug matching only (faster than full AI)
-python hybrid_health_check.py --rca-bugs
+python healthchecks/hybrid_health_check.py --rca-bugs
 
 # Search Jira for related bugs during RCA
-python hybrid_health_check.py --rca-jira
+python healthchecks/hybrid_health_check.py --rca-jira
 
 # Enable self-evolving AI (scan Jira for new test suggestions)
-python hybrid_health_check.py --check-jira
+python healthchecks/hybrid_health_check.py --check-jira
 
 # Send report via email
-python hybrid_health_check.py --email --email-to user@example.com
+python healthchecks/hybrid_health_check.py --email --email-to user@example.com
 
 # Override SSH target
-python hybrid_health_check.py --server my-other-host.example.com
+python healthchecks/hybrid_health_check.py --server my-other-host.example.com
+
+# Simple health check (no AI, no web dependencies)
+python healthchecks/simple_health_check.py
+
+# CrewAI multi-agent health check
+python healthchecks/crewai_agents.py
 ```
 
 ---
@@ -158,26 +164,47 @@ python hybrid_health_check.py --server my-other-host.example.com
 
 ```
 ocp-health-crew/
-├── run.py                    # Entry point - starts web dashboard
-├── hybrid_health_check.py    # Core health check engine (3400+ lines)
-├── main.py                   # CrewAI agent system for AI analysis
-├── app/
-│   ├── __init__.py           # Flask application factory
-│   ├── routes.py             # Web dashboard routes & API endpoints
-│   ├── scheduler.py          # Background task scheduler
-│   ├── learning.py           # Pattern recognition & learning module
-│   ├── templates/            # HTML templates (dashboard, configure, history, etc.)
-│   └── static/css/           # Stylesheet
-├── config/
-│   └── settings.py           # Configuration (supports dev + installed modes)
-├── tools/
-│   └── ssh_tool.py           # CrewAI SSH tool for remote oc commands
-├── install.sh                # One-command installer for RHEL/Fedora
-├── uninstall.sh              # Clean removal script
-├── config.env.example        # Example configuration file
-├── requirements.txt          # Python dependencies
-└── docs/
-    └── DESIGN.md             # Detailed architecture & design document
+├── run.py                          # Entry point — starts the web dashboard
+├── config.env.example              # Example configuration file
+├── requirements.txt                # Python dependencies
+│
+├── app/                            # Flask web application
+│   ├── __init__.py                 #   Application factory
+│   ├── models.py                   #   Database models (User, Build, Schedule, Host)
+│   ├── auth.py                     #   Authentication (login, register, profile)
+│   ├── admin.py                    #   Admin panel (user management, audit log)
+│   ├── routes.py                   #   Dashboard routes & API endpoints
+│   ├── scheduler.py                #   Background task scheduler
+│   ├── learning.py                 #   Pattern recognition & learning module
+│   ├── checks/                     #   Health check metadata & future modules
+│   ├── integrations/               #   Integration stubs (Jira, email, SSH)
+│   ├── templates/                  #   HTML templates
+│   └── static/                     #   CSS & images
+│
+├── config/                         # Configuration
+│   └── settings.py                 #   App config (supports dev + installed modes)
+│
+├── healthchecks/                   # Health check engines
+│   ├── hybrid_health_check.py      #   Core engine — SSH checks, reports, AI RCA
+│   ├── simple_health_check.py      #   Minimal SSH health check (no AI)
+│   └── crewai_agents.py            #   CrewAI multi-agent system
+│
+├── tools/                          # Shared tools
+│   └── ssh_tool.py                 #   CrewAI SSH tool for remote oc commands
+│
+├── scripts/                        # Shell scripts & utilities
+│   ├── install.sh                  #   One-command installer for RHEL/Fedora
+│   ├── uninstall.sh                #   Clean removal script
+│   ├── start_dashboard.sh          #   Start server & open browser
+│   └── migrate_json_to_db.py       #   One-time JSON → SQLite migration
+│
+├── docs/                           # Documentation
+│   └── DESIGN.md                   #   Architecture & design document
+│
+├── tests/                          # Test suite (placeholder)
+│
+└── legacy/                         # Deprecated code
+    └── web_dashboard.py            #   Standalone Flask app (replaced by app/)
 ```
 
 ---

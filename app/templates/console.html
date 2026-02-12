@@ -59,13 +59,29 @@
 {% block scripts %}
 {% if build.status == 'running' %}
 <script>
-    setInterval(function() {
+    var buildNum = {{ build.number }};
+    var pollTimer = setInterval(function() {
         fetch('/api/status')
-            .then(r => r.json())
-            .then(data => {
-                document.getElementById('console').innerHTML = data.output;
-                document.getElementById('console').scrollTop = document.getElementById('console').scrollHeight;
-                if (!data.running) location.reload();
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                // Find this build among running builds
+                var myBuild = null;
+                if (data.builds) {
+                    for (var i = 0; i < data.builds.length; i++) {
+                        if (data.builds[i].number === buildNum) {
+                            myBuild = data.builds[i];
+                            break;
+                        }
+                    }
+                }
+                if (myBuild) {
+                    document.getElementById('console').innerHTML = myBuild.output;
+                    document.getElementById('console').scrollTop = document.getElementById('console').scrollHeight;
+                } else if (!data.running || !myBuild) {
+                    // Build finished — reload once to show final output from DB, then stop polling
+                    clearInterval(pollTimer);
+                    location.reload();
+                }
             });
     }, 2000);
 </script>

@@ -19,9 +19,9 @@ from flask import Flask, render_template_string, jsonify, request, send_from_dir
 app = Flask(__name__)
 
 # Configuration
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REPORTS_DIR = os.path.join(BASE_DIR, "reports")
-SCRIPT_PATH = os.path.join(BASE_DIR, "hybrid_health_check.py")
+SCRIPT_PATH = os.path.join(BASE_DIR, "healthchecks", "hybrid_health_check.py")
 BUILDS_FILE = os.path.join(BASE_DIR, ".builds.json")
 
 # Available health checks that can be toggled

@@ -158,6 +158,34 @@ class Schedule(db.Model):
         return f'<Schedule {self.name} ({self.status})>'
 
 
+class Host(db.Model):
+    """Jump host entries — each user manages their own hosts; admins see all."""
+
+    __tablename__ = 'hosts'
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(200), default='')
+    host = db.Column(db.String(200), nullable=False)
+    user = db.Column(db.String(80), default='root')
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    owner = db.relationship('User', backref='hosts')
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name or self.host,
+            'host': self.host,
+            'user': self.user,
+            'created_by': self.created_by,
+            'owner': self.owner.username if self.owner else 'unknown',
+        }
+
+    def __repr__(self):
+        return f'<Host {self.host} (owner={self.created_by})>'
+
+
 class AuditLog(db.Model):
     """Audit log for tracking user actions."""
 

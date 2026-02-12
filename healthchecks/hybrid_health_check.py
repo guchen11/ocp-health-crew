@@ -799,7 +799,7 @@ def prompt_for_new_checks(suggestions):
     
     if not sys.stdin.isatty() or os.environ.get('NON_INTERACTIVE'):
         # Save suggestions to file for web UI review
-        suggestions_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.suggested_checks.json')
+        suggestions_file = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '.suggested_checks.json')
         try:
             # Load existing suggestions
             existing = []
@@ -3575,8 +3575,8 @@ def main():
         timestamp = data["timestamp"].strftime("%Y-%m-%d_%H-%M-%S")
         
         # Ensure reports directory exists
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        reports_dir = os.path.join(script_dir, 'reports')
+        project_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        reports_dir = os.path.join(project_dir, 'reports')
         os.makedirs(reports_dir, exist_ok=True)
         
         html_file = f"health_report_{timestamp}.html"

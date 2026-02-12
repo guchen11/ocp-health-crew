@@ -37,6 +37,7 @@ def create_app(config_object=None):
         app.config['DEBUG'] = os.environ.get('FLASK_DEBUG', False)
         app.config['SQLALCHEMY_DATABASE_URI'] = Config.SQLALCHEMY_DATABASE_URI
         app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = Config.SQLALCHEMY_TRACK_MODIFICATIONS
+        app.config['OPEN_REGISTRATION'] = Config.OPEN_REGISTRATION
     
     # Initialize extensions
     db.init_app(app)
@@ -45,7 +46,7 @@ def create_app(config_object=None):
     
     # Create database tables
     with app.app_context():
-        from app.models import User, Build, Schedule, AuditLog  # noqa: F811
+        from app.models import User, Build, Schedule, Host, AuditLog  # noqa: F811
         db.create_all()
     
     # Register blueprints

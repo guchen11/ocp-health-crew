@@ -353,7 +353,7 @@ Stays current with latest fixes.
 
 ### 1️⃣ Web Dashboard
 
-**`web_dashboard.py`** - Flask-based Jenkins-like UI
+**`app/`** - Flask-based Jenkins-like UI (formerly `web_dashboard.py`, now modular)
 
 | Page | Description |
 |:-----|:------------|
@@ -365,7 +365,7 @@ Stays current with latest fixes.
 
 ### 2️⃣ Health Check Engine
 
-**`hybrid_health_check.py`** - Core diagnostic system
+**`healthchecks/hybrid_health_check.py`** - Core diagnostic system
 
 | Category | Checks | Status Indicators |
 |:---------|:-------|:------------------|
@@ -378,7 +378,7 @@ Stays current with latest fixes.
 
 ### 3️⃣ AI Agent System
 
-**`main.py`** - CrewAI-based intelligent analysis
+**`healthchecks/crewai_agents.py`** - CrewAI-based intelligent analysis
 
 <table>
 <tr>
@@ -419,7 +419,7 @@ nano .env
 # Set: RH_LAB_HOST, RH_LAB_USER, SSH_KEY_PATH
 
 # 3️⃣ Start Dashboard
-./start_dashboard.sh
+./scripts/start_dashboard.sh
 
 # 4️⃣ Open Browser → http://localhost:5000
 

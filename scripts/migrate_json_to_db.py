@@ -4,14 +4,14 @@ One-time migration script: Import existing .builds.json and schedules.json
 into the new SQLite database.
 
 Usage:
-    python migrate_json_to_db.py
+    python scripts/migrate_json_to_db.py
 """
 
 import os
 import sys
 import json
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app import create_app
 from app.models import db, Build

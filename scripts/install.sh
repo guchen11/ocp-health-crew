@@ -4,9 +4,9 @@
 # One-command install for RHEL/Fedora desktops
 #
 # Usage:
-#   curl -sL https://raw.githubusercontent.com/guchen11/ocp-health-crew/main/install.sh | bash
+#   curl -sL https://raw.githubusercontent.com/guchen11/ocp-health-crew/main/scripts/install.sh | bash
 #   # or
-#   bash install.sh
+#   bash scripts/install.sh
 # ============================================================================
 
 set -euo pipefail

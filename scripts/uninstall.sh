@@ -4,7 +4,7 @@
 # Cleanly removes all installed components
 #
 # Usage:
-#   bash uninstall.sh
+#   bash scripts/uninstall.sh
 # ============================================================================
 
 set -euo pipefail

@@ -30,6 +30,7 @@ def log_audit(action, target=None, details=None):
 @auth_bp.route('/login', methods=['GET', 'POST'])
 def login():
     """Login page."""
+    from flask import current_app
     if current_user.is_authenticated:
         return redirect(url_for('dashboard.dashboard'))
 
@@ -57,7 +58,8 @@ def login():
         else:
             error = 'Invalid username or password.'
 
-    return render_template('login.html', error=error)
+    open_registration = current_app.config.get('OPEN_REGISTRATION', True)
+    return render_template('login.html', error=error, open_registration=open_registration)
 
 
 @auth_bp.route('/logout')
@@ -74,14 +76,21 @@ def register():
     """
     Registration page.
     - If no users exist, first user becomes admin (open registration).
+    - If OPEN_REGISTRATION is enabled, anyone can self-register as 'operator'.
     - Otherwise, only admins can create new users (via admin panel).
     """
+    from flask import current_app
     user_count = User.query.count()
     is_first_user = user_count == 0
+    open_registration = current_app.config.get('OPEN_REGISTRATION', True)
+    is_admin_creating = current_user.is_authenticated and current_user.is_admin
 
-    # If users already exist and nobody is logged in as admin, deny access
-    if not is_first_user and (not current_user.is_authenticated or not current_user.is_admin):
+    # Determine access: first user, open registration, or admin
+    if not is_first_user and not open_registration and not is_admin_creating:
         return redirect(url_for('auth.login'))
+
+    # Self-registering users (not first user, not admin) get 'operator' role
+    is_self_register = not is_first_user and not is_admin_creating
 
     error = None
     if request.method == 'POST':
@@ -104,19 +113,26 @@ def register():
         elif User.query.filter_by(email=email).first():
             error = 'Email already registered.'
         else:
-            role = 'admin' if is_first_user else request.form.get('role', 'operator')
+            if is_first_user:
+                role = 'admin'
+            elif is_self_register:
+                role = 'operator'
+            else:
+                role = request.form.get('role', 'operator')
+
             user = User(username=username, email=email, role=role)
             user.set_password(password)
             db.session.add(user)
             db.session.commit()
 
-            if is_first_user:
-                # Auto-login the first user
+            if is_first_user or is_self_register:
+                # Auto-login the user
                 login_user(user)
                 user.last_login = datetime.now(timezone.utc)
                 db.session.commit()
+                detail = 'First user registration (auto-admin)' if is_first_user else 'Self-registration'
                 log_audit('register', target=f'User {username}',
-                          details='First user registration (auto-admin)')
+                          details=detail)
                 return redirect(url_for('dashboard.dashboard'))
             else:
                 log_audit('user_create', target=f'User {username}',
@@ -125,6 +141,7 @@ def register():
 
     return render_template('register.html',
                            is_first_user=is_first_user,
+                           is_self_register=is_self_register,
                            error=error)
 
 

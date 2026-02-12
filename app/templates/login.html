@@ -111,7 +111,7 @@
     <div class="login-container">
         <div class="login-card">
             <div class="login-header">
-                <div class="logo-icon">🔍</div>
+                <div class="logo-icon"><img src="{{ url_for('static', filename='img/redhat-logo.png') }}" alt="Red Hat" style="height:36px;"></div>
                 <h1>CNV HealthCrew AI</h1>
                 <p>Sign in to your account</p>
             </div>
@@ -137,6 +137,12 @@
                     </div>
                     <button type="submit" class="login-btn">Sign In</button>
                 </form>
+                {% if open_registration %}
+                <div style="text-align:center;margin-top:20px;padding-top:16px;border-top:1px solid var(--border);">
+                    <span style="color:var(--text-secondary);font-size:13px;">Don't have an account?</span>
+                    <a href="{{ url_for('auth.register') }}" style="color:var(--accent);font-size:13px;font-weight:600;margin-left:4px;">Register</a>
+                </div>
+                {% endif %}
             </div>
         </div>
     </div>

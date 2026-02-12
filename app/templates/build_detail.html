@@ -65,6 +65,16 @@
                 {% endif %}
                 <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:20px;margin-bottom:20px;">
                     <div>
+                        <strong style="color:var(--text-muted);font-size:11px;text-transform:uppercase;">Task Type</strong>
+                        <div style="margin-top:4px;">
+                            {% if build.options.task_type == 'cnv_scenarios' %}
+                            <span style="display:inline-block;padding:3px 10px;border-radius:6px;font-size:11px;font-weight:700;background:linear-gradient(135deg,#f97316,#ea580c);color:white;">🔥 CNV Scenarios</span>
+                            {% else %}
+                            <span style="display:inline-block;padding:3px 10px;border-radius:6px;font-size:11px;font-weight:700;background:linear-gradient(135deg,var(--accent),#1565c0);color:white;">🩺 Health Check</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div>
                         <strong style="color:var(--text-muted);font-size:11px;text-transform:uppercase;">Triggered By</strong>
                         <div style="display:flex;align-items:center;gap:6px;margin-top:2px;">
                             <span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:var(--accent);color:white;font-size:11px;font-weight:700;">{{ (build.triggered_by or 'S')[0]|upper }}</span>
@@ -80,12 +90,22 @@
                         <div>{{ build.duration }}</div>
                     </div>
                     <div>
-                        <strong style="color:var(--text-muted);font-size:11px;text-transform:uppercase;">Checks Run</strong>
-                        <div>{{ build.checks_count }} checks</div>
-                    </div>
-                    <div>
                         <strong style="color:var(--text-muted);font-size:11px;text-transform:uppercase;">Server</strong>
                         <div style="font-family:monospace;font-size:12px;">{{ build.options.server_host or 'Default (env)' }}</div>
+                    </div>
+                    {% if build.options.task_type == 'cnv_scenarios' %}
+                    <div>
+                        <strong style="color:var(--text-muted);font-size:11px;text-transform:uppercase;">Mode</strong>
+                        <div>{{ build.options.scenario_mode or 'sanity' }}{% if build.options.scenario_parallel %} (parallel){% endif %}</div>
+                    </div>
+                    <div>
+                        <strong style="color:var(--text-muted);font-size:11px;text-transform:uppercase;">Scenarios</strong>
+                        <div>{{ build.checks_count }} tests</div>
+                    </div>
+                    {% else %}
+                    <div>
+                        <strong style="color:var(--text-muted);font-size:11px;text-transform:uppercase;">Checks Run</strong>
+                        <div>{{ build.checks_count }} checks</div>
                     </div>
                     <div>
                         <strong style="color:var(--text-muted);font-size:11px;text-transform:uppercase;">Options</strong>
@@ -98,9 +118,20 @@
                             {% if build.options.email %}📤 {{ build.options.email_to or 'Send' }} {% endif %}
                         </div>
                     </div>
+                    {% endif %}
                 </div>
                 
-                {% if build.checks %}
+                {% if build.options.task_type == 'cnv_scenarios' %}
+                <h4 style="margin-bottom:15px;">Scenarios Executed:</h4>
+                <div class="checkbox-grid">
+                    {% for test in build.checks %}
+                    <div class="checkbox-item" style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:10px 14px;">
+                        <span>🔥</span>
+                        <span style="font-weight:600;">{{ test }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% elif build.checks %}
                 <h4 style="margin-bottom:15px;">Checks Executed:</h4>
                 <div class="checkbox-grid">
                     {% for check in build.checks %}

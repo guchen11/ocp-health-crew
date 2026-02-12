@@ -370,6 +370,10 @@
                     <span class="sidebar-icon">🚀</span>
                     Key Innovations
                 </a>
+                <a href="#architecture" class="sidebar-item">
+                    <span class="sidebar-icon">🏛️</span>
+                    Architecture
+                </a>
             </div>
             <div class="sidebar-section">
                 <div class="sidebar-title">🧠 AI & Capabilities</div>
@@ -385,10 +389,6 @@
                     <span class="sidebar-icon">💡</span>
                     Real Example
                 </a>
-                <a href="#health-checks-list" class="sidebar-item">
-                    <span class="sidebar-icon">🏥</span>
-                    Health Checks
-                </a>
                 <a href="#performance-engineering" class="sidebar-item">
                     <span class="sidebar-icon">📊</span>
                     Performance
@@ -400,6 +400,10 @@
                 <a href="#reporting" class="sidebar-item">
                     <span class="sidebar-icon">📈</span>
                     Reporting
+                </a>
+                <a href="#health-checks-list" class="sidebar-item">
+                    <span class="sidebar-icon">🏥</span>
+                    Health Checks
                 </a>
             </div>
         </div>
@@ -450,10 +454,6 @@
             </div>
             <div class="sidebar-section">
                 <div class="sidebar-title">🏗️ Technical</div>
-                <a href="#architecture" class="sidebar-item">
-                    <span class="sidebar-icon">🏛️</span>
-                    Architecture
-                </a>
                 <a href="#project-structure" class="sidebar-item">
                     <span class="sidebar-icon">📁</span>
                     Project Structure
@@ -570,6 +570,91 @@
                 </div>
             </div>
             
+            <!-- Architecture -->
+            <h2 id="architecture">🏗️ Architecture</h2>
+            
+            <table style="border-collapse:separate;border-spacing:0;">
+                <!-- FRONTEND label -->
+                <tr><th colspan="5" style="background:linear-gradient(135deg,#059669,#10b981);color:white;text-align:center;font-size:11px;letter-spacing:2px;text-transform:uppercase;padding:6px;">🖥️ FRONTEND &mdash; HTML5, CSS3, JavaScript (Vanilla)</th></tr>
+                <tr><th colspan="5" style="background:linear-gradient(135deg,#1a237e,#283593);color:white;text-align:center;font-size:14px;letter-spacing:1px;">🌐 WEB DASHBOARD (Flask:5000)</th></tr>
+                <tr>
+                    <td style="text-align:center;"><span style="font-size:20px;">📊</span><br><strong>Dashboard</strong><br><span style="color:#6b7280;font-size:12px;">Run overview</span></td>
+                    <td style="text-align:center;"><span style="font-size:20px;">▶️</span><br><strong>Run Config</strong><br><span style="color:#6b7280;font-size:12px;">Configure checks</span></td>
+                    <td style="text-align:center;"><span style="font-size:20px;">📋</span><br><strong>History</strong><br><span style="color:#6b7280;font-size:12px;">Past runs</span></td>
+                    <td style="text-align:center;"><span style="font-size:20px;">📅</span><br><strong>Schedules</strong><br><span style="color:#6b7280;font-size:12px;">Automation</span></td>
+                    <td style="text-align:center;"><span style="font-size:20px;">⚙️</span><br><strong>Settings</strong><br><span style="color:#6b7280;font-size:12px;">Configuration</span></td>
+                </tr>
+                <!-- BACKEND label -->
+                <tr><th colspan="5" style="background:linear-gradient(135deg,#dc2626,#ef4444);color:white;text-align:center;font-size:11px;letter-spacing:2px;text-transform:uppercase;padding:6px;">⚙️ BACKEND &mdash; Python Flask, SQLAlchemy, Paramiko</th></tr>
+                <tr><th colspan="5" style="background:#283593;color:white;text-align:center;font-size:12px;">↓ API Layer (Flask Routes + REST endpoints) ↓</th></tr>
+                <tr><th colspan="5" style="background:linear-gradient(135deg,#1565c0,#1976d2);color:white;text-align:center;font-size:14px;letter-spacing:1px;">🔍 HEALTH CHECK ENGINE (hybrid_health_check.py)</th></tr>
+                <tr>
+                    <td style="text-align:center;"><span style="font-size:20px;">📡</span><br><strong>SSH</strong><br><span style="color:#6b7280;font-size:12px;">Paramiko</span></td>
+                    <td style="text-align:center;"><span style="font-size:20px;">🔎</span><br><strong>Collect</strong><br><span style="color:#6b7280;font-size:12px;">oc commands</span></td>
+                    <td style="text-align:center;"><span style="font-size:20px;">📊</span><br><strong>Parse</strong><br><span style="color:#6b7280;font-size:12px;">Structured data</span></td>
+                    <td style="text-align:center;"><span style="font-size:20px;">🔍</span><br><strong>Analyze</strong><br><span style="color:#6b7280;font-size:12px;">Pattern match</span></td>
+                    <td style="text-align:center;"><span style="font-size:20px;">📝</span><br><strong>Report</strong><br><span style="color:#6b7280;font-size:12px;">HTML output</span></td>
+                </tr>
+                <tr><th colspan="5" style="background:linear-gradient(135deg,#0277bd,#0288d1);color:white;text-align:center;font-size:14px;letter-spacing:1px;">🤖 AI LAYER (Optional)</th></tr>
+                <tr>
+                    <td style="text-align:center;" colspan="2"><span style="font-size:20px;">🧠</span> <strong>CrewAI + Llama 3.2</strong><br><span style="color:#6b7280;font-size:12px;">Deep investigation</span></td>
+                    <td style="text-align:center;"><span style="font-size:20px;">🎫</span> <strong>Jira MCP</strong><br><span style="color:#6b7280;font-size:12px;">Bug correlation</span></td>
+                    <td style="text-align:center;"><span style="font-size:20px;">📧</span> <strong>Gmail MCP</strong><br><span style="color:#6b7280;font-size:12px;">Email search</span></td>
+                    <td style="text-align:center;"><span style="font-size:20px;">🌐</span> <strong>Web Search</strong><br><span style="color:#6b7280;font-size:12px;">Documentation</span></td>
+                </tr>
+                <tr><th colspan="5" style="background:linear-gradient(135deg,#7c3aed,#8b5cf6);color:white;text-align:center;font-size:11px;letter-spacing:2px;text-transform:uppercase;padding:6px;">💾 DATABASE &mdash; SQLite (Flask-SQLAlchemy)</th></tr>
+                <tr><th colspan="5" style="background:linear-gradient(135deg,#00838f,#0097a7);color:white;text-align:center;font-size:14px;letter-spacing:1px;">🖥️ TARGET CLUSTER (via SSH/kubeconfig)</th></tr>
+            </table>
+            
+            <h3>Technology Stack</h3>
+            <table>
+                <tr>
+                    <th>Layer</th>
+                    <th>Technology</th>
+                    <th>Purpose</th>
+                </tr>
+                <tr>
+                    <td><strong>Web Frontend</strong></td>
+                    <td>HTML5, CSS3, JavaScript (vanilla)</td>
+                    <td>Interactive UI, real-time updates</td>
+                </tr>
+                <tr>
+                    <td><strong>Web Backend</strong></td>
+                    <td>Python Flask, Jinja2, Flask-Login</td>
+                    <td>REST API, template rendering, authentication</td>
+                </tr>
+                <tr>
+                    <td><strong>Health Checks</strong></td>
+                    <td>Python, Paramiko (SSH)</td>
+                    <td>Cluster data collection via oc commands</td>
+                </tr>
+                <tr>
+                    <td><strong>AI/ML</strong></td>
+                    <td>CrewAI, Ollama (Llama 3.2)</td>
+                    <td>Root cause analysis, Jira bug correlation</td>
+                </tr>
+                <tr>
+                    <td><strong>Integrations</strong></td>
+                    <td>Jira MCP, Gmail MCP</td>
+                    <td>Bug tracking, email notifications</td>
+                </tr>
+                <tr>
+                    <td><strong>Data Storage</strong></td>
+                    <td>SQLite (Flask-SQLAlchemy)</td>
+                    <td>Users, hosts, runs, schedules, settings</td>
+                </tr>
+                <tr>
+                    <td><strong>Authentication</strong></td>
+                    <td>Flask-Login, Flask-Bcrypt</td>
+                    <td>Multi-user RBAC (Admin, Operator, Viewer)</td>
+                </tr>
+                <tr>
+                    <td><strong>Reporting</strong></td>
+                    <td>HTML generation, SMTP (smtplib)</td>
+                    <td>Rich HTML reports, email delivery</td>
+                </tr>
+            </table>
+            
             <!-- AI FEATURES -->
             <h2 id="ai-features">🧠 AI-Powered Features</h2>
             
@@ -679,47 +764,6 @@
                 </div>
             </div>
             
-            <!-- HEALTH CHECKS LIST -->
-            <h2 id="health-checks-list">🏥 Health Checks</h2>
-            
-            <table>
-                <tr>
-                    <th style="width:20%;">Category</th>
-                    <th style="width:50%;">Checks</th>
-                    <th style="width:30%;">Status Indicators</th>
-                </tr>
-                <tr>
-                    <td><strong>🏗️ Infrastructure</strong></td>
-                    <td>Nodes, Cluster Operators, etcd, MachineConfigPools</td>
-                    <td>Ready/NotReady, Available/Degraded</td>
-                </tr>
-                <tr>
-                    <td><strong>📦 Workloads</strong></td>
-                    <td>Pods (CrashLoop, Pending, OOM, Unknown)</td>
-                    <td>Running/Failed/Pending</td>
-                </tr>
-                <tr>
-                    <td><strong>💻 Virtualization</strong></td>
-                    <td>KubeVirt, VMs, VMIs, Migrations, virt-handler</td>
-                    <td>Running/Stopped/Failed/Migrating</td>
-                </tr>
-                <tr>
-                    <td><strong>💾 Storage</strong></td>
-                    <td>PVCs, CSI, DataVolumes, VolumeSnapshots, ODF</td>
-                    <td>Bound/Pending/Ready</td>
-                </tr>
-                <tr>
-                    <td><strong>📊 Performance</strong></td>
-                    <td>CPU, Memory, I/O per node</td>
-                    <td>% utilization thresholds</td>
-                </tr>
-                <tr>
-                    <td><strong>🚨 Monitoring</strong></td>
-                    <td>Prometheus alerts</td>
-                    <td>Firing/Pending/Resolved</td>
-                </tr>
-            </table>
-            
             <!-- PERFORMANCE ENGINEERING -->
             <h2 id="performance-engineering">📊 Performance Engineering</h2>
             
@@ -804,7 +848,7 @@
             
             <div class="capability-grid">
                 <div class="capability-item">
-                    <strong>📊 Dashboard</strong> - Live view of running builds and recent build history
+                    <strong>📊 Dashboard</strong> - Live view of running checks and recent run history
                 </div>
                 <div class="capability-item">
                     <strong>📝 HTML Reports</strong> - Detailed reports with findings, charts, and recommendations
@@ -813,13 +857,39 @@
                     <strong>📧 Email Reports</strong> - Get reports delivered to your inbox automatically
                 </div>
                 <div class="capability-item">
-                    <strong>📜 Build History</strong> - Track cluster health over time with stored reports
+                    <strong>📜 Run History</strong> - Track cluster health over time with stored reports
                 </div>
             </div>
+            <!-- HEALTH CHECKS LIST -->
+            <h2 id="health-checks-list">🏥 Health Checks</h2>
             
+            <p>Each health check runs one or more <code>oc</code> commands on the target cluster via SSH. Below is the command and what it validates.</p>
+
+            {% for category in categories %}
+            <h3>{{ category_icons.get(category, '') }} {{ category }}</h3>
+            <table>
+                <tr>
+                    <th style="width:18%;">Check</th>
+                    <th style="width:35%;">Command</th>
+                    <th style="width:47%;">What It Validates</th>
+                </tr>
+                {% for check_id, check in checks.items() %}
+                {% if check.category == category %}
+                {% for entry in check.commands %}
+                <tr>
+                    {% if loop.first %}<td rowspan="{{ check.commands|length }}" style="vertical-align:top;"><strong>{{ check.name }}</strong><br><span style="font-size:11px;color:#6c757d;">{{ check.description }}</span></td>{% endif %}
+                    <td><code style="display:block;background:#1e1e2e;color:#a5f3fc;padding:6px 8px;border-radius:4px;font-size:11px;white-space:pre-wrap;word-break:break-all;">{{ entry.cmd }}</code></td>
+                    <td style="font-size:13px;color:#333;">{{ entry.validates }}</td>
+                </tr>
+                {% endfor %}
+                {% endif %}
+                {% endfor %}
+            </table>
+            {% endfor %}
+
             <div style="text-align:center;margin-top:40px;padding:30px;background:var(--bg-secondary);border-radius:12px;">
                 <h3 style="margin-top:0;">🚀 Get Started</h3>
-                <p style="margin-bottom:20px;">Check the <strong>Documentation</strong> for setup instructions, build options, and technical details.</p>
+                <p style="margin-bottom:20px;">Check the <strong>Documentation</strong> for setup instructions, run options, and technical details.</p>
                 <button onclick="showView('docs')" style="background:var(--accent);color:white;border:none;padding:12px 30px;border-radius:8px;font-size:1em;cursor:pointer;font-weight:600;">
                     📚 View Documentation
                 </button>
@@ -884,7 +954,7 @@ http://localhost:5000
             </div>
             <div class="step-box">
                 <span class="step-number">3</span>
-                <strong>Target Server</strong> - Enter the bastion hostname or leave empty for local kubeconfig
+                <strong>Target Server</strong> - Select the target host or leave empty for local kubeconfig
             </div>
             <div class="step-box">
                 <span class="step-number">4</span>
@@ -1153,7 +1223,7 @@ http://localhost:5000
             <p>Set default warning thresholds for CPU, memory, disk I/O, etcd latency, pod density, and more.</p>
             
             <h3>🔐 SSH Configuration</h3>
-            <p>Configure default SSH host and user for connecting to bastion hosts.</p>
+            <p>Configure default SSH host and user for connecting to target hosts.</p>
             
             <h3>🤖 AI Configuration</h3>
             <p>Configure the Ollama model and URL for AI-powered root cause analysis.</p>
@@ -1229,40 +1299,31 @@ http://localhost:5000
             <!-- ================================================================== -->
             
             <!-- Health Checks -->
-            <h2 id="health-checks">🏥 Health Checks</h2>
+            <h2 id="health-checks">🏥 Health Checks Reference</h2>
             
-            <p>The tool performs comprehensive health checks across multiple categories.</p>
+            <p>Complete reference of every health check, the exact <code>oc</code> command executed, and what it validates on the cluster.</p>
             
+            {% for category in categories %}
+            <h3>{{ category_icons.get(category, '') }} {{ category }}</h3>
             <table>
                 <tr>
-                    <th>Category</th>
-                    <th>Checks</th>
+                    <th style="width:18%;">Check</th>
+                    <th style="width:35%;">Command</th>
+                    <th style="width:47%;">What It Validates</th>
                 </tr>
+                {% for check_id, check in checks.items() %}
+                {% if check.category == category %}
+                {% for entry in check.commands %}
                 <tr>
-                    <td>🏗️ <strong>Infrastructure</strong></td>
-                    <td>Node status, Cluster operators, etcd health, Certificates, MachineConfigPools</td>
+                    {% if loop.first %}<td rowspan="{{ check.commands|length }}" style="vertical-align:top;"><strong>{{ check.name }}</strong><br><span style="font-size:11px;color:#6c757d;">{{ check.description }}</span></td>{% endif %}
+                    <td><code style="display:block;background:#1e1e2e;color:#a5f3fc;padding:6px 8px;border-radius:4px;font-size:11px;white-space:pre-wrap;word-break:break-all;">{{ entry.cmd }}</code></td>
+                    <td style="font-size:13px;color:#333;">{{ entry.validates }}</td>
                 </tr>
-                <tr>
-                    <td>📦 <strong>Workloads</strong></td>
-                    <td>Pod health (CrashLoop, Pending, OOM, Unknown), Restart counts, Pod density</td>
-                </tr>
-                <tr>
-                    <td>💻 <strong>Virtualization</strong></td>
-                    <td>KubeVirt/HCO status, VMIs, virt-handler, virt-launcher, VM migrations</td>
-                </tr>
-                <tr>
-                    <td>💾 <strong>Storage</strong></td>
-                    <td>PVCs, DataVolumes, VolumeSnapshots, CSI drivers, ODF health</td>
-                </tr>
-                <tr>
-                    <td>📊 <strong>Resources</strong></td>
-                    <td>CPU/Memory per node, Resource hogs, Pod resource usage</td>
-                </tr>
-                <tr>
-                    <td>🚨 <strong>Monitoring</strong></td>
-                    <td>Active Prometheus alerts, Alert rules</td>
-                </tr>
+                {% endfor %}
+                {% endif %}
+                {% endfor %}
             </table>
+            {% endfor %}
             
             <hr>
             
@@ -1316,8 +1377,8 @@ http://localhost:5000
                 </tr>
                 <tr>
                     <td><code>RH_LAB_HOST</code></td>
-                    <td>SSH target hostname (bastion)</td>
-                    <td>bastion.example.com</td>
+                    <td>SSH target hostname</td>
+                    <td>host.example.com</td>
                 </tr>
                 <tr>
                     <td><code>RH_LAB_USER</code></td>
@@ -1374,78 +1435,6 @@ http://localhost:5000
                 <p style="text-align:center;opacity:0.9;">The following sections contain detailed technical information for developers and advanced users.</p>
             </div>
             
-            <!-- Architecture -->
-            <h2 id="architecture">🏗️ Architecture</h2>
-            
-            <table>
-                <tr><th colspan="5" style="background:#1a237e;color:white;text-align:center;">🌐 WEB DASHBOARD (Flask:5000)</th></tr>
-                <tr>
-                    <td style="text-align:center;">📊<br><strong>Dashboard</strong><br><sub>Build overview</sub></td>
-                    <td style="text-align:center;">▶️<br><strong>Build Config</strong><br><sub>Configure runs</sub></td>
-                    <td style="text-align:center;">📋<br><strong>History</strong><br><sub>Past builds</sub></td>
-                    <td style="text-align:center;">📅<br><strong>Schedules</strong><br><sub>Automation</sub></td>
-                    <td style="text-align:center;">⚙️<br><strong>Settings</strong><br><sub>Configuration</sub></td>
-                </tr>
-                <tr><th colspan="5" style="background:#283593;color:white;text-align:center;">↓ API Layer (Flask Routes) ↓</th></tr>
-                <tr><th colspan="5" style="background:#1565c0;color:white;text-align:center;">🔍 HEALTH CHECK ENGINE (hybrid_health_check.py)</th></tr>
-                <tr>
-                    <td style="text-align:center;">📡<br><strong>SSH</strong><br><sub>Paramiko</sub></td>
-                    <td style="text-align:center;">🔎<br><strong>Collect</strong><br><sub>oc commands</sub></td>
-                    <td style="text-align:center;">📊<br><strong>Parse</strong><br><sub>Structured data</sub></td>
-                    <td style="text-align:center;">🔍<br><strong>Analyze</strong><br><sub>Pattern match</sub></td>
-                    <td style="text-align:center;">📝<br><strong>Report</strong><br><sub>HTML output</sub></td>
-                </tr>
-                <tr><th colspan="5" style="background:#0277bd;color:white;text-align:center;">🤖 AI LAYER (Optional)</th></tr>
-                <tr>
-                    <td style="text-align:center;" colspan="2">🧠 <strong>CrewAI + Llama 3.2</strong><br><sub>Deep investigation</sub></td>
-                    <td style="text-align:center;">🎫 <strong>Jira MCP</strong><br><sub>Bug correlation</sub></td>
-                    <td style="text-align:center;">📧 <strong>Gmail MCP</strong><br><sub>Email search</sub></td>
-                    <td style="text-align:center;">🌐 <strong>Web Search</strong><br><sub>Documentation</sub></td>
-                </tr>
-                <tr><th colspan="5" style="background:#00838f;color:white;text-align:center;">🖥️ TARGET CLUSTER (via SSH/kubeconfig)</th></tr>
-            </table>
-            
-            <h3>Technology Stack</h3>
-            <table>
-                <tr>
-                    <th>Layer</th>
-                    <th>Technology</th>
-                    <th>Purpose</th>
-                </tr>
-                <tr>
-                    <td>Web Frontend</td>
-                    <td>HTML5, CSS3, JavaScript (vanilla)</td>
-                    <td>Interactive UI, real-time updates</td>
-                </tr>
-                <tr>
-                    <td>Web Backend</td>
-                    <td>Python Flask, Jinja2</td>
-                    <td>REST API, template rendering</td>
-                </tr>
-                <tr>
-                    <td>Health Checks</td>
-                    <td>Python, Paramiko (SSH)</td>
-                    <td>Cluster data collection</td>
-                </tr>
-                <tr>
-                    <td>AI/ML</td>
-                    <td>CrewAI, Ollama (Llama 3.2)</td>
-                    <td>Root cause analysis</td>
-                </tr>
-                <tr>
-                    <td>Integrations</td>
-                    <td>Jira MCP, Gmail MCP</td>
-                    <td>Bug tracking, email search</td>
-                </tr>
-                <tr>
-                    <td>Data Storage</td>
-                    <td>JSON files</td>
-                    <td>Builds, schedules, settings, learning</td>
-                </tr>
-            </table>
-            
-            <hr>
-            
             <!-- Project Structure -->
             <h2 id="project-structure">📁 Project Structure</h2>
             
@@ -1463,8 +1452,8 @@ http://localhost:5000
 │   ├── templates/              # Jinja2 HTML templates
 │   │   ├── base.html          # Base template with navigation
 │   │   ├── dashboard.html     # Main dashboard
-│   │   ├── configure.html     # Build configuration page
-│   │   ├── history.html       # Build history
+│   │   ├── configure.html     # Run configuration page
+│   │   ├── history.html       # Run history
 │   │   ├── schedules.html     # Schedule management
 │   │   ├── settings.html      # Settings page
 │   │   ├── build_detail.html  # Individual build details
@@ -1479,7 +1468,10 @@ http://localhost:5000
 │
 ├── reports/                     # Generated HTML reports
 │
-├── .builds.json                 # Build history
+├── instance/
+│   └── healthcrew.db           # SQLite database (users, hosts, runs)
+│
+├── .builds.json                 # Run history (legacy)
 ├── .settings.json               # User settings (thresholds, etc.)
 ├── .learning_data.json          # AI learning data
 ├── .suggested_checks.json       # Jira-suggested checks
@@ -1567,7 +1559,7 @@ http://localhost:5000
                 </tr>
                 <tr>
                     <td><strong>SSH Library</strong></td>
-                    <td><code>paramiko</code> - persistent SSH connection to bastion</td>
+                    <td><code>paramiko</code> - persistent SSH connection to target host</td>
                 </tr>
                 <tr>
                     <td><strong>Kubeconfig</strong></td>
@@ -1583,48 +1575,23 @@ http://localhost:5000
                 </tr>
             </table>
             
-            <h3>🔍 Key Data Collection Commands</h3>
+            <h3>🔍 All Data Collection Commands</h3>
+            <p>Complete list of every <code>oc</code> command executed during a full health check run and what it validates:</p>
             <table>
                 <tr>
-                    <th>Check</th>
-                    <th>Command</th>
+                    <th style="width:15%;">Check</th>
+                    <th style="width:38%;">Command</th>
+                    <th style="width:47%;">What It Validates</th>
                 </tr>
+                {% for check_id, check in checks.items() %}
+                {% for entry in check.commands %}
                 <tr>
-                    <td>Nodes</td>
-                    <td><code>oc get nodes --no-headers</code></td>
+                    {% if loop.first %}<td rowspan="{{ check.commands|length }}" style="vertical-align:top;"><strong>{{ check.name }}</strong></td>{% endif %}
+                    <td><code style="display:block;background:#1e1e2e;color:#a5f3fc;padding:6px 8px;border-radius:4px;font-size:11px;white-space:pre-wrap;word-break:break-all;">{{ entry.cmd }}</code></td>
+                    <td style="font-size:13px;color:#333;">{{ entry.validates }}</td>
                 </tr>
-                <tr>
-                    <td>Operators</td>
-                    <td><code>oc get co --no-headers</code></td>
-                </tr>
-                <tr>
-                    <td>Unhealthy Pods</td>
-                    <td><code>oc get pods -A --field-selector=status.phase!=Running,status.phase!=Succeeded</code></td>
-                </tr>
-                <tr>
-                    <td>etcd</td>
-                    <td><code>oc get pods -n openshift-etcd -l app=etcd</code></td>
-                </tr>
-                <tr>
-                    <td>Resources</td>
-                    <td><code>oc adm top nodes --no-headers</code></td>
-                </tr>
-                <tr>
-                    <td>VMIs</td>
-                    <td><code>oc get vmi -A --no-headers</code></td>
-                </tr>
-                <tr>
-                    <td>Migrations</td>
-                    <td><code>oc get vmim -A --no-headers</code></td>
-                </tr>
-                <tr>
-                    <td>PVCs</td>
-                    <td><code>oc get pvc -A | grep -v Bound</code></td>
-                </tr>
-                <tr>
-                    <td>OOM Events</td>
-                    <td><code>oc get events -A --field-selector reason=OOMKilled</code></td>
-                </tr>
+                {% endfor %}
+                {% endfor %}
             </table>
             
             <h3>🔄 Data Flow</h3>
