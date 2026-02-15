@@ -101,7 +101,9 @@
                                 </a>
                             </td>
                             <td>
-                                {% if build.options.task_type == 'cnv_scenarios' %}
+                                {% if build.options.task_type == 'cnv_combined' %}
+                                <span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;background:linear-gradient(135deg,#8b5cf6,#6366f1);color:white;">🧬 Combined</span>
+                                {% elif build.options.task_type == 'cnv_scenarios' %}
                                 <span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;background:linear-gradient(135deg,#f97316,#ea580c);color:white;">🔥 CNV</span>
                                 {% else %}
                                 <span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;background:linear-gradient(135deg,#3b82f6,#2563eb);color:white;">🩺 Health</span>
@@ -124,9 +126,17 @@
                                     {{ build.triggered_by or 'system' }}
                                 </span>
                             </td>
-                            <td>{{ build.checks_count }}</td>
                             <td>
-                                {% if build.options.task_type == 'cnv_scenarios' %}
+                                {% if build.options.task_type in ['cnv_scenarios', 'cnv_combined'] %}
+                                <span style="font-size:11px;">{{ build.checks_count }} tests</span>
+                                {% else %}
+                                {{ build.checks_count }}
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if build.options.task_type == 'cnv_combined' %}
+                                <span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;background:linear-gradient(135deg,#8b5cf6,#6366f1);color:white;">🧬 Combined</span>
+                                {% elif build.options.task_type == 'cnv_scenarios' %}
                                 <span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;background:linear-gradient(135deg,#f97316,#ea580c);color:white;">🔥 CNV</span>
                                 {% else %}
                                 {% if build.options.rca_level == 'full' %}🔍{% elif build.options.rca_level == 'bugs' %}🐛{% else %}📋{% endif %}

@@ -16,24 +16,34 @@ Variables are split into:
 # ─── Global variables (shared across most/all scenarios) ─────────────────────
 CNV_GLOBAL_VARIABLES = {
     "storageClassName": {
-        "type": "str", "default": "", "label": "Storage Class",
-        "placeholder": "default: ocs-storagecluster-ceph-rbd",
+        "type": "str", "label": "Storage Class",
         "icon": "💿",
+        "default": {"sanity": "", "full": ""},
+        "placeholder": {"sanity": "default: ocs-storagecluster-ceph-rbd-virtualization", "full": "default: ocs-storagecluster-ceph-rbd-virtualization"},
     },
     "nodeSelector": {
-        "type": "str", "default": "", "label": "Node Selector",
-        "placeholder": "e.g. node-role.kubernetes.io/worker=",
+        "type": "str", "label": "Node Selector",
         "icon": "🎯",
+        "default": {"sanity": "", "full": ""},
+        "placeholder": {"sanity": "e.g. node-role.kubernetes.io/worker=", "full": "e.g. node-role.kubernetes.io/worker="},
     },
     "maxWaitTimeout": {
-        "type": "str", "default": "30m", "label": "Max Wait Timeout",
-        "placeholder": "e.g. 30m, 1h, 2h",
+        "type": "str", "label": "Max Wait Timeout",
         "icon": "⏱️",
+        "default": {"sanity": "5m", "full": "30m"},
+        "placeholder": {"sanity": "Sanity default: 5m", "full": "Full default: 30m"},
     },
     "jobPause": {
-        "type": "str", "default": "2m", "label": "Job Pause",
-        "placeholder": "e.g. 2m, 5m, 10m",
+        "type": "str", "label": "Job Pause",
         "icon": "⏸️",
+        "default": {"sanity": "10s", "full": "2m"},
+        "placeholder": {"sanity": "Sanity default: 10s", "full": "Full default: 2m"},
+    },
+    "cleanup": {
+        "type": "bool", "label": "Cleanup After Test",
+        "icon": "🧹",
+        "default": {"sanity": True, "full": True},
+        "placeholder": {"sanity": "", "full": ""},
     },
 }
 
@@ -52,6 +62,7 @@ CNV_SCENARIOS = {
             "vmCount": {"type": "int", "default": 1, "label": "VM Count", "min": 1, "max": 50},
             "memory": {"type": "str", "default": "2Gi", "label": "Memory per VM", "placeholder": "e.g. 2Gi, 8Gi"},
             "storage": {"type": "str", "default": "10Gi", "label": "Storage Size", "placeholder": "e.g. 10Gi, 50Gi"},
+            "volumeMode": {"type": "choice", "default": "Block", "label": "Volume Mode", "choices": ["Block", "Filesystem"]},
         },
     },
     "memory_limits": {
@@ -66,6 +77,7 @@ CNV_SCENARIOS = {
             "vmCount": {"type": "int", "default": 1, "label": "VM Count", "min": 1, "max": 50},
             "cpuCores": {"type": "int", "default": 16, "label": "CPU Cores", "min": 1, "max": 128},
             "storage": {"type": "str", "default": "20Gi", "label": "Storage Size", "placeholder": "e.g. 20Gi, 50Gi"},
+            "volumeMode": {"type": "choice", "default": "Block", "label": "Volume Mode", "choices": ["Block", "Filesystem"]},
         },
     },
     "disk_limits": {
@@ -137,6 +149,7 @@ CNV_SCENARIOS = {
             "vmCount": {"type": "int", "default": 1, "label": "VM Count", "min": 1, "max": 10},
             "cpuCores": {"type": "int", "default": 16, "label": "CPU Cores", "min": 1, "max": 128},
             "storage": {"type": "str", "default": "50Gi", "label": "Storage Size", "placeholder": "e.g. 50Gi"},
+            "volumeMode": {"type": "choice", "default": "Block", "label": "Volume Mode", "choices": ["Block", "Filesystem"]},
             "enablePerfTest": {"type": "bool", "default": True, "label": "Enable perf test in VM"},
         },
     },
@@ -153,6 +166,7 @@ CNV_SCENARIOS = {
             "vmCount": {"type": "int", "default": 1, "label": "VM Count", "min": 1, "max": 10},
             "cpuCores": {"type": "int", "default": 16, "label": "CPU Cores", "min": 1, "max": 128},
             "memory": {"type": "str", "default": "32Gi", "label": "Memory per VM", "placeholder": "e.g. 32Gi"},
+            "volumeMode": {"type": "choice", "default": "Block", "label": "Volume Mode", "choices": ["Block", "Filesystem"]},
             "enablePerfTest": {"type": "bool", "default": True, "label": "Enable perf test in VM"},
         },
     },
@@ -188,10 +202,12 @@ CNV_SCENARIOS = {
             "percentage_of_vms_to_validate": {"type": "int", "default": 50, "label": "VM Validation % (SSH)", "min": 0, "max": 100},
             "max_ssh_retries": {"type": "int", "default": 240, "label": "Max SSH Retries", "min": 1, "max": 1000},
             "vmMemory": {"type": "str", "default": "256Mi", "label": "VM Memory", "placeholder": "e.g. 256Mi, 512Mi"},
+            "vmCpuCores": {"type": "int", "default": 100, "label": "VM CPU (milliCPU)", "min": 50, "max": 16000},
             "vmCpuRequest": {"type": "str", "default": "100m", "label": "CPU Request", "placeholder": "e.g. 100m (milliCPU)"},
             "vmCpuLimit": {"type": "str", "default": "1000m", "label": "CPU Limit", "placeholder": "e.g. 1000m (milliCPU)"},
             "sourceStorageSize": {"type": "int", "default": 256, "label": "Source DV Size (MiB)", "min": 64, "max": 10240},
             "vmStorageSize": {"type": "int", "default": 256, "label": "VM Disk Size (MiB)", "min": 64, "max": 10240},
+            "imageUrl": {"type": "str", "default": "", "label": "VM Image URL", "placeholder": "default: Alpine 3.22 cloud image"},
             "shutdownBatchSize": {"type": "int", "default": 50, "label": "Shutdown Batch Size", "min": 1, "max": 500},
             "sleepBetweenPhases": {"type": "str", "default": "2m", "label": "Sleep Between Phases", "placeholder": "e.g. 2m, 5m"},
             "skipVmShutdown": {"type": "bool", "default": False, "label": "Skip VM Shutdown phase"},

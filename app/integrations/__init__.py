@@ -1,9 +1,10 @@
 """
-CNV Health Crew - External Integrations
+External Integrations (stubs)
 
-This module contains integrations with external services:
-- ssh.py: SSH/Paramiko connection management
-- jira.py: Jira MCP integration for bug tracking
-- email.py: Email notification service
-- web.py: Web search integration for RCA
+Placeholder for future modular integrations. Currently, these features
+are implemented inline in:
+  - SSH:   healthchecks/hybrid_health_check.py (Paramiko)
+  - Jira:  healthchecks/hybrid_health_check.py (Jira RCA via API)
+  - Email: healthchecks/hybrid_health_check.py (SMTP)
+  - Web:   healthchecks/hybrid_health_check.py (web search for RCA)
 """

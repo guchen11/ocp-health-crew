@@ -67,7 +67,9 @@
                     <div>
                         <strong style="color:var(--text-muted);font-size:11px;text-transform:uppercase;">Task Type</strong>
                         <div style="margin-top:4px;">
-                            {% if build.options.task_type == 'cnv_scenarios' %}
+                            {% if build.options.task_type == 'cnv_combined' %}
+                            <span style="display:inline-block;padding:3px 10px;border-radius:6px;font-size:11px;font-weight:700;background:linear-gradient(135deg,#8b5cf6,#6366f1);color:white;">🧬 CNV Combined</span>
+                            {% elif build.options.task_type == 'cnv_scenarios' %}
                             <span style="display:inline-block;padding:3px 10px;border-radius:6px;font-size:11px;font-weight:700;background:linear-gradient(135deg,#f97316,#ea580c);color:white;">🔥 CNV Scenarios</span>
                             {% else %}
                             <span style="display:inline-block;padding:3px 10px;border-radius:6px;font-size:11px;font-weight:700;background:linear-gradient(135deg,var(--accent),#1565c0);color:white;">🩺 Health Check</span>
@@ -87,17 +89,23 @@
                     </div>
                     <div>
                         <strong style="color:var(--text-muted);font-size:11px;text-transform:uppercase;">Duration</strong>
-                        <div>{{ build.duration }}</div>
+                        <div id="build-duration">{{ build.duration }}</div>
                     </div>
                     <div>
                         <strong style="color:var(--text-muted);font-size:11px;text-transform:uppercase;">Server</strong>
                         <div style="font-family:monospace;font-size:12px;">{{ build.options.server_host or 'Default (env)' }}</div>
                     </div>
-                    {% if build.options.task_type == 'cnv_scenarios' %}
+                    {% if build.options.task_type in ['cnv_scenarios', 'cnv_combined'] %}
                     <div>
                         <strong style="color:var(--text-muted);font-size:11px;text-transform:uppercase;">Mode</strong>
                         <div>{{ build.options.scenario_mode or 'sanity' }}{% if build.options.scenario_parallel %} (parallel){% endif %}</div>
                     </div>
+                    {% if build.options.task_type == 'cnv_combined' %}
+                    <div>
+                        <strong style="color:var(--text-muted);font-size:11px;text-transform:uppercase;">Pipeline</strong>
+                        <div>Scenarios + Health Check{% if build.options.combined_cleanup %} + Cleanup{% endif %}</div>
+                    </div>
+                    {% endif %}
                     <div>
                         <strong style="color:var(--text-muted);font-size:11px;text-transform:uppercase;">Scenarios</strong>
                         <div>{{ build.checks_count }} tests</div>
@@ -121,13 +129,24 @@
                     {% endif %}
                 </div>
                 
-                {% if build.options.task_type == 'cnv_scenarios' %}
-                <h4 style="margin-bottom:15px;">Scenarios Executed:</h4>
-                <div class="checkbox-grid">
+                {% if build.options.task_type in ['cnv_scenarios', 'cnv_combined'] %}
+                <h4 style="margin-bottom:15px;">Scenarios{% if build.status == 'running' %} Progress{% else %} Executed{% endif %}:</h4>
+                <div id="test-progress-grid" class="checkbox-grid">
                     {% for test in build.checks %}
-                    <div class="checkbox-item" style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:10px 14px;">
-                        <span>🔥</span>
-                        <span style="font-weight:600;">{{ test }}</span>
+                    {% set meta = cnv_meta.get(test, {}) %}
+                    <div class="test-progress-card" data-test="{{ test }}"
+                         style="background:#1a1d23;border:1px solid #2c3235;border-radius:8px;padding:12px 14px;display:flex;align-items:center;gap:10px;transition:border-color 0.3s;">
+                        <span style="font-size:18px;">{{ meta.get('icon', '🔥') }}</span>
+                        <div style="flex:1;min-width:0;">
+                            <div style="font-weight:600;font-size:13px;color:#e6edf3;">{{ meta.get('name', test) }}</div>
+                            <div style="font-size:11px;color:#8b949e;margin-top:2px;">{{ test }}{% if meta.get('category') %} · {{ meta.get('category') }}{% endif %}</div>
+                        </div>
+                        <div class="test-status-badge" data-test-status="{{ test }}"
+                             style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:12px;white-space:nowrap;">
+                            {% if build.status == 'running' %}
+                            <span style="color:#8b949e;">⏳ Pending</span>
+                            {% endif %}
+                        </div>
                     </div>
                     {% endfor %}
                 </div>
@@ -145,6 +164,58 @@
             </div>
         </div>
         
+        {% if build.custom_check_results is defined and build.custom_check_results %}
+        <div class="card">
+            <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+                <span>🧪 Custom Health Checks</span>
+                {% set cc_passed = build.custom_check_results|selectattr('passed')|list|length %}
+                {% set cc_total = build.custom_check_results|length %}
+                <span style="font-size:12px;padding:4px 12px;border-radius:12px;
+                    {% if cc_passed == cc_total %}background:#23863620;color:#238636;{% else %}background:#da363320;color:#da3633;{% endif %}">
+                    {{ cc_passed }}/{{ cc_total }} passed
+                </span>
+            </div>
+            <div class="card-body" style="padding:0;">
+                <table style="width:100%;border-collapse:collapse;font-size:13px;">
+                    <thead>
+                        <tr style="background:var(--bg-secondary);border-bottom:1px solid var(--border);">
+                            <th style="padding:10px 16px;text-align:left;font-weight:600;width:30px;">Status</th>
+                            <th style="padding:10px 8px;text-align:left;font-weight:600;">Name</th>
+                            <th style="padding:10px 8px;text-align:left;font-weight:600;font-family:monospace;">Command / Script</th>
+                            <th style="padding:10px 8px;text-align:left;font-weight:600;">Expected</th>
+                            <th style="padding:10px 8px;text-align:left;font-weight:600;">Actual</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for cc in build.custom_check_results %}
+                        <tr style="border-bottom:1px solid var(--border);{% if not cc.passed %}background:#da363308;{% endif %}">
+                            <td style="padding:10px 16px;text-align:center;">
+                                {% if cc.passed %}
+                                <span style="color:#238636;font-size:16px;">✓</span>
+                                {% else %}
+                                <span style="color:#da3633;font-size:16px;">✗</span>
+                                {% endif %}
+                            </td>
+                            <td style="padding:10px 8px;font-weight:600;">
+                                {% if cc.check_type == 'script' %}📜{% else %}🧪{% endif %} {{ cc.name }}
+                            </td>
+                            <td style="padding:10px 8px;font-family:monospace;font-size:11px;color:var(--text-secondary);max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ cc.command }}</td>
+                            <td style="padding:10px 8px;font-size:12px;color:var(--text-secondary);">
+                                {{ cc.expected or '(any)' }}
+                                <span style="font-size:10px;color:var(--text-muted);">({{ cc.match_type }})</span>
+                            </td>
+                            <td style="padding:10px 8px;font-family:monospace;font-size:11px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"
+                                title="{{ cc.actual }}">
+                                {{ cc.actual[:100] if cc.actual else cc.error or '' }}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+
         {% if build.report_file %}
         <div class="card">
             <div class="card-header">📄 Report Preview</div>
@@ -157,4 +228,90 @@
         {% endif %}
     </main>
 </div>
+
+{% if build.status == 'running' and build.options.task_type in ['cnv_scenarios', 'cnv_combined'] %}
+<script>
+(function() {
+    var buildNum = {{ build.number }};
+    var pollInterval = 3000;
+    var timer = null;
+
+    function statusHtml(status, elapsed, duration, exitCode) {
+        if (status === 'running') {
+            return '<span style="color:#58a6ff;"><span class="status-icon running" style="display:inline-block;width:8px;height:8px;margin-right:4px;"></span> Running' + (elapsed ? ' (' + elapsed + ')' : '') + '</span>';
+        } else if (status === 'passed') {
+            return '<span style="background:#238636;color:#fff;padding:2px 8px;border-radius:10px;">✓ Passed</span>' + (duration ? ' <span style="color:#8b949e;font-size:10px;">' + duration + '</span>' : '');
+        } else if (status === 'failed') {
+            return '<span style="background:#da3633;color:#fff;padding:2px 8px;border-radius:10px;">✗ Failed</span>' + (duration ? ' <span style="color:#8b949e;font-size:10px;">' + duration + '</span>' : '');
+        } else if (status === 'queued') {
+            return '<span style="color:#8b949e;">📋 Queued</span>';
+        }
+        return '<span style="color:#8b949e;">⏳ Pending</span>';
+    }
+
+    function borderColor(status) {
+        if (status === 'running') return '#58a6ff';
+        if (status === 'passed') return '#238636';
+        if (status === 'failed') return '#da3633';
+        if (status === 'queued') return '#6e7681';
+        return '#2c3235';
+    }
+
+    function poll() {
+        fetch('/api/test-progress/' + buildNum)
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (!data.running) {
+                    clearInterval(timer);
+                    setTimeout(function() { location.reload(); }, 1500);
+                    return;
+                }
+                var tp = data.test_progress || {};
+                document.querySelectorAll('.test-progress-card').forEach(function(card) {
+                    var tname = card.getAttribute('data-test');
+                    var badge = card.querySelector('.test-status-badge');
+                    var info = tp[tname];
+                    if (info) {
+                        badge.innerHTML = statusHtml(info.status, info.elapsed, info.duration, info.exit_code);
+                        card.style.borderColor = borderColor(info.status);
+                    }
+                });
+            })
+            .catch(function() {});
+    }
+
+    timer = setInterval(poll, pollInterval);
+    poll();
+})();
+</script>
+{% endif %}
+
+{% if build.status == 'running' %}
+<script>
+(function() {
+    var startTime = new Date('{{ build.started_at_iso }}');
+    var durationEl = document.getElementById('build-duration');
+    if (!durationEl || isNaN(startTime.getTime())) return;
+
+    function formatElapsed(ms) {
+        var totalSec = Math.floor(ms / 1000);
+        var h = Math.floor(totalSec / 3600);
+        var m = Math.floor((totalSec % 3600) / 60);
+        var s = totalSec % 60;
+        if (h > 0) return h + 'h ' + m + 'm ' + s + 's';
+        if (m > 0) return m + 'm ' + s + 's';
+        return s + 's';
+    }
+
+    function tick() {
+        var elapsed = Date.now() - startTime.getTime();
+        if (elapsed < 0) elapsed = 0;
+        durationEl.textContent = formatElapsed(elapsed);
+    }
+
+    tick();
+    setInterval(tick, 1000);
+})();
+</script>
+{% endif %}
 {% endblock %}

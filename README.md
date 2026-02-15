@@ -164,47 +164,50 @@ python healthchecks/crewai_agents.py
 
 ```
 ocp-health-crew/
-├── run.py                          # Entry point — starts the web dashboard
-├── config.env.example              # Example configuration file
-├── requirements.txt                # Python dependencies
+├── run.py                              # Entry point — starts the Flask web server
+├── config.env.example                  # Example configuration file
+├── requirements.txt                    # Python dependencies
 │
-├── app/                            # Flask web application
-│   ├── __init__.py                 #   Application factory
-│   ├── models.py                   #   Database models (User, Build, Schedule, Host)
-│   ├── auth.py                     #   Authentication (login, register, profile)
-│   ├── admin.py                    #   Admin panel (user management, audit log)
-│   ├── routes.py                   #   Dashboard routes & API endpoints
-│   ├── scheduler.py                #   Background task scheduler
-│   ├── learning.py                 #   Pattern recognition & learning module
-│   ├── checks/                     #   Health check metadata & future modules
-│   ├── integrations/               #   Integration stubs (Jira, email, SSH)
-│   ├── templates/                  #   HTML templates
-│   └── static/                     #   CSS & images
+├── app/                                # Flask web application
+│   ├── __init__.py                     #   App factory, blueprints, extensions
+│   ├── models.py                       #   DB models: User, Build, Schedule, Host, CustomCheck, AuditLog
+│   ├── routes.py                       #   Dashboard routes, build execution, APIs
+│   ├── auth.py                         #   Authentication: login, register, profile
+│   ├── admin.py                        #   Admin panel: user CRUD, roles, audit log
+│   ├── scheduler.py                    #   Background scheduler for timed builds
+│   ├── learning.py                     #   Pattern recognition & recurring issue tracking
+│   ├── checks/                         #   Health check metadata (re-exports AVAILABLE_CHECKS)
+│   ├── integrations/                   #   Integration stubs (Jira, email, SSH)
+│   ├── templates/                      #   Jinja2 HTML templates
+│   └── static/                         #   CSS & images
 │
-├── config/                         # Configuration
-│   └── settings.py                 #   App config (supports dev + installed modes)
+├── config/                             # Configuration
+│   ├── settings.py                     #   App config: paths, DB, SSH, checks, Flask settings
+│   └── cnv_scenarios.py                #   CNV scenario definitions & variables for the dashboard
 │
-├── healthchecks/                   # Health check engines
-│   ├── hybrid_health_check.py      #   Core engine — SSH checks, reports, AI RCA
-│   ├── simple_health_check.py      #   Minimal SSH health check (no AI)
-│   └── crewai_agents.py            #   CrewAI multi-agent system
+├── healthchecks/                       # Health check engines
+│   ├── hybrid_health_check.py          #   Core engine: SSH, reports, AI RCA, auto oc-login
+│   ├── cnv_scenarios.py                #   CNV scenario runner: SSH + kube-burner workloads
+│   ├── cnv_report.py                   #   CNV report generator: parses output, builds HTML
+│   ├── simple_health_check.py          #   Minimal SSH health check (no AI, no web)
+│   └── crewai_agents.py                #   CrewAI multi-agent system (experimental)
 │
-├── tools/                          # Shared tools
-│   └── ssh_tool.py                 #   CrewAI SSH tool for remote oc commands
+├── tools/                              # Shared tools
+│   └── ssh_tool.py                     #   CrewAI SSH tool for remote oc commands
 │
-├── scripts/                        # Shell scripts & utilities
-│   ├── install.sh                  #   One-command installer for RHEL/Fedora
-│   ├── uninstall.sh                #   Clean removal script
-│   ├── start_dashboard.sh          #   Start server & open browser
-│   └── migrate_json_to_db.py       #   One-time JSON → SQLite migration
+├── scripts/                            # Shell scripts & utilities
+│   ├── install.sh                      #   One-command installer for RHEL/Fedora
+│   ├── uninstall.sh                    #   Clean removal script
+│   ├── start_dashboard.sh              #   Start server & open browser
+│   └── migrate_json_to_db.py           #   One-time JSON → SQLite migration
 │
-├── docs/                           # Documentation
-│   └── DESIGN.md                   #   Architecture & design document
+├── docs/                               # Documentation
+│   └── DESIGN.md                       #   Architecture & design document
 │
-├── tests/                          # Test suite (placeholder)
+├── legacy/                             # Deprecated code
+│   └── web_dashboard.py                #   Old standalone Flask app (replaced by app/)
 │
-└── legacy/                         # Deprecated code
-    └── web_dashboard.py            #   Standalone Flask app (replaced by app/)
+└── reports/                            # Generated reports (gitignored)
 ```
 
 ---

@@ -1,12 +1,10 @@
 """
-CNV Health Checks - Modular health check implementations
+Health Check Metadata
 
-This module contains individual health check functions organized by category:
-- infrastructure.py: Node health, cluster operators, etcd, MCP
-- virtualization.py: KubeVirt, VMs, VMIs, migrations
-- storage.py: PVCs, CSI, DataVolumes, ODF
-- network.py: Network policies, multus
-- workloads.py: Pod health, resource usage
+Re-exports AVAILABLE_CHECKS from config.settings — the list of check categories
+that can be selected in the dashboard (Nodes, Operators, Pods, KubeVirt, etc.).
+
+The actual check logic lives in healthchecks/hybrid_health_check.py.
 """
 
 from config.settings import AVAILABLE_CHECKS

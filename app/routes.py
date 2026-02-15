@@ -8,6 +8,7 @@ import os
 import sys
 import json
 import glob
+import re
 import subprocess
 import threading
 import time
@@ -21,6 +22,7 @@ from app.models import db, Host
 # Import configuration
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from config.settings import Config, AVAILABLE_CHECKS, CATEGORY_ICONS, CNV_SCENARIOS, CNV_SCENARIO_CATEGORIES, CNV_CATEGORY_ORDER, CNV_GLOBAL_VARIABLES
+from healthchecks.cnv_report import parse_cnv_results, generate_cnv_report_html, generate_cnv_email_html
 
 # Create Blueprint
 dashboard_bp = Blueprint('dashboard', __name__)
@@ -102,7 +104,7 @@ _DEFAULT_CNV_SETTINGS = {
     'parallel': False,
     'kb_log_level': '',
     'kb_timeout': '',
-    'global_vars': {var: info['default'] for var, info in CNV_GLOBAL_VARIABLES.items()},
+    'global_vars': {},
     'scenario_vars': {},
 }
 
@@ -210,8 +212,8 @@ def _collect_scenario_var_defaults(form):
 
 
 def _send_cnv_email_report(recipient, build_num, build_name, status, status_text,
-                            duration, checks, options, output):
-    """Send a CNV scenario results email."""
+                            duration, checks, options, output, cnv_results=None):
+    """Send a CNV scenario results email with per-test pass/fail details."""
     import smtplib
     from email.mime.multipart import MIMEMultipart
     from email.mime.text import MIMEText
@@ -221,131 +223,42 @@ def _send_cnv_email_report(recipient, build_num, build_name, status, status_text
     email_from = os.getenv('EMAIL_FROM', 'cnv-healthcrew@redhat.com')
 
     mode = options.get('scenario_mode', 'sanity')
-    tests = checks if isinstance(checks, list) else []
-    test_count = len(tests)
 
-    status_colors = {
-        'success': '#73BF69',
-        'unstable': '#FF9830',
-        'failed': '#F2495C',
-    }
-    status_emoji = {'success': '✅', 'unstable': '⚠️', 'failed': '❌'}.get(status, '🔵')
-    color = status_colors.get(status, '#5794F2')
+    # Parse results from output if not provided
+    if cnv_results is None:
+        cnv_results = parse_cnv_results(output)
 
-    # Extract result lines from the output (last ~60 lines usually contain summary)
-    output_lines = output.strip().split('\n')
-    # Find summary section
-    summary_start = None
-    for i, line in enumerate(output_lines):
-        if any(k in line for k in ['Results:', 'SUMMARY', 'Summary:', 'scenarios complete', 'PASS', 'FAIL']):
-            if summary_start is None or i < summary_start:
-                summary_start = max(0, i - 2)
-    if summary_start is not None:
-        summary_lines = output_lines[summary_start:]
-    else:
-        summary_lines = output_lines[-40:]
-
-    # Strip ANSI codes for plain text
-    import re
-    ansi_re = re.compile(r'\x1b\[[0-9;]*m')
-
-    def strip_ansi(s):
-        return ansi_re.sub('', s)
-
-    plain_summary = '\n'.join(strip_ansi(l) for l in summary_lines)
-    html_summary = '<br>'.join(
-        strip_ansi(l).replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
-        for l in summary_lines
+    # Use the rich email generator
+    subject, html = generate_cnv_email_html(
+        results=cnv_results,
+        build_num=build_num,
+        build_name=build_name,
+        status=status,
+        status_text=status_text,
+        duration=duration,
+        mode=mode,
+        checks=checks,
+        output=output,
     )
 
-    subject = f'{status_emoji} CNV Scenarios #{build_num} — {status_text}'
-    if build_name:
-        subject += f' ({build_name})'
+    # Plain text fallback
+    from healthchecks.cnv_report import strip_ansi
+    tests = cnv_results.get("tests", [])
+    passed = cnv_results.get("passed", 0)
+    failed = cnv_results.get("failed", 0)
 
-    # Build a nice HTML email
-    html = f'''<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"></head>
-<body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0d1117;color:#c9d1d9;">
-<table width="100%" cellpadding="0" cellspacing="0" style="background:#0d1117;padding:20px 0;">
-<tr><td align="center">
-<table width="640" cellpadding="0" cellspacing="0" style="background:#161b22;border-radius:12px;overflow:hidden;border:1px solid #30363d;">
-
-<!-- Header -->
-<tr><td style="background:linear-gradient(135deg,#1a1a2e,#16213e);padding:28px 32px;">
-<table width="100%"><tr>
-<td><span style="font-size:28px;">🔥</span></td>
-<td style="padding-left:14px;">
-<div style="font-size:22px;font-weight:700;color:#e6edf3;">CNV Scenarios Report</div>
-<div style="font-size:13px;color:#8b949e;margin-top:4px;">Build #{build_num} · {duration}</div>
-</td>
-<td align="right">
-<div style="display:inline-block;padding:8px 20px;border-radius:20px;background:{color}22;border:1px solid {color}44;">
-<span style="font-size:16px;font-weight:700;color:{color};">{status_emoji} {status_text}</span>
-</div>
-</td>
-</tr></table>
-</td></tr>
-
-<!-- Summary Stats -->
-<tr><td style="padding:24px 32px;">
-<table width="100%" cellpadding="0" cellspacing="0">
-<tr>
-<td width="33%" style="padding:12px;background:#0d111788;border-radius:8px;text-align:center;border:1px solid #30363d;">
-<div style="font-size:24px;font-weight:700;color:{color};">{status_text}</div>
-<div style="font-size:11px;color:#8b949e;margin-top:4px;">STATUS</div>
-</td>
-<td width="8"></td>
-<td width="33%" style="padding:12px;background:#0d111788;border-radius:8px;text-align:center;border:1px solid #30363d;">
-<div style="font-size:24px;font-weight:700;color:#e6edf3;">{test_count}</div>
-<div style="font-size:11px;color:#8b949e;margin-top:4px;">SCENARIOS</div>
-</td>
-<td width="8"></td>
-<td width="33%" style="padding:12px;background:#0d111788;border-radius:8px;text-align:center;border:1px solid #30363d;">
-<div style="font-size:24px;font-weight:700;color:#e6edf3;">{mode.upper()}</div>
-<div style="font-size:11px;color:#8b949e;margin-top:4px;">MODE</div>
-</td>
-</tr>
-</table>
-</td></tr>
-
-<!-- Scenarios List -->
-<tr><td style="padding:0 32px 20px;">
-<div style="font-size:13px;font-weight:600;color:#8b949e;margin-bottom:10px;">SCENARIOS EXECUTED</div>
-<div style="background:#0d1117;border:1px solid #30363d;border-radius:8px;padding:14px 18px;font-family:monospace;font-size:13px;color:#c9d1d9;">
-{'  ·  '.join(tests)}
-</div>
-</td></tr>
-
-<!-- Output Summary -->
-<tr><td style="padding:0 32px 24px;">
-<div style="font-size:13px;font-weight:600;color:#8b949e;margin-bottom:10px;">OUTPUT SUMMARY</div>
-<div style="background:#0d1117;border:1px solid #30363d;border-radius:8px;padding:16px 18px;font-family:monospace;font-size:12px;line-height:1.6;color:#c9d1d9;max-height:400px;overflow:auto;">
-{html_summary}
-</div>
-</td></tr>
-
-<!-- Footer -->
-<tr><td style="padding:20px 32px;background:#0d111788;border-top:1px solid #30363d;text-align:center;">
-<span style="font-size:12px;color:#8b949e;">
-🔥 CNV HealthCrew · Automated scenario report · <a href="#" style="color:#58a6ff;">View full output in dashboard</a>
-</span>
-</td></tr>
-
-</table>
-</td></tr>
-</table>
-</body>
-</html>'''
+    test_lines = []
+    for t in tests:
+        test_lines.append(f"  {'PASS' if t['status'] == 'PASS' else 'FAIL'}  {t['name']:<25}  {t.get('duration_str', 'N/A')}")
 
     plain = f"""CNV Scenarios Report — Build #{build_num}
 Status: {status_text}
 Duration: {duration}
 Mode: {mode}
-Scenarios: {', '.join(tests)}
+Passed: {passed} | Failed: {failed} | Total: {len(tests)}
 
---- Output Summary ---
-{plain_summary}
+--- Scenario Results ---
+{chr(10).join(test_lines)}
 """
 
     msg = MIMEMultipart('alternative')
@@ -667,7 +580,8 @@ def dashboard():
 
     # Calculate stats
     stats = {
-        'total': len(builds),
+        'total': len(builds) + len(running_list),
+        'running': len(running_list),
         'success': sum(1 for b in builds if b.get('status') == 'success'),
         'unstable': sum(1 for b in builds if b.get('status') == 'unstable'),
         'failed': sum(1 for b in builds if b.get('status') == 'failed')
@@ -699,6 +613,11 @@ def configure():
 
     cnv_config = settings.get('cnv', _DEFAULT_CNV_SETTINGS)
 
+    # Load custom checks for this user
+    from app.models import CustomCheck
+    custom_checks = [c.to_dict() for c in
+                     CustomCheck.query.filter_by(created_by=current_user.id, enabled=True).order_by(CustomCheck.name).all()]
+
     return render_template('configure.html',
                            checks=AVAILABLE_CHECKS,
                            categories=categories,
@@ -714,6 +633,7 @@ def configure():
                            cnv_category_order=CNV_CATEGORY_ORDER,
                            cnv_global_vars=CNV_GLOBAL_VARIABLES,
                            cnv_config=cnv_config,
+                           custom_checks=custom_checks,
                            active_page='configure')
 
 
@@ -728,7 +648,7 @@ def run_build():
     server_host = request.form.get('server_host', '').strip()
 
     # ── CNV Scenarios task ───────────────────────────────────────────────
-    if task_type == 'cnv_scenarios':
+    if task_type in ('cnv_scenarios', 'cnv_combined'):
         selected_tests = request.form.getlist('scenario_tests')
         if not selected_tests:
             selected_tests = [s['remote_name'] for s in CNV_SCENARIOS.values() if s.get('default')]
@@ -739,16 +659,33 @@ def run_build():
 
         # Collect env-var overrides from the form
         env_overrides = []
+        seen_vars = set()
         for key in request.form:
-            if key.startswith('cnv_var_') and request.form[key].strip():
+            if key.startswith('cnv_var_'):
                 var_name = key[len('cnv_var_'):]
-                env_overrides.append(f"{var_name}={request.form[key].strip()}")
+                if var_name in seen_vars:
+                    continue
+                seen_vars.add(var_name)
+                # For checkboxes (bool), getlist returns ['false','true'] when checked
+                values = request.form.getlist(key)
+                value = values[-1].strip() if values else ''
+                if value:
+                    env_overrides.append(f"{var_name}={value}")
 
         kb_log_level = request.form.get('kb_log_level', '').strip()
         kb_timeout = request.form.get('kb_timeout', '').strip()
 
+        # For combined runs: force cleanup=false in env vars so resources
+        # stay on the cluster for the health check, then cleanup later.
+        combined_cleanup = False
+        if task_type == 'cnv_combined':
+            combined_cleanup = 'combined_cleanup' in request.form
+            # Strip any existing cleanup override and force false
+            env_overrides = [e for e in env_overrides if not e.startswith('cleanup=')]
+            env_overrides.append('cleanup=false')
+
         options = {
-            'task_type': 'cnv_scenarios',
+            'task_type': task_type,
             'server_host': server_host,
             'run_name': run_name,
             'scenario_tests': selected_tests,
@@ -760,7 +697,38 @@ def run_build():
             'kb_timeout': kb_timeout,
             'email': 'cnv_send_email' in request.form,
             'email_to': request.form.get('cnv_email_to', Config.DEFAULT_EMAIL),
+            'scenario_custom_checks': [int(x) for x in request.form.getlist('scenario_custom_checks')],
         }
+
+        if task_type == 'cnv_combined':
+            options['combined_cleanup'] = combined_cleanup
+
+            # ── Collect health-check options for the combined run ─────────
+            options['rca_level'] = request.form.get('rca_level', 'none')
+            options['rca_jira'] = 'rca_jira' in request.form
+            options['rca_email'] = 'rca_email' in request.form
+            options['rca_web'] = 'rca_web' in request.form
+            options['jira'] = 'check_jira' in request.form
+
+            # Health-check email (separate from CNV email)
+            if 'send_email' in request.form:
+                options['email'] = True
+                options['email_to'] = request.form.get('email_to', Config.DEFAULT_EMAIL)
+
+            options['hc_checks'] = request.form.getlist('checks')
+            options['hc_custom_checks'] = [int(x) for x in request.form.getlist('custom_checks')]
+
+            # Thresholds
+            current_thresholds = get_thresholds()
+            use_custom = 'use_custom_thresholds' in request.form
+            options['thresholds'] = {
+                'cpu_warning': int(request.form.get('cpu_threshold', current_thresholds['cpu_warning'])) if use_custom else current_thresholds['cpu_warning'],
+                'memory_warning': int(request.form.get('memory_threshold', current_thresholds['memory_warning'])) if use_custom else current_thresholds['memory_warning'],
+                'disk_latency': int(request.form.get('disk_latency_threshold', current_thresholds['disk_latency'])) if use_custom else current_thresholds['disk_latency'],
+                'etcd_latency': int(request.form.get('etcd_latency_threshold', current_thresholds['etcd_latency'])) if use_custom else current_thresholds['etcd_latency'],
+                'pod_density': int(request.form.get('pod_density_threshold', current_thresholds['pod_density'])) if use_custom else current_thresholds['pod_density'],
+                'restart_count': int(request.form.get('restart_threshold', current_thresholds['restart_count'])) if use_custom else current_thresholds['restart_count'],
+            }
 
         schedule_type = request.form.get('schedule_type', 'now')
         if schedule_type == 'now':
@@ -805,7 +773,8 @@ def run_build():
             'email_to': request.form.get('email_to', Config.DEFAULT_EMAIL),
             'run_name': run_name,
             'thresholds': thresholds,
-            'agent': selected_agent
+            'agent': selected_agent,
+            'custom_checks': [int(x) for x in request.form.getlist('custom_checks')],
         }
 
     schedule_type = request.form.get('schedule_type', 'now')
@@ -883,6 +852,13 @@ def quick_run():
     return redirect(url_for('dashboard.configure') + '?preset=all')
 
 
+@dashboard_bp.route('/job/quick-sanity')
+@operator_required
+def quick_sanity():
+    """Quick sanity - redirect to configure with CNV sanity mode pre-selected"""
+    return redirect(url_for('dashboard.configure') + '?preset=cnv_sanity')
+
+
 @dashboard_bp.route('/job/history')
 @login_required
 def history():
@@ -947,9 +923,20 @@ def build_detail(build_num):
     if not build:
         return "Build not found", 404
 
+    # Build CNV scenario metadata lookup (remote_name -> display info)
+    cnv_meta = {}
+    for sid, sc in CNV_SCENARIOS.items():
+        cnv_meta[sc['remote_name']] = {
+            'name': sc['name'],
+            'icon': sc['icon'],
+            'category': sc.get('category', ''),
+            'description': sc.get('description', ''),
+        }
+
     return render_template('build_detail.html',
                            build=build,
                            checks=AVAILABLE_CHECKS,
+                           cnv_meta=cnv_meta,
                            active_page='history')
 
 
@@ -1035,6 +1022,38 @@ def api_status():
                 'start_time': first.get('start_time', 0),
             })
     return jsonify({'running': False, 'queued': len(queued_jobs)})
+
+
+@dashboard_bp.route('/api/test-progress/<int:build_num>')
+@login_required
+def api_test_progress(build_num):
+    """API endpoint for per-test live progress of a running build."""
+    with _jobs_lock:
+        for job_id, job in running_jobs.items():
+            if job.get('number') == build_num:
+                tp = job.get('test_progress', {})
+                # For running tests, compute elapsed time
+                now = time.time()
+                result = {}
+                for tname, info in tp.items():
+                    entry = dict(info)
+                    if entry['status'] == 'running' and entry.get('start_time'):
+                        elapsed = int(now - entry['start_time'])
+                        entry['elapsed'] = f"{elapsed // 60}m {elapsed % 60}s"
+                    result[tname] = entry
+                return jsonify({
+                    'running': True,
+                    'build_num': build_num,
+                    'test_progress': result,
+                    'current_phase': job.get('current_phase', ''),
+                    'progress': job.get('progress', 0),
+                })
+    # Not running — check completed builds
+    load_builds()
+    build = next((b for b in builds if b.get('number') == build_num), None)
+    if build:
+        return jsonify({'running': False, 'build_num': build_num, 'status': build.get('status', 'unknown')})
+    return jsonify({'running': False, 'build_num': build_num, 'status': 'not_found'}), 404
 
 
 @dashboard_bp.route('/api/stop', methods=['POST'])
@@ -1581,16 +1600,16 @@ def _execute_build(job_id, checks, options, user_id=None):
             pass
 
     is_cnv = options.get('task_type') == 'cnv_scenarios'
+    is_combined = options.get('task_type') == 'cnv_combined'
 
     # ── Build the command and phase list based on task type ───────────────
-    if is_cnv:
+    if is_cnv or is_combined:
         cmd = [sys.executable, CNV_SCRIPT_PATH]
         server_host = options.get('server_host', '')
         if server_host:
             cmd.extend(['--server', server_host])
             host_obj = Host.query.filter_by(host=server_host).first()
             if host_obj and host_obj.name:
-                import re
                 clean_name = re.sub(r'\s*\[.*?\]\s*$', '', host_obj.name).strip() or host_obj.host
                 cmd.extend(['--lab-name', clean_name])
 
@@ -1609,17 +1628,44 @@ def _execute_build(job_id, checks, options, user_id=None):
         if options.get('kb_timeout'):
             cmd.extend(['--timeout', options['kb_timeout']])
 
-        phases = [
-            {'name': 'Initialize', 'status': 'pending', 'start_time': None, 'duration': None},
-            {'name': 'Connect', 'status': 'pending', 'start_time': None, 'duration': None},
-            {'name': 'Verify Setup', 'status': 'pending', 'start_time': None, 'duration': None},
-            {'name': 'Run Scenarios', 'status': 'pending', 'start_time': None, 'duration': None},
-            {'name': 'Collect Results', 'status': 'pending', 'start_time': None, 'duration': None},
-            {'name': 'Summary', 'status': 'pending', 'start_time': None, 'duration': None},
-        ]
-
-        if options.get('email'):
-            phases.append({'name': 'Send Email', 'status': 'pending', 'start_time': None, 'duration': None})
+        if is_combined:
+            rca_level = options.get('rca_level', 'none')
+            phases = [
+                {'name': 'Initialize', 'status': 'pending', 'start_time': None, 'duration': None},
+                {'name': 'Connect', 'status': 'pending', 'start_time': None, 'duration': None},
+                {'name': 'Verify Setup', 'status': 'pending', 'start_time': None, 'duration': None},
+                {'name': 'Run Scenarios', 'status': 'pending', 'start_time': None, 'duration': None},
+                {'name': 'Collect Results', 'status': 'pending', 'start_time': None, 'duration': None},
+                {'name': 'Scenario Summary', 'status': 'pending', 'start_time': None, 'duration': None},
+                {'name': 'Health Check', 'status': 'pending', 'start_time': None, 'duration': None},
+                {'name': 'Health Report', 'status': 'pending', 'start_time': None, 'duration': None},
+            ]
+            # RCA-related phases (inserted after Health Report)
+            if rca_level != 'none':
+                if options.get('rca_jira') or rca_level == 'full':
+                    phases.append({'name': 'Search Jira', 'status': 'pending', 'start_time': None, 'duration': None})
+                if options.get('rca_email') or rca_level == 'full':
+                    phases.append({'name': 'Search Email', 'status': 'pending', 'start_time': None, 'duration': None})
+                if options.get('rca_web'):
+                    phases.append({'name': 'Search Web', 'status': 'pending', 'start_time': None, 'duration': None})
+                if rca_level == 'full':
+                    phases.append({'name': 'Deep RCA', 'status': 'pending', 'start_time': None, 'duration': None})
+            if options.get('combined_cleanup'):
+                phases.append({'name': 'Cleanup', 'status': 'pending', 'start_time': None, 'duration': None})
+            phases.append({'name': 'Generate Report', 'status': 'pending', 'start_time': None, 'duration': None})
+            if options.get('email'):
+                phases.append({'name': 'Send Email', 'status': 'pending', 'start_time': None, 'duration': None})
+        else:
+            phases = [
+                {'name': 'Initialize', 'status': 'pending', 'start_time': None, 'duration': None},
+                {'name': 'Connect', 'status': 'pending', 'start_time': None, 'duration': None},
+                {'name': 'Verify Setup', 'status': 'pending', 'start_time': None, 'duration': None},
+                {'name': 'Run Scenarios', 'status': 'pending', 'start_time': None, 'duration': None},
+                {'name': 'Collect Results', 'status': 'pending', 'start_time': None, 'duration': None},
+                {'name': 'Summary', 'status': 'pending', 'start_time': None, 'duration': None},
+            ]
+            if options.get('email'):
+                phases.append({'name': 'Send Email', 'status': 'pending', 'start_time': None, 'duration': None})
 
     else:
         cmd = [sys.executable, SCRIPT_PATH]
@@ -1629,7 +1675,6 @@ def _execute_build(job_id, checks, options, user_id=None):
             cmd.extend(['--server', server_host])
             host_obj = Host.query.filter_by(host=server_host).first()
             if host_obj and host_obj.name:
-                import re
                 clean_name = re.sub(r'\s*\[.*?\]\s*$', '', host_obj.name).strip() or host_obj.host
                 cmd.extend(['--lab-name', clean_name])
 
@@ -1688,7 +1733,6 @@ def _execute_build(job_id, checks, options, user_id=None):
     if server_host:
         host_obj = Host.query.filter_by(host=server_host).first()
         if host_obj and host_obj.name:
-            import re
             lab_name = re.sub(r'\s*\[.*?\]\s*$', '', host_obj.name).strip()
     if run_name and lab_name:
         display_name = f'{run_name} ({lab_name})'
@@ -1707,12 +1751,14 @@ def _execute_build(job_id, checks, options, user_id=None):
         'checks_count': len(checks),
         'options': options,
         'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M"),
+        'started_at_iso': datetime.utcnow().isoformat() + 'Z',
         'start_time': time.time(),
         'progress': 5,
         'phases': phases,
         'current_phase': 'Initializing...',
         'triggered_by': username,
         'user_id': user_id,
+        'test_progress': {},   # per-test live progress: {test_name: {status, duration, ...}}
     }
 
     with _jobs_lock:
@@ -1738,10 +1784,13 @@ def _execute_build(job_id, checks, options, user_id=None):
 
         try:
             set_phase(job, 0, 'running', 'Initializing build environment...')
-            if is_cnv:
+            if is_cnv or is_combined:
                 tests_list = options.get('scenario_tests', [])
-                job['output'] += f'[{datetime.now().strftime("%H:%M:%S")}] Task: CNV Scenarios ({options.get("scenario_mode", "sanity")} mode)\n'
+                task_label = 'CNV Combined' if is_combined else 'CNV Scenarios'
+                job['output'] += f'[{datetime.now().strftime("%H:%M:%S")}] Task: {task_label} ({options.get("scenario_mode", "sanity")} mode)\n'
                 job['output'] += f'[{datetime.now().strftime("%H:%M:%S")}] Tests: {len(tests_list)} selected\n'
+                if is_combined:
+                    job['output'] += f'[{datetime.now().strftime("%H:%M:%S")}] Pipeline: Scenarios → Health Check → {"Cleanup" if options.get("combined_cleanup") else "No Cleanup"}\n'
             else:
                 job['output'] += f'[{datetime.now().strftime("%H:%M:%S")}] Options: RCA={options.get("rca_level")}, Jira={options.get("jira")}, Email={options.get("email")}\n'
                 job['output'] += f'[{datetime.now().strftime("%H:%M:%S")}] Checks: {len(checks)} selected\n'
@@ -1752,20 +1801,6 @@ def _execute_build(job_id, checks, options, user_id=None):
             set_phase(job, 1, 'running', 'Connecting to cluster...')
             job['progress'] = 10
 
-            process = subprocess.Popen(
-                cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                stdin=subprocess.PIPE,
-                text=True,
-                cwd=BASE_DIR,
-                bufsize=1,
-                start_new_session=True
-            )
-
-            job['process'] = process
-
-            stdout_lines = []
             current_phase_idx = 1
 
             def find_phase_idx(name):
@@ -1774,18 +1809,224 @@ def _execute_build(job_id, checks, options, user_id=None):
                         return i
                 return -1
 
-            # ── Build phase keyword map based on task type ───────────────
-            if is_cnv:
+            # ── Helper: stream a subprocess and match phase keywords ────────
+            def stream_subprocess(sub_cmd, sub_keywords, start_phase_idx=1):
+                """Run a subprocess, stream output, match keywords to phases.
+                Returns (return_code, lines_list, last_phase_idx)."""
+                nonlocal current_phase_idx
+                sub_process = subprocess.Popen(
+                    sub_cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    stdin=subprocess.PIPE,
+                    text=True,
+                    cwd=BASE_DIR,
+                    bufsize=1,
+                    start_new_session=True
+                )
+                job['process'] = sub_process
+                # Regex patterns for per-test progress tracking
+                _re_test_start = re.compile(r'\[(\S+)\]\s+Starting test')
+                _re_test_complete = re.compile(r'\[(\S+)\]\s+Completed:\s+exit_code=(\d+),\s+duration=(.*)')
+                _re_test_queued = re.compile(r'\[(\S+)\]\s+Queued for')
+
+                sub_lines = []
+                while True:
+                    line = sub_process.stdout.readline()
+                    if not line and sub_process.poll() is not None:
+                        break
+                    if line:
+                        sub_lines.append(line)
+                        timestamp = datetime.now().strftime("%H:%M:%S")
+                        job['output'] += f'[{timestamp}] {line}'
+
+                        # ── Per-test progress tracking ──
+                        m_queued = _re_test_queued.search(line)
+                        if m_queued:
+                            tname = m_queued.group(1)
+                            if tname not in job['test_progress']:
+                                job['test_progress'][tname] = {
+                                    'status': 'queued', 'start_time': None,
+                                    'duration': None, 'exit_code': None,
+                                }
+
+                        m_start = _re_test_start.search(line)
+                        if m_start:
+                            tname = m_start.group(1)
+                            job['test_progress'][tname] = {
+                                'status': 'running', 'start_time': time.time(),
+                                'duration': None, 'exit_code': None,
+                            }
+
+                        m_done = _re_test_complete.search(line)
+                        if m_done:
+                            tname = m_done.group(1)
+                            ec = int(m_done.group(2))
+                            dur_str = m_done.group(3).strip()
+                            tp = job['test_progress'].get(tname, {})
+                            tp['status'] = 'passed' if ec == 0 else 'failed'
+                            tp['exit_code'] = ec
+                            tp['duration'] = dur_str
+                            job['test_progress'][tname] = tp
+
+                        # ── Phase keyword matching ──
+                        for keyword, (phase_idx, phase_msg, progress) in sub_keywords.items():
+                            if keyword in line and phase_idx >= 0:
+                                if phase_idx > current_phase_idx:
+                                    set_phase(job, current_phase_idx, 'done')
+                                    for skip_idx in range(current_phase_idx + 1, phase_idx):
+                                        if job['phases'][skip_idx]['status'] == 'pending':
+                                            job['phases'][skip_idx]['status'] = 'skipped'
+                                    current_phase_idx = phase_idx
+                                    set_phase(job, phase_idx, 'running', phase_msg)
+                                job['progress'] = progress
+                                job['current_phase'] = phase_msg
+                                break
+                rc = sub_process.wait()
+                return rc, sub_lines
+
+            # ── Helper: run custom checks via SSH on the jump host ─────────
+            def run_custom_checks(check_ids, label='Custom Checks'):
+                """Execute custom health checks remotely and return results list.
+                Supports both single-command and script-upload checks.
+                Each result: {name, command, check_type, expected, match_type, actual, passed, error}"""
+                from app.models import CustomCheck
+                results = []
+                if not check_ids:
+                    return results
+
+                checks_list = CustomCheck.query.filter(CustomCheck.id.in_(check_ids)).all()
+                if not checks_list:
+                    return results
+
+                job['output'] += f'\n[{datetime.now().strftime("%H:%M:%S")}] {"─"*50}\n'
+                job['output'] += f'[{datetime.now().strftime("%H:%M:%S")}] Running {label} ({len(checks_list)} checks)\n'
+                job['output'] += f'[{datetime.now().strftime("%H:%M:%S")}] {"─"*50}\n'
+
+                server_host = options.get('server_host', '')
+                if not server_host:
+                    job['output'] += f'[{datetime.now().strftime("%H:%M:%S")}] ⚠ No jump host configured — skipping custom checks\n'
+                    return results
+
+                import paramiko
+                ssh_key_path = os.path.expanduser('~/.ssh/id_rsa')
+                host_obj = Host.query.filter_by(host=server_host).first()
+                ssh_user = host_obj.user if host_obj and host_obj.user else 'root'
+
+                try:
+                    ssh = paramiko.SSHClient()
+                    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+                    ssh.connect(server_host, username=ssh_user, key_filename=ssh_key_path, timeout=15)
+                except Exception as e:
+                    job['output'] += f'[{datetime.now().strftime("%H:%M:%S")}] ✗ SSH connection failed to {ssh_user}@{server_host}\n'
+                    job['output'] += f'[{datetime.now().strftime("%H:%M:%S")}]   Error: {e}\n'
+                    job['output'] += f'[{datetime.now().strftime("%H:%M:%S")}]   Key: {ssh_key_path}\n'
+                    job['output'] += f'[{datetime.now().strftime("%H:%M:%S")}]   Verify: ssh {ssh_user}@{server_host}\n'
+                    return results
+
+                kubeconfig_prefix = 'export KUBECONFIG=/home/kni/clusterconfigs/auth/kubeconfig 2>/dev/null; '
+
+                for cc in checks_list:
+                    is_script = (cc.check_type == 'script' and cc.script_content)
+                    result = {
+                        'name': cc.name,
+                        'command': cc.command if not is_script else (cc.script_filename or 'script.sh'),
+                        'check_type': cc.check_type or 'command',
+                        'expected': cc.expected_value,
+                        'match_type': cc.match_type,
+                        'actual': '',
+                        'passed': False,
+                        'error': None,
+                    }
+                    try:
+                        if is_script:
+                            # ── Script mode: upload script, execute, cleanup ──
+                            import uuid as _uuid
+                            remote_script = f'/tmp/healthcrew_custom_{_uuid.uuid4().hex[:8]}.sh'
+                            job['output'] += f'[{datetime.now().strftime("%H:%M:%S")}] ▸ {cc.name}: 📜 uploading script → {remote_script}\n'
+
+                            # Upload script via SFTP
+                            sftp = ssh.open_sftp()
+                            with sftp.file(remote_script, 'w') as rf:
+                                rf.write(cc.script_content)
+                            sftp.close()
+
+                            # Make executable and run
+                            wrapped_cmd = f'{kubeconfig_prefix}chmod +x {remote_script} && {remote_script}; _ec=$?; rm -f {remote_script}; exit $_ec'
+                            stdin, stdout, stderr = ssh.exec_command(wrapped_cmd, timeout=300)
+                            exit_code = stdout.channel.recv_exit_status()
+                            actual_output = stdout.read().decode('utf-8', errors='replace').strip()
+                            error_output = stderr.read().decode('utf-8', errors='replace').strip()
+                        else:
+                            # ── Command mode: run single command ──
+                            job['output'] += f'[{datetime.now().strftime("%H:%M:%S")}] ▸ {cc.name}: {cc.command}\n'
+                            wrapped_cmd = f'{kubeconfig_prefix}{cc.command}'
+                            stdin, stdout, stderr = ssh.exec_command(wrapped_cmd, timeout=120)
+                            exit_code = stdout.channel.recv_exit_status()
+                            actual_output = stdout.read().decode('utf-8', errors='replace').strip()
+                            error_output = stderr.read().decode('utf-8', errors='replace').strip()
+
+                        result['actual'] = actual_output
+
+                        # Match logic (same for both command and script)
+                        if cc.match_type == 'exit_code':
+                            expected_ec = int(cc.expected_value) if cc.expected_value else 0
+                            result['passed'] = (exit_code == expected_ec)
+                        elif cc.match_type == 'exact':
+                            result['passed'] = (actual_output == cc.expected_value)
+                        elif cc.match_type == 'regex':
+                            result['passed'] = bool(re.search(cc.expected_value, actual_output))
+                        else:  # contains
+                            if cc.expected_value:
+                                result['passed'] = (cc.expected_value in actual_output)
+                            else:
+                                result['passed'] = (exit_code == 0)
+
+                        status_icon = '✓' if result['passed'] else '✗'
+                        status_color = 'PASS' if result['passed'] else 'FAIL'
+                        job['output'] += f'[{datetime.now().strftime("%H:%M:%S")}]   {status_icon} [{status_color}] '
+                        if actual_output:
+                            first_line = actual_output.split('\n')[0][:120]
+                            job['output'] += f'{first_line}\n'
+                        else:
+                            job['output'] += f'exit_code={exit_code}\n'
+                        if error_output and not result['passed']:
+                            job['output'] += f'[{datetime.now().strftime("%H:%M:%S")}]   stderr: {error_output[:200]}\n'
+
+                    except Exception as e:
+                        result['error'] = str(e)
+                        job['output'] += f'[{datetime.now().strftime("%H:%M:%S")}]   ✗ Error: {e}\n'
+
+                    results.append(result)
+
+                try:
+                    ssh.close()
+                except Exception:
+                    pass
+
+                passed = sum(1 for r in results if r['passed'])
+                total = len(results)
+                job['output'] += f'[{datetime.now().strftime("%H:%M:%S")}] Custom Checks: {passed}/{total} passed\n'
+                return results
+
+            # ── Build phase keyword maps based on task type ───────────────
+            cnv_scenario_keywords = {}
+            health_check_keywords = {}
+
+            if is_cnv or is_combined:
                 connect_idx = find_phase_idx('Connect')
                 verify_idx = find_phase_idx('Verify Setup')
                 run_idx = find_phase_idx('Run Scenarios')
                 results_idx = find_phase_idx('Collect Results')
-                summary_idx = find_phase_idx('Summary')
+                summary_idx = find_phase_idx('Summary') if not is_combined else find_phase_idx('Scenario Summary')
 
-                phase_keywords = {
+                cnv_scenario_keywords = {
                     'Connecting to': (connect_idx, 'Connecting to jump host...', 10),
                     'Connected to': (connect_idx, 'Connected to jump host', 15),
                     'SSH connection established': (connect_idx, 'Connected to jump host', 15),
+                    'CONNECTION ERROR': (connect_idx, '❌ Connection failed!', 15),
+                    'SSH connection failed': (connect_idx, '❌ Connection failed!', 15),
+                    'Connection refused': (connect_idx, '❌ Connection refused!', 15),
                     'Verifying cnv-scenarios': (verify_idx, 'Verifying cnv-scenarios setup...', 20),
                     'KUBECONFIG': (verify_idx, 'Setting up environment...', 22),
                     'kubeconfig': (verify_idx, 'Setting up environment...', 22),
@@ -1795,18 +2036,19 @@ def _execute_build(job_id, checks, options, user_id=None):
                     'RUNNING': (run_idx, 'Running scenarios...', 40),
                     'kube-burner': (run_idx, 'Running kube-burner workloads...', 50),
                     'Waiting for': (run_idx, 'Waiting for workloads...', 55),
-                    'PASS': (run_idx, 'Tests progressing...', 60),
-                    'FAIL': (run_idx, 'Tests progressing...', 60),
-                    'Collecting results': (results_idx, 'Collecting results...', 75),
-                    'summary.json': (results_idx, 'Parsing summary...', 80),
-                    'Results:': (summary_idx, 'Generating summary...', 85),
-                    'Summary:': (summary_idx, 'Generating summary...', 85),
-                    'SUMMARY': (summary_idx, 'Generating summary...', 85),
-                    'scenarios complete': (summary_idx, 'Complete!', 95),
-                    'All tests': (summary_idx, 'Complete!', 95),
-                    'Done': (summary_idx, 'Complete!', 95),
+                    'PASS': (run_idx, 'Tests progressing...', 60 if not is_combined else 30),
+                    'FAIL': (run_idx, 'Tests progressing...', 60 if not is_combined else 30),
+                    'Collecting results': (results_idx, 'Collecting results...', 75 if not is_combined else 35),
+                    'summary.json': (results_idx, 'Parsing summary...', 80 if not is_combined else 38),
+                    'Results:': (summary_idx, 'Generating summary...', 85 if not is_combined else 40),
+                    'Summary:': (summary_idx, 'Generating summary...', 85 if not is_combined else 40),
+                    'SUMMARY': (summary_idx, 'Generating summary...', 85 if not is_combined else 40),
+                    'scenarios complete': (summary_idx, 'Scenarios done!', 95 if not is_combined else 42),
+                    'All tests': (summary_idx, 'Scenarios done!', 95 if not is_combined else 42),
+                    'CNV Scenarios finished': (summary_idx, 'Scenarios done!', 95 if not is_combined else 42),
                 }
-            else:
+
+            if not is_cnv and not is_combined:
                 scan_jira_idx = find_phase_idx('Scan Jira')
                 connect_idx = find_phase_idx('Connect')
                 collect_idx = find_phase_idx('Collect Data')
@@ -1819,7 +2061,7 @@ def _execute_build(job_id, checks, options, user_id=None):
                 report_idx = find_phase_idx('Generate Report')
                 email_idx = find_phase_idx('Send Email')
 
-                phase_keywords = {
+                health_check_keywords = {
                     'Checking Jira for new test suggestions': (scan_jira_idx, 'Scanning Jira for new tests...', 3),
                     'Checking Jira for recent bugs': (scan_jira_idx, 'Checking Jira for bugs...', 4),
                     'Analyzed': (scan_jira_idx, 'Analyzing Jira bugs...', 5),
@@ -1827,6 +2069,12 @@ def _execute_build(job_id, checks, options, user_id=None):
                     'HealthCrew AI Starting': (connect_idx, 'Initializing...', 8),
                     'Connecting to cluster': (connect_idx, 'Connecting to cluster...', 10),
                     'Connected to': (connect_idx, 'Connected to cluster', 15),
+                    'CONNECTION ERROR': (connect_idx, '❌ Connection failed!', 15),
+                    'SSH connection failed': (connect_idx, '❌ Connection failed!', 15),
+                    'host unreachable': (connect_idx, '❌ Host unreachable!', 15),
+                    'Authentication failed': (connect_idx, '❌ Authentication failed!', 15),
+                    'oc.*not responding': (connect_idx, '❌ oc CLI not configured!', 15),
+                    'cluster is not configured': (connect_idx, '❌ Cluster not configured!', 15),
                     'Collecting cluster data': (collect_idx, 'Collecting cluster data...', 18),
                     'Checking nodes': (collect_idx, 'Checking nodes...', 22),
                     'Checking node resources': (collect_idx, 'Checking node resources...', 25),
@@ -1864,60 +2112,307 @@ def _execute_build(job_id, checks, options, user_id=None):
                     'Email sent successfully': (email_idx, 'Email sent!', 99),
                 }
 
-            while True:
-                line = process.stdout.readline()
-                if not line and process.poll() is not None:
-                    break
-                if line:
-                    stdout_lines.append(line)
-                    timestamp = datetime.now().strftime("%H:%M:%S")
-                    job['output'] += f'[{timestamp}] {line}'
+            # ==============================================================
+            # COMBINED RUN: Scenarios → Health Check → Cleanup
+            # ==============================================================
+            if is_combined:
+                from healthchecks.cnv_report import generate_combined_report_html
 
-                    for keyword, (phase_idx, phase_msg, progress) in phase_keywords.items():
-                        if keyword in line and phase_idx >= 0:
-                            if phase_idx > current_phase_idx:
-                                set_phase(job, current_phase_idx, 'done')
-                                for skip_idx in range(current_phase_idx + 1, phase_idx):
-                                    if job['phases'][skip_idx]['status'] == 'pending':
-                                        job['phases'][skip_idx]['status'] = 'skipped'
-                                current_phase_idx = phase_idx
-                                set_phase(job, phase_idx, 'running', phase_msg)
-                            job['progress'] = progress
-                            job['current_phase'] = phase_msg
-                            break
+                # ── Step 1: Run CNV scenarios (cleanup=false) ─────────────
+                job['output'] += f'\n[{datetime.now().strftime("%H:%M:%S")}] {"="*60}\n'
+                job['output'] += f'[{datetime.now().strftime("%H:%M:%S")}] PHASE 1: Running CNV Scenarios (cleanup=false)\n'
+                job['output'] += f'[{datetime.now().strftime("%H:%M:%S")}] {"="*60}\n'
 
-                    if not is_cnv and ('Report saved' in line or 'health_report_' in line):
-                        import re
-                        match = re.search(r'(health_report_\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}\.html)', line)
-                        if match:
-                            report_file = match.group(1)
+                scenario_rc, scenario_lines = stream_subprocess(cmd, cnv_scenario_keywords)
+                scenario_output = ''.join(scenario_lines)
 
-            return_code = process.wait()
+                # Mark scenario phases done
+                s_summary_idx = find_phase_idx('Scenario Summary')
+                if s_summary_idx >= 0:
+                    set_phase(job, s_summary_idx, 'done')
 
-            for i in range(current_phase_idx, len(phases)):
-                set_phase(job, i, 'done')
+                # Parse scenario results
+                cnv_results = None
+                try:
+                    cnv_results = parse_cnv_results(scenario_output)
+                except Exception:
+                    pass
 
-            job['progress'] = 100
+                # ── Step 2: Run Health Check ──────────────────────────────
+                hc_phase_idx = find_phase_idx('Health Check')
+                hr_phase_idx = find_phase_idx('Health Report')
+                set_phase(job, hc_phase_idx, 'running', 'Running health check...')
+                current_phase_idx = hc_phase_idx
+                job['progress'] = 50
 
-            duration_secs = int(time.time() - job['start_time'])
-            duration = f"{duration_secs // 60}m {duration_secs % 60}s"
+                job['output'] += f'\n[{datetime.now().strftime("%H:%M:%S")}] {"="*60}\n'
+                job['output'] += f'[{datetime.now().strftime("%H:%M:%S")}] PHASE 2: Running Health Check\n'
+                job['output'] += f'[{datetime.now().strftime("%H:%M:%S")}] {"="*60}\n'
 
-            full_output = ''.join(stdout_lines)
+                hc_cmd = [sys.executable, SCRIPT_PATH]
+                server_host = options.get('server_host', '')
+                if server_host:
+                    hc_cmd.extend(['--server', server_host])
+                    # Add --lab-name from Host DB
+                    host_obj = Host.query.filter_by(host=server_host).first()
+                    if host_obj and host_obj.name:
+                        clean_name = re.sub(r'\s*\[.*?\]\s*$', '', host_obj.name).strip() or host_obj.host
+                        hc_cmd.extend(['--lab-name', clean_name])
 
-            if is_cnv:
-                # CNV scenario status detection
-                has_fail = 'FAIL' in full_output or 'failed' in full_output.lower()
-                has_pass = 'PASS' in full_output
-                if return_code != 0 or (has_fail and not has_pass):
+                # RCA flags
+                rca_level = options.get('rca_level', 'none')
+                if rca_level == 'bugs':
+                    hc_cmd.append('--rca-bugs')
+                elif rca_level == 'full':
+                    hc_cmd.append('--ai')
+                if options.get('rca_jira'):
+                    hc_cmd.append('--rca-jira')
+                if options.get('rca_email'):
+                    hc_cmd.append('--rca-email')
+
+                # Jira integration
+                if options.get('jira'):
+                    hc_cmd.append('--check-jira')
+
+                # Email (health check script handles its own emailing)
+                if options.get('email'):
+                    hc_cmd.append('--email')
+                    if options.get('email_to'):
+                        hc_cmd.extend(['--email-to', options.get('email_to')])
+
+                # Health check phase keywords (mapped to combined phases)
+                hc_keywords = {
+                    'HealthCrew AI Starting': (hc_phase_idx, 'Health check initializing...', 52),
+                    'Connecting to cluster': (hc_phase_idx, 'Health check connecting...', 54),
+                    'Connected to': (hc_phase_idx, 'Health check connected', 55),
+                    'Collecting cluster data': (hc_phase_idx, 'Collecting cluster data...', 58),
+                    'Checking nodes': (hc_phase_idx, 'Checking nodes...', 60),
+                    'Checking node resources': (hc_phase_idx, 'Checking resources...', 62),
+                    'Data collection complete': (hc_phase_idx, 'Data collection done', 65),
+                    'Generating console report': (hc_phase_idx, 'Generating console report...', 67),
+                    'HEALTH REPORT': (hc_phase_idx, 'Displaying health report...', 70),
+                    'Saving HTML report': (hr_phase_idx, 'Saving health report...', 72),
+                    'Saved:': (hr_phase_idx, 'Health report saved', 74),
+                    'Reports saved': (hr_phase_idx, 'Health reports saved', 75),
+                    'Health check complete': (hr_phase_idx, 'Health check done!', 78),
+                }
+
+                # Add RCA-related keywords when RCA is enabled
+                rca_level = options.get('rca_level', 'none')
+                if rca_level != 'none':
+                    jira_rca_idx = find_phase_idx('Search Jira')
+                    email_rca_idx = find_phase_idx('Search Email')
+                    web_rca_idx = find_phase_idx('Search Web')
+                    deep_rca_idx = find_phase_idx('Deep RCA')
+
+                    hc_keywords.update({
+                        'Starting Root Cause Analysis': (hr_phase_idx, 'Starting root cause analysis...', 73),
+                        '🔬 Starting Root Cause Analysis': (hr_phase_idx, 'Starting root cause analysis...', 73),
+                        'Matching failures to known issues': (hr_phase_idx, 'Matching failures...', 74),
+                        'issue(s) to analyze': (hr_phase_idx, 'Analyzing issues...', 75),
+                        '→ Searching Jira': (jira_rca_idx, 'Searching Jira for bugs...', 76),
+                        'Searching Jira for related bugs': (jira_rca_idx, 'Searching Jira for bugs...', 76),
+                        '→ Searching emails': (email_rca_idx, 'Searching emails...', 77),
+                        'Searching emails for related': (email_rca_idx, 'Searching emails...', 77),
+                        '→ Searching web': (web_rca_idx, 'Searching web docs...', 78),
+                        'Running deep investigation': (deep_rca_idx, 'Running deep investigation...', 79),
+                        'Deep investigation complete': (deep_rca_idx, 'Deep investigation complete', 80),
+                    })
+
+                hc_rc, hc_lines = stream_subprocess(hc_cmd, hc_keywords)
+                health_output = ''.join(hc_lines)
+                set_phase(job, hr_phase_idx, 'done')
+
+                # Mark RCA phases done (if they exist)
+                for rca_name in ('Search Jira', 'Search Email', 'Search Web', 'Deep RCA'):
+                    rca_idx = find_phase_idx(rca_name)
+                    if rca_idx >= 0:
+                        set_phase(job, rca_idx, 'done')
+
+                # Capture health report filename
+                health_report_file = None
+                for hl in hc_lines:
+                    match = re.search(r'(health_report_\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}\.html)', hl)
+                    if match:
+                        health_report_file = match.group(1)
+
+                # ── Step 3: Cleanup (optional) ────────────────────────────
+                cleanup_rc = 0
+                cleanup_output = ''
+                if options.get('combined_cleanup'):
+                    cleanup_phase_idx = find_phase_idx('Cleanup')
+                    set_phase(job, cleanup_phase_idx, 'running', 'Cleaning up test resources...')
+                    current_phase_idx = cleanup_phase_idx
+                    job['progress'] = 80
+
+                    job['output'] += f'\n[{datetime.now().strftime("%H:%M:%S")}] {"="*60}\n'
+                    job['output'] += f'[{datetime.now().strftime("%H:%M:%S")}] PHASE 3: Cleanup (cleanup=true)\n'
+                    job['output'] += f'[{datetime.now().strftime("%H:%M:%S")}] {"="*60}\n'
+
+                    cleanup_cmd = list(cmd) + ['--cleanup-only']
+                    cleanup_keywords = {
+                        'Cleanup Starting': (cleanup_phase_idx, 'Cleanup running...', 82),
+                        'Connecting to': (cleanup_phase_idx, 'Cleanup connecting...', 83),
+                        'Connected to': (cleanup_phase_idx, 'Cleanup connected', 84),
+                        'Running': (cleanup_phase_idx, 'Cleanup in progress...', 86),
+                        'kube-burner': (cleanup_phase_idx, 'Cleanup running kube-burner...', 88),
+                        'CLEANUP COMPLETE': (cleanup_phase_idx, 'Cleanup done!', 90),
+                        'CLEANUP FAILED': (cleanup_phase_idx, 'Cleanup failed!', 90),
+                    }
+
+                    cleanup_rc, cleanup_lines = stream_subprocess(cleanup_cmd, cleanup_keywords)
+                    cleanup_output = ''.join(cleanup_lines)
+                    set_phase(job, cleanup_phase_idx, 'done')
+
+                # ── Generate Combined Report ──────────────────────────────
+                gen_phase_idx = find_phase_idx('Generate Report')
+                set_phase(job, gen_phase_idx, 'running', 'Generating combined report...')
+                current_phase_idx = gen_phase_idx
+                job['progress'] = 92
+
+                full_output = scenario_output + '\n' + health_output + '\n' + cleanup_output
+
+                # Determine overall status
+                has_scenario_fail = scenario_rc != 0 or ('FAIL' in scenario_output and 'PASS' not in scenario_output)
+                has_scenario_partial = 'FAIL' in scenario_output and 'PASS' in scenario_output
+                has_hc_issues = 'WARNING' in health_output or 'Issues:' in health_output or '⚠️' in health_output
+                has_hc_errors = 'ERROR' in health_output or 'CRITICAL' in health_output or '❌' in health_output
+
+                if scenario_rc != 0 and hc_rc != 0:
                     status = 'failed'
                     status_text = 'Failed'
-                elif has_fail:
+                elif has_scenario_fail or has_hc_errors:
+                    status = 'failed'
+                    status_text = 'Failed'
+                elif has_scenario_partial or has_hc_issues:
                     status = 'unstable'
-                    status_text = 'Partial Pass'
+                    status_text = 'Issues Found'
                 else:
                     status = 'success'
                     status_text = 'All Passed'
+
+                try:
+                    ts_str = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+                    report_filename = f'combined_report_{ts_str}.html'
+
+                    duration_secs = int(time.time() - job['start_time'])
+                    duration = f"{duration_secs // 60}m {duration_secs % 60}s"
+
+                    report_html = generate_combined_report_html(
+                        cnv_results=cnv_results,
+                        health_output=health_output,
+                        health_report_file=health_report_file,
+                        cleanup_status='success' if cleanup_rc == 0 and options.get('combined_cleanup') else ('failed' if cleanup_rc != 0 else 'skipped'),
+                        build_num=build_num,
+                        build_name=job.get('name', run_name),
+                        status=status,
+                        status_text=status_text,
+                        duration=duration,
+                        mode=options.get('scenario_mode', 'sanity'),
+                        server=options.get('server_host', ''),
+                        checks=checks,
+                        scenario_output=scenario_output,
+                        health_check_output=health_output,
+                        cleanup_output=cleanup_output,
+                    )
+                    os.makedirs(REPORTS_DIR, exist_ok=True)
+                    report_path = os.path.join(REPORTS_DIR, report_filename)
+                    with open(report_path, 'w', encoding='utf-8') as f:
+                        f.write(report_html)
+                    report_file = report_filename
+                    job['output'] += f'[{datetime.now().strftime("%H:%M:%S")}] Reports saved: {report_filename}\n'
+                except Exception as e:
+                    job['output'] += f'[{datetime.now().strftime("%H:%M:%S")}] Report generation failed: {e}\n'
+
+                set_phase(job, gen_phase_idx, 'done')
+                job['progress'] = 95
+
+                # Finalize
+                duration_secs = int(time.time() - job['start_time'])
+                duration = f"{duration_secs // 60}m {duration_secs % 60}s"
+                return_code = max(scenario_rc, hc_rc, cleanup_rc)
+
+            # ==============================================================
+            # SINGLE TASK: CNV Scenarios only OR Health Check only
+            # ==============================================================
             else:
+                active_keywords = cnv_scenario_keywords if is_cnv else health_check_keywords
+
+                return_code, stdout_lines = stream_subprocess(cmd, active_keywords)
+
+                if not is_cnv:
+                    for sl in stdout_lines:
+                        if 'Report saved' in sl or 'health_report_' in sl:
+                            match = re.search(r'(health_report_\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}\.html)', sl)
+                            if match:
+                                report_file = match.group(1)
+
+                for i in range(current_phase_idx, len(phases)):
+                    set_phase(job, i, 'done')
+
+                job['progress'] = 100
+
+                duration_secs = int(time.time() - job['start_time'])
+                duration = f"{duration_secs // 60}m {duration_secs % 60}s"
+
+                full_output = ''.join(stdout_lines)
+
+            cnv_results_final = None
+
+            if is_cnv:
+                # CNV scenario status detection — use the results summary line,
+                # not the entire raw output (which contains log noise like
+                # "Empty document list" warnings that include "failed" etc.)
+                summary_lines = [l for l in full_output.split('\n')
+                                 if 'PASSED:' in l and 'FAILED:' in l and 'TOTAL:' in l]
+                if summary_lines:
+                    import re as _re
+                    m = _re.search(r'PASSED:\s*(\d+)\s*\|\s*FAILED:\s*(\d+)\s*\|\s*TOTAL:\s*(\d+)', summary_lines[-1])
+                    if m:
+                        n_passed, n_failed = int(m.group(1)), int(m.group(2))
+                        if return_code != 0 and n_passed == 0:
+                            status, status_text = 'failed', 'Failed'
+                        elif n_failed > 0 and n_passed > 0:
+                            status, status_text = 'unstable', 'Partial Pass'
+                        elif n_failed > 0:
+                            status, status_text = 'failed', 'Failed'
+                        else:
+                            status, status_text = 'success', 'All Passed'
+                    else:
+                        status = 'failed' if return_code != 0 else 'success'
+                        status_text = 'Failed' if return_code != 0 else 'All Passed'
+                else:
+                    # Fallback: no summary line found
+                    status = 'failed' if return_code != 0 else 'success'
+                    status_text = 'Failed' if return_code != 0 else 'All Passed'
+
+                # Parse structured per-test results and generate HTML report
+                try:
+                    cnv_results_final = parse_cnv_results(full_output)
+                    ts_str = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+                    report_filename = f'cnv_report_{ts_str}.html'
+                    report_html = generate_cnv_report_html(
+                        results=cnv_results_final,
+                        build_num=build_num,
+                        build_name=job.get('name', run_name),
+                        status=status,
+                        status_text=status_text,
+                        duration=duration,
+                        mode=options.get('scenario_mode', 'sanity'),
+                        server=options.get('server_host', ''),
+                        checks=checks,
+                        output=full_output,
+                    )
+                    os.makedirs(REPORTS_DIR, exist_ok=True)
+                    report_path = os.path.join(REPORTS_DIR, report_filename)
+                    with open(report_path, 'w', encoding='utf-8') as f:
+                        f.write(report_html)
+                    report_file = report_filename
+                    job['output'] += f'[{datetime.now().strftime("%H:%M:%S")}] Reports saved: {report_filename}\n'
+                except Exception as e:
+                    job['output'] += f'[{datetime.now().strftime("%H:%M:%S")}] Report generation failed: {e}\n'
+
+            elif not is_combined:
                 has_issues = 'WARNING' in full_output or 'Issues:' in full_output or 'ISSUES' in full_output or '⚠️' in full_output
                 has_errors = 'ERROR' in full_output or 'CRITICAL' in full_output or '❌' in full_output
                 if return_code != 0 or has_errors:
@@ -1930,6 +2425,36 @@ def _execute_build(job_id, checks, options, user_id=None):
                     status = 'success'
                     status_text = 'Healthy'
 
+            # is_combined already set status/status_text above
+
+            # ── Run Custom Checks (if any selected) ──────────────────────
+            custom_check_results = []
+            try:
+                if is_cnv:
+                    cc_ids = options.get('scenario_custom_checks', [])
+                elif is_combined:
+                    # Combined: run both health-check and scenario custom checks
+                    cc_ids = list(set(
+                        options.get('hc_custom_checks', []) +
+                        options.get('scenario_custom_checks', [])
+                    ))
+                else:
+                    cc_ids = options.get('custom_checks', [])
+
+                if cc_ids:
+                    custom_check_results = run_custom_checks(cc_ids, label='Custom Health Checks')
+                    # If any custom check failed, downgrade status
+                    cc_failed = [r for r in custom_check_results if not r['passed']]
+                    if cc_failed and status == 'success':
+                        status = 'unstable'
+                        status_text = status_text + ' (custom check issues)'
+            except Exception as e:
+                job['output'] += f'[{datetime.now().strftime("%H:%M:%S")}] Custom check execution error: {e}\n'
+
+            for i in range(current_phase_idx, len(phases)):
+                set_phase(job, i, 'done')
+            job['progress'] = 100
+
             build_record = {
                 'number': build_num,
                 'name': job.get('name', run_name),
@@ -1941,14 +2466,15 @@ def _execute_build(job_id, checks, options, user_id=None):
                 'timestamp': job['timestamp'],
                 'duration': duration,
                 'output': job['output'],
-                'report_file': report_file
+                'report_file': report_file,
+                'custom_check_results': custom_check_results,
             }
 
             with app.app_context():
                 save_build_to_db(build_record, user_id=user_id)
 
                 # Record issues for learning (health checks only)
-                if not is_cnv:
+                if not is_cnv and not is_combined:
                     try:
                         from app.learning import record_health_check_run
                         detected_issues = extract_issues_from_output(full_output)
@@ -1957,10 +2483,10 @@ def _execute_build(job_id, checks, options, user_id=None):
                     except Exception:
                         pass
 
-                # Send email report if requested
-                if options.get('email') and options.get('email_to'):
+                # Send email report if requested (CNV/combined — health checks send their own email)
+                if (is_cnv or is_combined) and options.get('email') and options.get('email_to'):
                     email_phase_idx = find_phase_idx('Send Email')
-                    if email_phase_idx is not None:
+                    if email_phase_idx is not None and email_phase_idx >= 0:
                         set_phase(job, email_phase_idx, 'running', 'Sending email report...')
                     try:
                         _send_cnv_email_report(
@@ -1973,13 +2499,14 @@ def _execute_build(job_id, checks, options, user_id=None):
                             checks=checks,
                             options=options,
                             output=full_output,
+                            cnv_results=cnv_results_final if is_cnv else (cnv_results if is_combined else None),
                         )
-                        job['output'] += f'[{datetime.now().strftime("%H:%M:%S")}] ✅ Email sent to {options["email_to"]}\n'
-                        if email_phase_idx is not None:
+                        job['output'] += f'[{datetime.now().strftime("%H:%M:%S")}] Email sent to {options["email_to"]}\n'
+                        if email_phase_idx is not None and email_phase_idx >= 0:
                             set_phase(job, email_phase_idx, 'done', 'Email sent!')
                     except Exception as e:
-                        job['output'] += f'[{datetime.now().strftime("%H:%M:%S")}] ⚠️ Email failed: {e}\n'
-                        if email_phase_idx is not None:
+                        job['output'] += f'[{datetime.now().strftime("%H:%M:%S")}] Email failed: {e}\n'
+                        if email_phase_idx is not None and email_phase_idx >= 0:
                             set_phase(job, email_phase_idx, 'done', f'Email failed: {e}')
 
         except Exception as e:
@@ -2102,6 +2629,11 @@ def settings_page():
 
     cnv_config = settings.get('cnv', _DEFAULT_CNV_SETTINGS)
 
+    # Load custom checks for this user
+    from app.models import CustomCheck
+    custom_checks = [c.to_dict() for c in
+                     CustomCheck.query.filter_by(created_by=current_user.id).order_by(CustomCheck.created_at.desc()).all()]
+
     return render_template('settings.html',
                            thresholds=settings.get('thresholds', DEFAULT_THRESHOLDS),
                            ssh_config=ssh_config,
@@ -2111,6 +2643,7 @@ def settings_page():
                            cnv_config=cnv_config,
                            cnv_global_vars=CNV_GLOBAL_VARIABLES,
                            cnv_scenarios=CNV_SCENARIOS,
+                           custom_checks=custom_checks,
                            message=message,
                            active_page='settings')
 
@@ -2261,6 +2794,264 @@ def api_ssh_setup():
         return jsonify({'success': False, 'error': f'Unexpected error: {str(e)}'})
 
 
+
+
+# =============================================================================
+# Custom Health Checks CRUD
+# =============================================================================
+
+@dashboard_bp.route('/api/custom-checks', methods=['GET'])
+@login_required
+def api_get_custom_checks():
+    """List all custom checks (user's own)."""
+    from app.models import CustomCheck
+    checks = CustomCheck.query.filter_by(created_by=current_user.id).order_by(CustomCheck.created_at.desc()).all()
+    return jsonify([c.to_dict() for c in checks])
+
+
+@dashboard_bp.route('/api/custom-checks', methods=['POST'])
+@operator_required
+def api_create_custom_check():
+    """Create a new custom check (command or script)."""
+    from app.models import CustomCheck
+
+    # Support both JSON and multipart/form-data (for file upload)
+    if request.content_type and 'multipart/form-data' in request.content_type:
+        data = request.form.to_dict()
+        script_file = request.files.get('script_file')
+    else:
+        data = request.get_json(silent=True) or {}
+        script_file = None
+
+    name = data.get('name', '').strip()
+    check_type = data.get('check_type', 'command')
+
+    # Validate: must have a name, and either a command or a script
+    command = data.get('command', '').strip()
+    script_content = data.get('script_content', '').strip()
+    script_filename = ''
+
+    if script_file and script_file.filename:
+        script_content = script_file.read().decode('utf-8', errors='replace')
+        script_filename = script_file.filename
+        check_type = 'script'
+
+    if not name:
+        return jsonify({'success': False, 'error': 'Name is required.'}), 400
+    if check_type == 'command' and not command:
+        return jsonify({'success': False, 'error': 'Command is required.'}), 400
+    if check_type == 'script' and not script_content:
+        return jsonify({'success': False, 'error': 'Script content is required (paste or upload a file).'}), 400
+
+    check = CustomCheck(
+        name=name,
+        check_type=check_type,
+        command=command,
+        script_content=script_content if check_type == 'script' else None,
+        script_filename=script_filename or data.get('script_filename', ''),
+        expected_value=data.get('expected_value', '').strip(),
+        match_type=data.get('match_type', 'contains'),
+        description=data.get('description', '').strip(),
+        run_with=data.get('run_with', 'health_check'),
+        linked_scenario=data.get('linked_scenario', '').strip() or None,
+        enabled=data.get('enabled', True) if isinstance(data.get('enabled'), bool) else data.get('enabled', 'true').lower() != 'false',
+        created_by=current_user.id,
+    )
+    db.session.add(check)
+    db.session.commit()
+    detail = f'Script: {script_filename}' if check_type == 'script' else f'Command: {command}'
+    log_audit('custom_check_create', target=name, details=detail)
+    return jsonify({'success': True, 'check': check.to_dict()})
+
+
+@dashboard_bp.route('/api/custom-checks/<int:check_id>', methods=['PUT'])
+@operator_required
+def api_update_custom_check(check_id):
+    """Update an existing custom check."""
+    from app.models import CustomCheck
+    check = CustomCheck.query.get(check_id)
+    if not check:
+        return jsonify({'success': False, 'error': 'Check not found.'}), 404
+    if check.created_by != current_user.id and not current_user.is_admin:
+        return jsonify({'success': False, 'error': 'Permission denied.'}), 403
+
+    # Support both JSON and multipart/form-data
+    if request.content_type and 'multipart/form-data' in request.content_type:
+        data = request.form.to_dict()
+        script_file = request.files.get('script_file')
+    else:
+        data = request.get_json(silent=True) or {}
+        script_file = None
+
+    if 'name' in data:
+        check.name = data['name'].strip()
+    if 'check_type' in data:
+        check.check_type = data['check_type']
+    if 'command' in data:
+        check.command = data['command'].strip()
+    if 'script_content' in data:
+        check.script_content = data['script_content'].strip() or None
+    if script_file and script_file.filename:
+        check.script_content = script_file.read().decode('utf-8', errors='replace')
+        check.script_filename = script_file.filename
+        check.check_type = 'script'
+    if 'script_filename' in data:
+        check.script_filename = data['script_filename'].strip()
+    if 'expected_value' in data:
+        check.expected_value = data['expected_value'].strip()
+    if 'match_type' in data:
+        check.match_type = data['match_type']
+    if 'description' in data:
+        check.description = data['description'].strip()
+    if 'run_with' in data:
+        check.run_with = data['run_with']
+    if 'linked_scenario' in data:
+        check.linked_scenario = data['linked_scenario'].strip() or None
+    if 'enabled' in data:
+        val = data['enabled']
+        check.enabled = val if isinstance(val, bool) else str(val).lower() != 'false'
+
+    db.session.commit()
+    log_audit('custom_check_update', target=check.name)
+    return jsonify({'success': True, 'check': check.to_dict()})
+
+
+@dashboard_bp.route('/api/custom-checks/<int:check_id>', methods=['DELETE'])
+@operator_required
+def api_delete_custom_check(check_id):
+    """Delete a custom check."""
+    from app.models import CustomCheck
+    check = CustomCheck.query.get(check_id)
+    if not check:
+        return jsonify({'success': False, 'error': 'Check not found.'}), 404
+    if check.created_by != current_user.id and not current_user.is_admin:
+        return jsonify({'success': False, 'error': 'Permission denied.'}), 403
+
+    name = check.name
+    db.session.delete(check)
+    db.session.commit()
+    log_audit('custom_check_delete', target=name)
+    return jsonify({'success': True})
+
+
+@dashboard_bp.route('/api/custom-checks/export', methods=['GET'])
+@login_required
+def api_export_custom_checks():
+    """Export all custom checks for this user as a JSON file."""
+    from app.models import CustomCheck
+    checks = CustomCheck.query.filter_by(created_by=current_user.id).order_by(CustomCheck.name).all()
+    export_data = {
+        'version': 1,
+        'exported_by': current_user.username,
+        'exported_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+        'checks': [],
+    }
+    for cc in checks:
+        export_data['checks'].append({
+            'name': cc.name,
+            'check_type': cc.check_type or 'command',
+            'command': cc.command or '',
+            'script_content': cc.script_content or '',
+            'script_filename': cc.script_filename or '',
+            'expected_value': cc.expected_value or '',
+            'match_type': cc.match_type or 'contains',
+            'description': cc.description or '',
+            'run_with': cc.run_with or 'health_check',
+            'linked_scenario': cc.linked_scenario or '',
+            'enabled': cc.enabled,
+        })
+
+    from flask import Response
+    import json as _json
+    payload = _json.dumps(export_data, indent=2)
+    filename = f'custom_checks_{current_user.username}_{datetime.now().strftime("%Y%m%d_%H%M%S")}.json'
+    log_audit('custom_check_export', details=f'{len(checks)} checks exported')
+    return Response(
+        payload,
+        mimetype='application/json',
+        headers={'Content-Disposition': f'attachment; filename="{filename}"'}
+    )
+
+
+@dashboard_bp.route('/api/custom-checks/import', methods=['POST'])
+@operator_required
+def api_import_custom_checks():
+    """Import custom checks from a JSON file."""
+    from app.models import CustomCheck
+    import json as _json
+
+    file = request.files.get('file')
+    if not file or not file.filename:
+        return jsonify({'success': False, 'error': 'No file uploaded.'}), 400
+
+    try:
+        raw = file.read().decode('utf-8', errors='replace')
+        data = _json.loads(raw)
+    except Exception as e:
+        return jsonify({'success': False, 'error': f'Invalid JSON file: {e}'}), 400
+
+    checks_data = data.get('checks', [])
+    if not checks_data:
+        return jsonify({'success': False, 'error': 'No checks found in the file.'}), 400
+
+    mode = request.form.get('mode', 'merge')  # merge | replace
+
+    if mode == 'replace':
+        # Delete existing checks for this user before importing
+        CustomCheck.query.filter_by(created_by=current_user.id).delete()
+        db.session.flush()
+
+    imported = 0
+    skipped = 0
+    for item in checks_data:
+        name = item.get('name', '').strip()
+        if not name:
+            skipped += 1
+            continue
+
+        # In merge mode, skip if same name already exists
+        if mode == 'merge':
+            existing = CustomCheck.query.filter_by(created_by=current_user.id, name=name).first()
+            if existing:
+                skipped += 1
+                continue
+
+        check_type = item.get('check_type', 'command')
+        command = item.get('command', '').strip()
+        script_content = item.get('script_content', '').strip()
+
+        if check_type == 'command' and not command:
+            skipped += 1
+            continue
+        if check_type == 'script' and not script_content:
+            skipped += 1
+            continue
+
+        cc = CustomCheck(
+            name=name,
+            check_type=check_type,
+            command=command,
+            script_content=script_content or None,
+            script_filename=item.get('script_filename', ''),
+            expected_value=item.get('expected_value', ''),
+            match_type=item.get('match_type', 'contains'),
+            description=item.get('description', ''),
+            run_with=item.get('run_with', 'health_check'),
+            linked_scenario=item.get('linked_scenario', '').strip() or None,
+            enabled=item.get('enabled', True),
+            created_by=current_user.id,
+        )
+        db.session.add(cc)
+        imported += 1
+
+    db.session.commit()
+    log_audit('custom_check_import', details=f'{imported} imported, {skipped} skipped (mode={mode})')
+    return jsonify({
+        'success': True,
+        'imported': imported,
+        'skipped': skipped,
+        'total': len(checks_data),
+    })
 
 
 def _update_env_var(key, value):

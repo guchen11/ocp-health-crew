@@ -17,7 +17,11 @@
                 </a>
                 <a href="/job/quick-run" class="sidebar-item">
                     <span class="sidebar-icon">⚡</span>
-                    Quick Run (All Checks)
+                    Quick Health Check
+                </a>
+                <a href="/job/quick-sanity" class="sidebar-item">
+                    <span class="sidebar-icon">🔥</span>
+                    Quick Sanity Check
                 </a>
                 <a href="/job/history" class="sidebar-item">
                     <span class="sidebar-icon">📋</span>
@@ -64,7 +68,6 @@
     </aside>
     
     <main class="main">
-        {% if not running_build %}
         <!-- Stats -->
         <div class="card">
             <div class="card-header" onclick="toggleCard(this)">
@@ -77,6 +80,12 @@
                         <div class="stat-value">{{ stats.total }}</div>
                         <div class="stat-label">Total Runs</div>
                     </div>
+                    {% if stats.running > 0 %}
+                    <div class="stat-box" style="border-left:4px solid var(--accent);animation:pulse 1.5s infinite;">
+                        <div class="stat-value" style="color:var(--accent);">{{ stats.running }}</div>
+                        <div class="stat-label">Running</div>
+                    </div>
+                    {% endif %}
                     <div class="stat-box success">
                         <div class="stat-value">{{ stats.success }}</div>
                         <div class="stat-label">Successful</div>
@@ -92,79 +101,7 @@
                 </div>
             </div>
         </div>
-        {% endif %}
         
-        <!-- Running Build -->
-        {% if running_build %}
-        <div class="card">
-            <div class="card-header">
-                <span class="status-icon running"></span>
-                Run #{{ running_build.number }}{% if running_build.name %} "{{ running_build.name }}"{% endif %} - Running
-                {% if current_user.is_admin or running_build.user_id == current_user.id %}
-                <button onclick="stopBuild()" class="btn btn-danger" style="margin-left:auto;padding:6px 16px;">
-                    ⏹️ Stop Run
-                </button>
-                {% endif %}
-                <span class="collapse-icon" style="margin-left:12px;cursor:pointer;" onclick="toggleCard(this.parentElement)">▼</span>
-            </div>
-            <div class="card-body">
-                <!-- Phases & Progress -->
-                <div id="phases-progress" style="margin-bottom:20px;">
-                    <div id="phases" style="display:grid;grid-template-columns:repeat({{ running_build.phases|length }}, 1fr);gap:2px;margin-bottom:8px;">
-                        {% for phase in running_build.phases %}
-                        <div class="phase-label {{ phase.status }}" style="text-align:center;padding:8px 4px;font-size:11px;font-weight:500;
-                            {% if phase.status == 'done' %}color:var(--success);{% elif phase.status == 'running' %}color:var(--accent);{% elif phase.status == 'error' %}color:var(--error);{% elif phase.status == 'skipped' %}color:var(--text-secondary);opacity:0.5;{% else %}color:var(--text-secondary);{% endif %}">
-                            <span class="phase-icon" style="display:block;font-size:16px;margin-bottom:2px;">
-                                {% if phase.status == 'done' %}✅
-                                {% elif phase.status == 'running' %}🔄
-                                {% elif phase.status == 'error' %}❌
-                                {% elif phase.status == 'skipped' %}⏭️
-                                {% else %}⏳{% endif %}
-                            </span>
-                            {{ phase.name }}
-                            {% if phase.duration %}
-                            <span style="display:block;font-size:10px;color:var(--text-secondary);margin-top:2px;">{{ phase.duration }}s</span>
-                            {% elif phase.status == 'running' %}
-                            <span class="phase-timer" data-start="{{ phase.start_time }}" style="display:block;font-size:10px;color:var(--accent);margin-top:2px;">0.0s</span>
-                            {% endif %}
-                        </div>
-                        {% endfor %}
-                    </div>
-                    <div style="display:grid;grid-template-columns:repeat({{ running_build.phases|length }}, 1fr);gap:2px;height:8px;background:var(--bg-tertiary);border-radius:4px;overflow:hidden;">
-                        {% for phase in running_build.phases %}
-                        <div class="phase-progress" style="height:100%;transition:background 0.3s;
-                            {% if phase.status == 'done' %}background:var(--success);
-                            {% elif phase.status == 'running' %}background:linear-gradient(90deg, var(--accent) 0%, var(--bg-tertiary) 100%);animation:pulse 1s infinite;
-                            {% elif phase.status == 'error' %}background:var(--error);
-                            {% elif phase.status == 'skipped' %}background:var(--text-secondary);opacity:0.3;
-                            {% else %}background:var(--bg-tertiary);{% endif %}">
-                        </div>
-                        {% endfor %}
-                    </div>
-                    <div style="display:flex;justify-content:space-between;margin-top:6px;">
-                        <span id="elapsed-time" style="font-size:12px;color:var(--text-secondary);">Elapsed: 0s</span>
-                        <span id="progress-text" style="font-size:12px;color:var(--text-secondary);">{{ running_build.progress }}%</span>
-                    </div>
-                </div>
-                
-                <div id="current-phase" style="padding:12px 16px;background:var(--accent-light);border-radius:8px;margin-bottom:15px;border-left:4px solid var(--accent);">
-                    <span style="font-weight:600;">{{ running_build.current_phase or 'Initializing...' }}</span>
-                </div>
-                
-                <div class="card" style="margin:0;">
-                    <div class="card-header" onclick="toggleCard(this)" style="padding:10px 16px;">
-                        📝 Console Output
-                        <span class="collapse-icon" style="margin-left:auto;">▼</span>
-                    </div>
-                    <div class="card-body" style="padding:0;">
-                        <div class="console" id="console" style="border-radius:0;">{{ running_build.output }}</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        {% endif %}
-        
-        {% if not running_build %}
         <!-- Build History -->
         <div class="card">
             <div class="card-header" onclick="toggleCard(this)">
@@ -197,6 +134,53 @@
                         </tr>
                     </thead>
                     <tbody>
+                        {% if running_build %}
+                        <tr style="background:rgba(59,130,246,0.08);">
+                            <td></td>
+                            <td>
+                                <a href="/job/{{ running_build.number }}/console" class="build-link" style="color:var(--accent);" title="View live console">
+                                    <span class="status-icon running"></span>
+                                    #{{ running_build.number }}
+                                </a>
+                            </td>
+                            <td>
+                                {% if running_build.options and running_build.options.task_type == 'cnv_combined' %}
+                                <span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;background:linear-gradient(135deg,#8b5cf6,#6366f1);color:white;">🧬 Combined</span>
+                                {% elif running_build.options and running_build.options.task_type == 'cnv_scenarios' %}
+                                <span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;background:linear-gradient(135deg,#f97316,#ea580c);color:white;">🔥 CNV</span>
+                                {% else %}
+                                <span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;background:linear-gradient(135deg,#3b82f6,#2563eb);color:white;">🩺 Health</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <span class="status-badge status-running" style="animation:pulse 1.5s infinite;">
+                                    🔄 Running
+                                </span>
+                            </td>
+                            <td style="font-size:11px;color:var(--text);font-weight:600;">
+                                {{ running_build.name or '—' }}
+                            </td>
+                            <td style="font-size:11px;color:var(--text);font-weight:600;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                                {{ running_build.options.server_host.split('.')[0] if running_build.options and running_build.options.server_host else '—' }}
+                            </td>
+                            <td style="font-size:12px;">
+                                <span style="display:inline-flex;align-items:center;gap:4px;">
+                                    <span style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:var(--accent);color:white;font-size:10px;font-weight:700;">{{ (running_build.triggered_by or 'S')[0]|upper }}</span>
+                                    {{ running_build.triggered_by or 'system' }}
+                                </span>
+                            </td>
+                            <td>
+                                <span style="font-size:11px;">{{ running_build.checks_count or '—' }}</span>
+                            </td>
+                            <td>{{ running_build.timestamp or '—' }}</td>
+                            <td><span id="running-row-elapsed" style="color:var(--accent);font-weight:600;">—</span></td>
+                            <td>
+                                {% if current_user.is_admin or running_build.user_id == current_user.id %}
+                                <button onclick="stopBuild()" class="btn" style="color:var(--error);" title="Stop">⏹️</button>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endif %}
                         {% for build in builds %}
                         <tr>
                             <td>{% if current_user.is_admin or build.triggered_by == current_user.username %}<input type="checkbox" class="build-checkbox" value="{{ build.number }}" onchange="updateSelectedCount()">{% endif %}</td>
@@ -207,7 +191,9 @@
                                 </a>
                             </td>
                             <td>
-                                {% if build.options.task_type == 'cnv_scenarios' %}
+                                {% if build.options.task_type == 'cnv_combined' %}
+                                <span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;background:linear-gradient(135deg,#8b5cf6,#6366f1);color:white;">🧬 Combined</span>
+                                {% elif build.options.task_type == 'cnv_scenarios' %}
                                 <span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;background:linear-gradient(135deg,#f97316,#ea580c);color:white;">🔥 CNV</span>
                                 {% else %}
                                 <span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;background:linear-gradient(135deg,#3b82f6,#2563eb);color:white;">🩺 Health</span>
@@ -230,7 +216,13 @@
                                     {{ build.triggered_by or 'system' }}
                                 </span>
                             </td>
-                            <td>{{ build.checks_count }} checks</td>
+                            <td>
+                                {% if build.options.task_type in ['cnv_scenarios', 'cnv_combined'] %}
+                                <span style="font-size:11px;">{{ build.checks_count }} tests</span>
+                                {% else %}
+                                {{ build.checks_count }} checks
+                                {% endif %}
+                            </td>
                             <td>{{ build.timestamp }}</td>
                             <td>{{ build.duration }}</td>
                             <td>
@@ -254,7 +246,6 @@
                 {% endif %}
             </div>
         </div>
-        {% endif %}
     </main>
 </div>
 {% endblock %}
@@ -359,64 +350,6 @@
         return mins + 'm ' + secs + 's';
     }
     
-    function updatePhases(phases, startTime) {
-        var container = document.getElementById('phases-progress');
-        if (!container || !phases) return;
-        
-        var now = Date.now() / 1000;
-        
-        var labelsHtml = '<div id="phases" style="display:grid;grid-template-columns:repeat(' + phases.length + ', 1fr);gap:2px;margin-bottom:8px;">';
-        phases.forEach(function(phase) {
-            var icon = phase.status === 'done' ? '✅' : 
-                       phase.status === 'running' ? '🔄' : 
-                       phase.status === 'error' ? '❌' : 
-                       phase.status === 'skipped' ? '⏭️' : '⏳';
-            var color = phase.status === 'done' ? 'var(--success)' : 
-                        phase.status === 'running' ? 'var(--accent)' : 
-                        phase.status === 'error' ? 'var(--error)' : 
-                        phase.status === 'skipped' ? 'var(--text-secondary)' : 'var(--text-secondary)';
-            var opacity = phase.status === 'skipped' ? 'opacity:0.5;' : '';
-            
-            var durationHtml = '';
-            if (phase.duration) {
-                durationHtml = '<span style="display:block;font-size:10px;color:var(--text-secondary);margin-top:2px;">' + phase.duration + 's</span>';
-            } else if (phase.status === 'running' && phase.start_time) {
-                var elapsed = (now - phase.start_time).toFixed(1);
-                durationHtml = '<span style="display:block;font-size:10px;color:var(--accent);margin-top:2px;">' + elapsed + 's</span>';
-            }
-            
-            labelsHtml += '<div class="phase-label ' + phase.status + '" style="text-align:center;padding:8px 4px;font-size:11px;font-weight:500;color:' + color + ';' + opacity + '">';
-            labelsHtml += '<span class="phase-icon" style="display:block;font-size:16px;margin-bottom:2px;">' + icon + '</span>';
-            labelsHtml += phase.name;
-            labelsHtml += durationHtml;
-            labelsHtml += '</div>';
-        });
-        labelsHtml += '</div>';
-        
-        var progressHtml = '<div style="display:grid;grid-template-columns:repeat(' + phases.length + ', 1fr);gap:2px;height:8px;background:var(--bg-tertiary);border-radius:4px;overflow:hidden;">';
-        phases.forEach(function(phase) {
-            var bg = phase.status === 'done' ? 'var(--success)' : 
-                     phase.status === 'running' ? 'linear-gradient(90deg, var(--accent) 0%, var(--bg-tertiary) 100%)' : 
-                     phase.status === 'error' ? 'var(--error)' : 
-                     phase.status === 'skipped' ? 'var(--text-secondary)' : 'var(--bg-tertiary)';
-            var anim = phase.status === 'running' ? 'animation:pulse 1s infinite;' : '';
-            var opacityBar = phase.status === 'skipped' ? 'opacity:0.3;' : '';
-            progressHtml += '<div class="phase-progress" style="height:100%;transition:background 0.3s;background:' + bg + ';' + anim + opacityBar + '"></div>';
-        });
-        progressHtml += '</div>';
-        
-        // Calculate total elapsed time
-        var totalElapsed = now - startTime;
-        var elapsedStr = formatDuration(totalElapsed);
-        
-        var footerHtml = '<div style="display:flex;justify-content:space-between;margin-top:6px;">';
-        footerHtml += '<span id="elapsed-time" style="font-size:12px;color:var(--text-secondary);">Elapsed: ' + elapsedStr + '</span>';
-        footerHtml += '<span id="progress-text" style="font-size:12px;color:var(--text-secondary);">0%</span>';
-        footerHtml += '</div>';
-        
-        container.innerHTML = labelsHtml + progressHtml + footerHtml;
-    }
-    
     function stopBuild() {
         if (confirm('Are you sure you want to stop the running build?')) {
             fetch('/api/stop', { method: 'POST' })
@@ -436,19 +369,16 @@
             .then(r => r.json())
             .then(data => {
                 if (data.running) {
-                    document.getElementById('console').innerHTML = data.output;
-                    document.getElementById('console').scrollTop = document.getElementById('console').scrollHeight;
-                    var progressText = document.getElementById('progress-text');
-                    if (progressText) progressText.textContent = data.progress + '%';
-                    if (data.current_phase) {
-                        document.getElementById('current-phase').innerHTML = '<span style="font-weight:600;">' + data.current_phase + '</span>';
+                    var runningRowEl = document.getElementById('running-row-elapsed');
+                    if (runningRowEl) {
+                        var elapsed = Date.now() / 1000 - (data.start_time || buildStartTime);
+                        runningRowEl.textContent = formatDuration(elapsed);
                     }
-                    updatePhases(data.phases, data.start_time || buildStartTime);
                 } else {
                     location.reload();
                 }
             });
-    }, 1000);
+    }, 2000);
 </script>
 {% endif %}
 {% endblock %}

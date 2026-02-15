@@ -6,54 +6,54 @@
   <img src="https://img.shields.io/badge/AI_Powered-FF6F00?style=for-the-badge&logo=tensorflow&logoColor=white" alt="AI"/>
 </p>
 
-<h1 align="center">🔍 CNV Health Crew</h1>
+<h1 align="center">CNV HealthCrew AI</h1>
 
 <p align="center">
   <strong>AI-Powered Performance Engineering & Health Monitoring for OpenShift + CNV</strong>
 </p>
 
 <p align="center">
-  <em>🧠 Self-Evolving AI that Learns from Bugs, Emails & the Web</em>
+  <em>Self-Evolving AI that Learns from Bugs, Emails & the Web</em>
 </p>
 
 <p align="center">
-  <a href="#-key-innovations">Key Innovations</a> •
-  <a href="#-features">Features</a> •
-  <a href="#-architecture">Architecture</a> •
-  <a href="#-self-evolving-ai">Self-Evolving AI</a> •
+  <a href="#-key-innovations">Key Innovations</a> &bull;
+  <a href="#-features">Features</a> &bull;
+  <a href="#-architecture">Architecture</a> &bull;
+  <a href="#-project-structure">Project Structure</a> &bull;
   <a href="#-quick-start">Quick Start</a>
 </p>
 
 ---
 
-## 🚀 Key Innovations
+## Key Innovations
 
 <table>
 <tr>
-<td align="left" width="50%" style="background:linear-gradient(135deg,#4527a0,#311b92);color:white;padding:20px;">
+<td align="left" width="50%">
 
-### 🧠 Self-Evolving AI
+### Self-Evolving AI
 
 **The system learns from multiple sources:**
 
-- 🎫 **Jira Bugs** - Discovers new tests from bug reports
-- 📧 **Email** - Learns from team discussions & alerts
-- 🌐 **Web** - Searches docs, forums & knowledge bases
-- 🎯 **Patterns** - Recognizes recurring issues
-- ♾️ **Never stops** - Gets smarter with every run
+- **Jira Bugs** - Discovers new tests from bug reports
+- **Email** - Learns from team discussions & alerts
+- **Web** - Searches docs, forums & knowledge bases
+- **Patterns** - Recognizes recurring issues
+- **Never stops** - Gets smarter with every run
 
 </td>
-<td align="left" width="50%" style="background:linear-gradient(135deg,#b71c1c,#880e4f);color:white;padding:20px;">
+<td align="left" width="50%">
 
-### ⚡ Performance Engineering
+### Performance Engineering
 
 **Built for Performance Engineers:**
 
-- 📊 **Resource profiling** - CPU, Memory, I/O per node
-- 🔥 **Bottleneck detection** - Find hotspots instantly
-- 📈 **Trend analysis** - Track performance over time
-- ⚠️ **Threshold alerts** - Proactive warnings at 85%+
-- 🎯 **Root cause analysis** - AI-powered deep investigation
+- **Resource profiling** - CPU, Memory, I/O per node
+- **Bottleneck detection** - Find hotspots instantly
+- **Trend analysis** - Track performance over time
+- **Threshold alerts** - Proactive warnings at 85%+
+- **Root cause analysis** - AI-powered deep investigation
 
 </td>
 </tr>
@@ -61,222 +61,329 @@
 
 ---
 
-## 🔄 How the AI Evolves
+## How the AI Evolves
 
 <table>
 <tr>
-<td align="center" colspan="5" style="background:#1565c0;color:white;padding:15px;">
-<h3>🧬 CONTINUOUS LEARNING CYCLE</h3>
+<td align="center" colspan="5">
+<h3>CONTINUOUS LEARNING CYCLE</h3>
 <sub>The system automatically improves with every run</sub>
 </td>
 </tr>
 <tr>
 <td align="center" width="20%">
-<h2>1️⃣</h2>
-📥<br><strong>Gather Intel</strong><br>
-<sub>🎫 Jira bugs<br>📧 Emails<br>🌐 Web docs</sub>
+<h3>1</h3>
+<strong>Gather Intel</strong><br>
+<sub>Jira bugs<br>Emails<br>Web docs</sub>
 </td>
 <td align="center" width="20%">
-<h2>2️⃣</h2>
-🔍<br><strong>Analyze</strong><br>
+<h3>2</h3>
+<strong>Analyze</strong><br>
 <sub>AI identifies patterns<br>& recurring issues</sub>
 </td>
 <td align="center" width="20%">
-<h2>3️⃣</h2>
-💡<br><strong>Suggest Tests</strong><br>
+<h3>3</h3>
+<strong>Suggest Tests</strong><br>
 <sub>Proposes new health<br>checks to add</sub>
 </td>
 <td align="center" width="20%">
-<h2>4️⃣</h2>
-✅<br><strong>Auto-Add</strong><br>
+<h3>4</h3>
+<strong>Auto-Add</strong><br>
 <sub>Approved tests join<br>the suite</sub>
 </td>
 <td align="center" width="20%">
-<h2>5️⃣</h2>
-🧠<br><strong>Evolve</strong><br>
+<h3>5</h3>
+<strong>Evolve</strong><br>
 <sub>Knowledge grows<br>continuously</sub>
 </td>
 </tr>
 </table>
 
-### 🎯 Real Example of AI Evolution
+### Real Example of AI Evolution
 
 ```
-📥 Jira Bug: CNV-75962 "kubevirt-migration-controller OOMKilled at scale"
+Jira Bug: CNV-75962 "kubevirt-migration-controller OOMKilled at scale"
 
-🤖 AI Analysis:
+AI Analysis:
    ├─ Pattern detected: "OOMKilled" + "migration" + "scale"
    ├─ Component: kubevirt-migration-controller
    └─ Priority: Critical
 
-💡 AI Suggestion:
+AI Suggestion:
    "Add new health check: migration_controller_memory"
    - Monitor memory usage of migration controller pods
    - Alert when approaching limits
    - Track during large-scale migrations
 
-✅ Result: New test automatically added to suite!
+Result: New test automatically added to suite!
 ```
 
 ---
 
-## ✨ Features
+## Features
 
 <table>
 <tr>
 <td width="33%">
 
-### 🏥 Health Monitoring
-- ✅ Node & Operator status
-- ✅ Pod health detection
-- ✅ KubeVirt/CNV components
-- ✅ VM migrations & status
-- ✅ Storage health (ODF/CSI)
-- ✅ etcd cluster health
-- ✅ Certificate expiration
+### Health Monitoring
+- Node & Operator status
+- Pod health detection
+- KubeVirt/CNV components
+- VM migrations & status
+- Storage health (ODF/CSI)
+- etcd cluster health
+- Certificate expiration
 
 </td>
 <td width="33%">
 
-### ⚡ Performance Engineering
-- 📊 CPU utilization per node
-- 📊 Memory pressure detection
-- 📊 I/O bottleneck analysis
-- 📊 Network throughput monitoring
-- 📊 Resource quota tracking
-- 📊 Capacity planning insights
-- 📊 Historical trend comparison
+### Performance Engineering
+- CPU utilization per node
+- Memory pressure detection
+- I/O bottleneck analysis
+- Network throughput monitoring
+- Resource quota tracking
+- Capacity planning insights
+- Historical trend comparison
 
 </td>
 <td width="33%">
 
-### 🧠 AI Capabilities
-- 🤖 Self-evolving test suite
-- 🤖 Jira bug correlation
-- 🤖 Root cause analysis
-- 🤖 Pattern recognition
-- 🤖 Predictive alerting
-- 🤖 Auto-remediation suggestions
-- 🤖 Knowledge base learning
+### AI Capabilities
+- Self-evolving test suite
+- Jira bug correlation
+- Root cause analysis
+- Pattern recognition
+- Predictive alerting
+- Auto-remediation suggestions
+- Knowledge base learning
 
 </td>
 </tr>
 </table>
 
+### CNV Scenario Testing
+
+Built-in support for **kube-burner** workload scenarios via the `cnv-scenarios` repository:
+
+| Category | Scenarios |
+|:---------|:----------|
+| **Scale Testing** | per-host-density, virt-capacity-benchmark |
+| **Resource Limits** | cpu-limits, memory-limits, disk-limits |
+| **Performance** | high-memory, large-disk, minimal-resources |
+| **Hot Plug** | disk-hotplug, nic-hotplug |
+
+Each scenario runs in **sanity** (quick validation) or **full** (production-scale) mode with configurable variables (storage class, volume mode, pause intervals, VM counts).
+
+### Custom Health Checks
+
+Users can define their own health checks with:
+- **Command mode** - Single shell commands run via SSH
+- **Script mode** - Multi-line scripts uploaded and executed on the target host
+- Match types: `contains`, `not_contains`, `regex`, `exit_code`, `numeric_gt/lt`
+- Linked to specific scenarios or the global health check
+
 ---
 
-## 🏗 Architecture
+## Architecture
 
 <table>
 <tr>
-<td align="center" colspan="4" style="background:#1a237e;color:white;padding:15px;">
-<h3>🌐 WEB DASHBOARD (Flask:5000)</h3>
+<td align="center" colspan="4">
+<h3>WEB DASHBOARD (Flask :5000)</h3>
+<sub>Role-based access: Admin | Operator | Viewer</sub>
 </td>
 </tr>
 <tr>
-<td align="center" width="25%">🏠<br><strong>Dashboard</strong><br><sub>Stats & Status</sub></td>
-<td align="center" width="25%">⚙️<br><strong>Configure</strong><br><sub>Build Options</sub></td>
-<td align="center" width="25%">📋<br><strong>History</strong><br><sub>Past Builds</sub></td>
-<td align="center" width="25%">📄<br><strong>Reports</strong><br><sub>HTML/MD View</sub></td>
+<td align="center" width="25%"><strong>Dashboard</strong><br><sub>Stats, quick actions,<br>live build status</sub></td>
+<td align="center" width="25%"><strong>Configure</strong><br><sub>Health checks, CNV<br>scenarios, presets</sub></td>
+<td align="center" width="25%"><strong>History</strong><br><sub>Past builds, filtering,<br>reports</sub></td>
+<td align="center" width="25%"><strong>Admin</strong><br><sub>Users, roles,<br>audit log</sub></td>
 </tr>
-<tr><td align="center" colspan="4">⬇️</td></tr>
+<tr><td align="center" colspan="4">&darr;</td></tr>
 <tr>
-<td align="center" colspan="4" style="background:#6a1b9a;color:white;padding:15px;">
-<h3>🧠 SELF-EVOLVING AI ENGINE</h3>
-<sub>Continuously learns from Jira bugs and adds new tests</sub>
+<td align="center" colspan="2">
+<h3>Health Check Engine</h3>
+<sub>hybrid_health_check.py</sub><br>
+<sub>17 check categories &bull; HTML reports &bull; email</sub>
+</td>
+<td align="center" colspan="2">
+<h3>CNV Scenario Engine</h3>
+<sub>cnv_scenarios.py + cnv_report.py</sub><br>
+<sub>kube-burner workloads &bull; sanity/full modes</sub>
+</td>
+</tr>
+<tr><td align="center" colspan="4">&darr;</td></tr>
+<tr>
+<td align="center" colspan="4">
+<h3>AI / RCA Layer</h3>
+<sub>Jira bug matching &bull; Email search &bull; Web search &bull; Gemini LLM deep investigation</sub>
+</td>
+</tr>
+<tr><td align="center" colspan="4">&darr;</td></tr>
+<tr>
+<td align="center" colspan="4">
+<h3>SSH Layer (Paramiko)</h3>
+<sub>Persistent connection &bull; Auto KUBECONFIG &bull; Auto oc-login on expired auth &bull; Connection validation</sub>
+</td>
+</tr>
+<tr><td align="center" colspan="4">&darr;</td></tr>
+<tr>
+<td align="center" colspan="4">
+<h3>OpenShift Cluster</h3>
 </td>
 </tr>
 <tr>
-<td align="center">🎫<br><strong>Jira Learning</strong><br><sub>Bug patterns</sub></td>
-<td align="center">📧<br><strong>Email Learning</strong><br><sub>Team knowledge</sub></td>
-<td align="center">🌐<br><strong>Web Learning</strong><br><sub>Docs & forums</sub></td>
-<td align="center">🧠<br><strong>Knowledge Base</strong><br><sub>Growing database</sub></td>
-</tr>
-<tr><td align="center" colspan="4">⬇️</td></tr>
-<tr>
-<td align="center" colspan="4" style="background:#2e7d32;color:white;padding:15px;">
-<h3>⚡ PERFORMANCE ENGINEERING ENGINE</h3>
-</td>
-</tr>
-<tr>
-<td align="center">📊<br><strong>Resource Profiler</strong><br><sub>CPU/Memory/IO</sub></td>
-<td align="center">🔥<br><strong>Bottleneck Detector</strong><br><sub>Hotspot analysis</sub></td>
-<td align="center">📈<br><strong>Trend Analyzer</strong><br><sub>Historical data</sub></td>
-<td align="center">⚠️<br><strong>Alert Engine</strong><br><sub>Threshold monitoring</sub></td>
-</tr>
-<tr><td align="center" colspan="4">⬇️</td></tr>
-<tr>
-<td align="center" colspan="4" style="background:#e65100;color:white;padding:10px;">
-<strong>🔌 INTEGRATIONS</strong>
-</td>
-</tr>
-<tr>
-<td align="center">🎫<br><strong>Jira MCP</strong><br><sub>Bug learning</sub></td>
-<td align="center">📧<br><strong>Gmail MCP</strong><br><sub>Email learning</sub></td>
-<td align="center">🌐<br><strong>Web Search</strong><br><sub>Docs & forums</sub></td>
-<td align="center">🤖<br><strong>AI/LLM</strong><br><sub>Deep analysis</sub></td>
-</tr>
-<tr><td align="center" colspan="4">⬇️</td></tr>
-<tr>
-<td align="center" colspan="4" style="background:#455a64;color:white;padding:10px;">
-<strong>🔐 SSH LAYER (Paramiko)</strong><br>
-<sub>Single persistent connection • Auto KUBECONFIG injection</sub>
-</td>
-</tr>
-<tr><td align="center" colspan="4">⬇️</td></tr>
-<tr>
-<td align="center" colspan="4" style="background:#c62828;color:white;padding:15px;">
-<h3>☸️ OPENSHIFT CLUSTER</h3>
-</td>
-</tr>
-<tr>
-<td align="center">🖥️<br><strong>Nodes</strong></td>
-<td align="center">📦<br><strong>Pods</strong></td>
-<td align="center">⚙️<br><strong>Operators</strong></td>
-<td align="center">💻<br><strong>VMs</strong></td>
-</tr>
-<tr>
-<td align="center">💾<br><strong>Storage</strong></td>
-<td align="center">🗄️<br><strong>etcd</strong></td>
-<td align="center">🌐<br><strong>Network</strong></td>
-<td align="center">🔒<br><strong>Certs</strong></td>
+<td align="center">Nodes</td>
+<td align="center">Pods &amp; Operators</td>
+<td align="center">VMs &amp; Migrations</td>
+<td align="center">Storage &amp; Network</td>
 </tr>
 </table>
 
+### Connection Flow
+
+```
+Dashboard → SSH to jump host → oc/kubectl commands → Cluster API
+                │
+                ├─ Validates SSH key, host, user
+                ├─ Validates oc CLI is available
+                ├─ Validates oc whoami (auth check)
+                │     └─ Auto-login with kubeadmin if auth expired
+                └─ On failure: generates error report with diagnostics
+```
+
+### Build Execution
+
+```
+Configure → Start Build → Background Thread
+                              │
+                ┌─────────────┼──────────────┐
+                │             │              │
+          Health Check   CNV Scenarios   Combined
+                │             │              │
+          SSH + oc cmds   SSH + kube-burner  Both sequential
+                │             │              │
+          HTML Report    Scenario Report   Combined Report
+                │             │              │
+                └─────────────┼──────────────┘
+                              │
+                    Custom Checks (if any)
+                              │
+                    Save to DB + Email
+```
+
 ---
 
-## 📊 Performance Engineering Details
+## Project Structure
+
+```
+ocp-health-crew/
+├── run.py                              # Entry point — starts the Flask web server
+├── config.env.example                  # Example configuration file
+├── requirements.txt                    # Python dependencies
+│
+├── app/                                # Flask web application
+│   ├── __init__.py                     #   App factory, blueprints, extensions
+│   ├── models.py                       #   DB models: User, Build, Schedule, Host, CustomCheck, AuditLog
+│   ├── routes.py                       #   Dashboard routes, build execution, APIs
+│   ├── auth.py                         #   Authentication: login, register, profile
+│   ├── admin.py                        #   Admin panel: user CRUD, roles, audit log
+│   ├── scheduler.py                    #   Background scheduler for timed builds
+│   ├── learning.py                     #   Pattern recognition & recurring issue tracking
+│   ├── checks/                         #   Health check metadata (re-exports AVAILABLE_CHECKS)
+│   ├── integrations/                   #   Integration stubs (Jira, email, SSH — future modules)
+│   ├── templates/                      #   Jinja2 HTML templates
+│   │   ├── base.html                   #     Base layout with sidebar
+│   │   ├── dashboard.html              #     Main dashboard with stats & quick actions
+│   │   ├── configure.html              #     Build configuration form
+│   │   ├── build_detail.html           #     Build detail with live console & duration
+│   │   ├── console.html                #     Real-time build output streaming
+│   │   ├── history.html                #     Build history with filtering
+│   │   ├── settings.html               #     Host management & app settings
+│   │   ├── schedules.html              #     Scheduled builds management
+│   │   ├── login.html / register.html  #     Authentication pages
+│   │   ├── admin_users.html            #     User management (admin)
+│   │   ├── admin_audit.html            #     Audit log (admin)
+│   │   └── help.html                   #     Help & documentation
+│   └── static/
+│       ├── css/style.css               #   Dashboard styles
+│       └── img/                        #   Red Hat logos
+│
+├── config/                             # Configuration
+│   ├── __init__.py                     #   Re-exports Config
+│   ├── settings.py                     #   App config: paths, DB, SSH, checks, Flask settings
+│   └── cnv_scenarios.py                #   CNV scenario definitions & variables for the dashboard
+│
+├── healthchecks/                       # Health check engines
+│   ├── __init__.py                     #   Package overview
+│   ├── hybrid_health_check.py          #   Core engine: SSH, 17 check categories, HTML reports,
+│   │                                   #     email, Jira RCA, AI deep analysis, auto oc-login,
+│   │                                   #     connection validation & error reports
+│   ├── cnv_scenarios.py                #   CNV scenario runner: SSH to jump host, runs kube-burner
+│   │                                   #     workloads via run-workloads.sh
+│   ├── cnv_report.py                   #   CNV report generator: parses scenario output, builds
+│   │                                   #     HTML reports (single + combined)
+│   ├── simple_health_check.py          #   Minimal SSH health check (no AI, no web)
+│   └── crewai_agents.py                #   CrewAI multi-agent system (experimental)
+│
+├── tools/                              # Shared tools
+│   ├── __init__.py                     #   Package overview
+│   └── ssh_tool.py                     #   CrewAI BaseTool for remote oc/kubectl over SSH
+│
+├── scripts/                            # Shell scripts & utilities
+│   ├── install.sh                      #   One-command installer for RHEL/Fedora
+│   ├── uninstall.sh                    #   Clean removal script
+│   ├── start_dashboard.sh              #   Start server & open browser
+│   └── migrate_json_to_db.py           #   One-time JSON → SQLite migration
+│
+├── docs/                               # Documentation
+│   └── DESIGN.md                       #   This file — architecture & design
+│
+├── legacy/                             # Deprecated code
+│   └── web_dashboard.py                #   Old standalone Flask app (replaced by app/)
+│
+├── reports/                            # Generated reports (gitignored)
+│   └── health_report_*.html / .md
+│
+└── tests/                              # Test suite (placeholder)
+```
+
+---
+
+## Performance Monitoring
 
 <table>
 <tr>
 <td width="50%">
 
-### 🔥 What We Monitor
+### What We Monitor
 
 | Metric | Threshold | Action |
 |:-------|:----------|:-------|
-| **CPU Usage** | >85% | ⚠️ Alert + Analysis |
-| **Memory Pressure** | >80% | ⚠️ Alert + OOM Risk |
-| **Disk I/O** | Latency >100ms | ⚠️ Storage bottleneck |
-| **Network** | Packet loss >1% | ⚠️ Network issues |
-| **etcd Latency** | >100ms | 🔴 Critical alert |
-| **Pod Density** | >50/node | ⚠️ Capacity warning |
+| **CPU Usage** | >85% | Alert + Analysis |
+| **Memory Pressure** | >80% | Alert + OOM Risk |
+| **Disk I/O** | Latency >100ms | Storage bottleneck |
+| **Network** | Packet loss >1% | Network issues |
+| **etcd Latency** | >100ms | Critical alert |
+| **Pod Density** | >50/node | Capacity warning |
 
 </td>
 <td width="50%">
 
-### 📈 Performance Insights
+### Performance Insights
 
 **AI-Powered Analysis:**
-- 🎯 Identifies resource hogs
-- 🎯 Predicts capacity issues
-- 🎯 Recommends optimizations
-- 🎯 Tracks degradation trends
+- Identifies resource hogs
+- Predicts capacity issues
+- Recommends optimizations
+- Tracks degradation trends
 
 **Actionable Reports:**
-- 📊 "Node X is 92% CPU - consider spreading VMs"
-- 📊 "Migration controller needs more memory"
-- 📊 "etcd on slow disk - SSD recommended"
+- "Node X is 92% CPU - consider spreading VMs"
+- "Migration controller needs more memory"
+- "etcd on slow disk - SSD recommended"
 
 </td>
 </tr>
@@ -284,28 +391,26 @@
 
 ---
 
-## 🧠 Self-Evolving AI Details
+## Self-Evolving AI Details
 
-### How It Works
+### Learning Sources
 
 <table>
 <tr>
-<td align="center" style="background:#2e7d32;color:white;padding:15px;">
+<td align="center" width="33%">
 
-**🎫 Learn from Bugs**
+**Jira Bugs**
 
-Scans Jira for CNV/OCP/ODF:
+Scans CNV/OCP/ODF projects:
 - Analyzes bug summaries
 - Extracts error patterns
 - Maps to components
 - Tracks resolutions
 
-Automatic test suggestions from bugs.
-
 </td>
-<td align="center" style="background:#1565c0;color:white;padding:15px;">
+<td align="center" width="33%">
 
-**📧 Learn from Email**
+**Email**
 
 Searches team communications:
 - Alert notifications
@@ -313,12 +418,10 @@ Searches team communications:
 - Troubleshooting threads
 - Solution sharing
 
-Captures tribal knowledge automatically.
-
 </td>
-<td align="center" style="background:#7b1fa2;color:white;padding:15px;">
+<td align="center" width="33%">
 
-**🌐 Learn from Web**
+**Web**
 
 Searches external sources:
 - Red Hat documentation
@@ -326,112 +429,114 @@ Searches external sources:
 - Community forums
 - Release notes
 
-Stays current with latest fixes.
-
 </td>
 </tr>
 </table>
 
-### 📈 Evolution Statistics
+### Evolution Statistics
 
 | Source | What It Learns |
 |:-------|:---------------|
-| 🎫 **Jira** | CNV, OCPBUGS, ODF bug reports |
-| 📧 **Email** | Team alerts, incident threads |
-| 🌐 **Web** | Docs, forums, knowledge bases |
+| **Jira** | CNV, OCPBUGS, ODF bug reports |
+| **Email** | Team alerts, incident threads |
+| **Web** | Docs, forums, knowledge bases |
 
 | Metric | Value |
 |:-------|:------|
-| 🧠 Knowledge base entries | 50+ known issues |
-| 💡 Auto-suggested checks | 10+ per scan |
-| ✅ Current health checks | 17 categories |
-| 🔄 Learning frequency | Every build |
+| Knowledge base entries | 50+ known issues |
+| Auto-suggested checks | 10+ per scan |
+| Current health checks | 17 categories |
+| Learning frequency | Every build |
 
 ---
 
-## 📦 Components
+## Components
 
-### 1️⃣ Web Dashboard
+### 1. Web Dashboard (`app/`)
 
-**`app/`** - Flask-based Jenkins-like UI (formerly `web_dashboard.py`, now modular)
+Flask-based Jenkins-like UI with role-based access control.
 
 | Page | Description |
 |:-----|:------------|
-| 🏠 Dashboard | Stats, recent builds, live status |
-| ⚙️ Configure | Select checks, set options |
-| 📋 History | Past builds with filtering |
-| 📝 Console | Real-time output streaming |
-| 📄 Reports | View generated HTML reports |
+| Dashboard | Stats, recent builds, live status, quick actions |
+| Configure | Select checks, pick scenarios, set options, presets |
+| History | Past builds with filtering and search |
+| Console | Real-time output streaming with phase progress |
+| Build Detail | Status, duration (live timer), report, parameters |
+| Reports | View generated HTML reports |
+| Settings | Host management, app configuration |
+| Schedules | Cron-like scheduled builds |
+| Admin | User management, role assignment, audit log |
+| Custom Checks | User-defined commands & scripts |
 
-### 2️⃣ Health Check Engine
+**User Roles:**
+| Role | Capabilities |
+|:-----|:-------------|
+| **admin** | Full access: manage users, roles, all features, Jira scan |
+| **operator** | Run builds, manage own runs, view reports |
+| **viewer** | View dashboard, history, and reports (read-only) |
 
-**`healthchecks/hybrid_health_check.py`** - Core diagnostic system
+### 2. Health Check Engine (`healthchecks/hybrid_health_check.py`)
 
-| Category | Checks | Status Indicators |
-|:---------|:-------|:------------------|
-| 🏗️ **Infrastructure** | Nodes, Cluster Operators, etcd, MachineConfigPools | Ready/NotReady |
-| 📦 **Workloads** | Pods (CrashLoop, Pending, OOM, Unknown) | Running/Failed |
-| 💻 **Virtualization** | KubeVirt, VMs, VMIs, Migrations, virt-handler | Running/Migrating |
-| 💾 **Storage** | PVCs, CSI, DataVolumes, VolumeSnapshots, ODF | Bound/Pending |
-| 📊 **Performance** | CPU, Memory, I/O per node | % utilization |
-| 🚨 **Monitoring** | Prometheus alerts | Firing/Resolved |
+Core diagnostic system. Connects via SSH, runs `oc` commands, generates reports.
 
-### 3️⃣ AI Agent System
+| Category | Checks |
+|:---------|:-------|
+| **Infrastructure** | Nodes, Cluster Operators, etcd, MachineConfigPools |
+| **Workloads** | Pods (CrashLoop, Pending, OOM, Unknown) |
+| **Virtualization** | KubeVirt, VMs, VMIs, Migrations, virt-handler, virt-controller, HCO |
+| **Storage** | PVCs, CSI drivers, DataVolumes, VolumeSnapshots |
+| **Performance** | CPU, Memory utilization per node |
+| **Security** | Certificate expiration |
+| **Monitoring** | Prometheus alerts, OOM events |
 
-**`healthchecks/crewai_agents.py`** - CrewAI-based intelligent analysis
+**Connection Resilience:**
+- Validates host, SSH key, and user before connecting
+- Verifies `oc` binary exists on target
+- Checks `oc whoami` to confirm auth
+- **Auto-login**: if auth is expired, automatically runs `oc login -u kubeadmin -p $(cat kubeadmin-password)`
+- On failure: generates a styled error report HTML with diagnostics and troubleshooting steps
 
-<table>
-<tr>
-<td align="center" colspan="3" style="background:#6a1b9a;color:white;padding:10px;">
-<strong>🤖 AI CREW - Performance Engineering Team</strong>
-</td>
-</tr>
-<tr>
-<td align="center" width="33%">
-🏗️<br><strong>Infra SRE</strong><br>
-<sub>• Node health<br>• Operators<br>• etcd perf</sub>
-</td>
-<td align="center" width="33%">
-💻<br><strong>Virt Expert</strong><br>
-<sub>• KubeVirt<br>• VM perf<br>• Migrations</sub>
-</td>
-<td align="center" width="33%">
-📊<br><strong>Perf Engineer</strong><br>
-<sub>• CPU analysis<br>• Memory profiling<br>• Bottlenecks</sub>
-</td>
-</tr>
-<tr>
-<td align="center" colspan="3">⬇️<br>🧠 <strong>Local LLM (Ollama llama3.2:3b)</strong></td>
-</tr>
-</table>
+### 3. CNV Scenario Engine (`healthchecks/cnv_scenarios.py`)
 
----
+Runs kube-burner performance workloads against the cluster via `cnv-scenarios/run-workloads.sh`.
 
-## ⚡ Quick Start
+- Configurable scenarios with per-test variables
+- Sanity mode (quick, 10s pause) and full mode (production scale)
+- Parallel test execution with live progress tracking
+- Results parsed and displayed in dedicated HTML reports
 
-```bash
-# 1️⃣ Clone & Setup
-cd cnv-health-crew
-cp .env.example .env
+### 4. AI Agent System (`healthchecks/crewai_agents.py`)
 
-# 2️⃣ Configure credentials
-nano .env
-# Set: RH_LAB_HOST, RH_LAB_USER, SSH_KEY_PATH
+CrewAI-based multi-agent system (experimental).
 
-# 3️⃣ Start Dashboard
-./scripts/start_dashboard.sh
+| Agent | Focus |
+|:------|:------|
+| **Infra SRE** | Node health, Operators, etcd perf |
+| **Virt Expert** | KubeVirt, VM perf, Migrations |
+| **Perf Engineer** | CPU analysis, Memory profiling, Bottlenecks |
 
-# 4️⃣ Open Browser → http://localhost:5000
-
-# 5️⃣ Run with AI Evolution enabled
-# Select "Full RCA" + "Jira Integration" in the UI
-```
+Uses local LLM (Ollama llama3.2:3b) for analysis.
 
 ---
 
-## ⚙️ Configuration
+## Configuration
 
-### Command Line Options
+### Environment Variables
+
+| Variable | Required | Description |
+|:---------|:--------:|:------------|
+| `RH_LAB_HOST` | Yes | Remote host with `oc` access (SSH target) |
+| `RH_LAB_USER` | Yes | SSH username (default: `root`) |
+| `SSH_KEY_PATH` | Yes | Path to SSH private key |
+| `KUBECONFIG_REMOTE` | Yes | KUBECONFIG path on the remote host |
+| `EMAIL_TO` | No | Email recipient for reports |
+| `SMTP_SERVER` | No | SMTP server for email delivery |
+| `GOOGLE_API_KEY` | No | Gemini API key for AI-powered RCA |
+| `FLASK_HOST` | No | Dashboard bind address (default: `0.0.0.0`) |
+| `FLASK_PORT` | No | Dashboard port (default: `5000`) |
+
+### Command Line Flags
 
 | Flag | Description |
 |:-----|:------------|
@@ -439,61 +544,74 @@ nano .env
 | `--ai` | Enable full AI root cause analysis |
 | `--rca-bugs` | Bug matching only (faster) |
 | `--rca-jira` | Search Jira for related bugs |
-| `--check-jira` | **Enable AI evolution** - scan for new tests |
+| `--check-jira` | Enable AI evolution — scan for new tests |
 | `--email` | Send report via email |
 
 ---
 
-## 🔄 Build Process
+## Build Process
 
-<table>
-<tr>
-<td align="center" style="background:#1565c0;color:white;padding:10px;">⚡<br><strong>Init</strong><br><sub>5%</sub></td>
-<td align="center">➡️</td>
-<td align="center" style="background:#1565c0;color:white;padding:10px;">🔌<br><strong>Connect</strong><br><sub>15%</sub></td>
-<td align="center">➡️</td>
-<td align="center" style="background:#1565c0;color:white;padding:10px;">📡<br><strong>Collect</strong><br><sub>50%</sub></td>
-<td align="center">➡️</td>
-<td align="center" style="background:#1565c0;color:white;padding:10px;">🔍<br><strong>Analyze</strong><br><sub>75%</sub></td>
-<td align="center">➡️</td>
-<td align="center" style="background:#2e7d32;color:white;padding:10px;">📝<br><strong>Report</strong><br><sub>100%</sub></td>
-</tr>
-</table>
+```
+Init (5%) → Connect (15%) → Collect Data (50%) → Analyze (75%) → Report (100%)
+```
 
-**AI Learning Sources:** 🎫 Jira Bugs → 📧 Team Emails → 🌐 Web Docs → 🧠 Knowledge Base → 💡 New Tests
+**Detailed phases for health check builds:**
+
+| Phase | What Happens |
+|:------|:-------------|
+| Scan Jira | Check Jira for new test suggestions (if enabled) |
+| Connect | SSH to target host, validate oc access, auto-login if needed |
+| Collect Data | Run 17+ oc commands across all check categories |
+| Console Report | Print summary to build console |
+| Analyze (optional) | AI-powered root cause analysis with Jira/email/web search |
+| Generate Report | Create HTML + Markdown reports |
+| Send Email | Deliver report to configured recipients (if enabled) |
+
+**Detailed phases for CNV scenario builds:**
+
+| Phase | What Happens |
+|:------|:-------------|
+| Connect | SSH to jump host |
+| Verify Setup | Check cnv-scenarios repo, KUBECONFIG, kube-burner |
+| Run Scenarios | Execute selected tests via run-workloads.sh |
+| Collect Results | Parse kube-burner output and summary.json |
+| Summary | Generate scenario pass/fail summary |
 
 ---
 
-## 🔒 Security
+## Security
 
 | Aspect | Implementation |
 |:-------|:---------------|
-| 🔑 SSH Keys | Stored locally, never committed |
-| 🛡️ Command Validation | Only `oc`/`kubectl` allowed |
-| 🔐 KUBECONFIG | Injected per-command, not stored |
-| 📦 Process Isolation | Builds in separate process groups |
+| SSH Keys | Stored locally, never committed to git |
+| Command Validation | Only `oc`/`kubectl` commands allowed |
+| KUBECONFIG | Injected per-command via environment variable |
+| Process Isolation | Builds run in separate process groups |
+| Config | `.env` is gitignored; installed config at `~/.config/` |
+| Role-Based Access | Admin, Operator, Viewer with enforced permissions |
+| Audit Logging | All admin actions logged with timestamp and user |
 
 ---
 
-## 🚀 Roadmap
+## Roadmap
 
-| 📅 Planned | 💡 Ideas |
-|:-----------|:---------|
-| ⬜ Scheduled evolution scans | ⬜ Slack/Teams alerts |
-| ⬜ Performance trend graphs | ⬜ Prometheus metrics export |
-| ⬜ Multi-cluster support | ⬜ Auto-remediation actions |
-| ⬜ Custom check plugins | ⬜ ML-based anomaly detection |
+| Planned | Ideas |
+|:--------|:------|
+| Performance trend graphs | Slack/Teams alerts |
+| Multi-cluster support | Prometheus metrics export |
+| Custom check plugins | Auto-remediation actions |
+| Scheduled evolution scans | ML-based anomaly detection |
 
 ---
 
 <p align="center">
-  <strong>🧠 AI-Powered • ⚡ Performance Focused • 🔄 Self-Evolving</strong>
+  <strong>AI-Powered &bull; Performance Focused &bull; Self-Evolving</strong>
 </p>
 
 <p align="center">
-  <strong>Built with ❤️ for Performance Engineers & SRE Teams</strong>
+  <strong>Built with care for Performance Engineers & SRE Teams</strong>
 </p>
 
 <p align="center">
-  <sub>Document Version 1.1 • February 2026</sub>
+  <sub>Document Version 2.0 &bull; February 2026</sub>
 </p>

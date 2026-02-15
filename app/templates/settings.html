@@ -32,6 +32,10 @@
                 <span class="sidebar-icon">🎫</span>
                 Jira Configuration
             </a>
+            <a href="#custom-checks" class="sidebar-item">
+                <span class="sidebar-icon">🧪</span>
+                Custom Checks
+            </a>
         </div>
         <div class="sidebar-section">
             <div class="sidebar-title">Actions</div>
@@ -355,9 +359,11 @@
                                 <label style="display:block;font-weight:600;margin-bottom:8px;color:var(--text);">
                                     {{ var_info.icon }} {{ var_info.label }}
                                 </label>
+                                {% set def_val = var_info.default.sanity if var_info.default is mapping else var_info.default %}
+                                {% set ph_val = var_info.placeholder.sanity if var_info.placeholder is mapping else var_info.placeholder %}
                                 <input type="text" name="cnv_default_{{ var_name }}" id="cnv_default_{{ var_name }}"
-                                    value="{{ cnv_config.global_vars[var_name] if cnv_config.global_vars is defined and var_name in cnv_config.global_vars else var_info.default }}"
-                                    placeholder="{{ var_info.placeholder }}"
+                                    value="{{ cnv_config.global_vars[var_name] if cnv_config.global_vars is defined and var_name in cnv_config.global_vars else def_val }}"
+                                    placeholder="{{ ph_val }}"
                                     style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:13px;">
                             </div>
                             {% endfor %}
@@ -496,6 +502,290 @@
                 </div>
             </div>
             
+            <!-- Custom Health Checks -->
+            <div class="card" id="custom-checks">
+                <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+                    <span>🧪 Custom Health Checks</span>
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <span style="font-size:12px;padding:4px 12px;border-radius:12px;background:var(--bg-secondary);color:var(--text-secondary);"
+                            id="custom-check-count">{{ custom_checks|length }} check{{ 's' if custom_checks|length != 1 else '' }}</span>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+                        <p style="color:var(--text-secondary);margin:0;">
+                            Define your own health checks with custom commands or scripts. Export to share with others.
+                        </p>
+                        <div style="display:flex;gap:6px;flex-shrink:0;margin-left:16px;">
+                            {% if custom_checks %}
+                            <a href="/api/custom-checks/export"
+                                style="padding:6px 14px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-weight:600;color:var(--accent);text-decoration:none;white-space:nowrap;transition:all 0.2s;"
+                                onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">
+                                📤 Export
+                            </a>
+                            {% endif %}
+                            <label id="import-btn"
+                                style="padding:6px 14px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-weight:600;color:var(--text-secondary);cursor:pointer;white-space:nowrap;transition:all 0.2s;"
+                                onmouseover="this.style.borderColor='var(--accent);this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-secondary)'">
+                                📥 Import
+                                <input type="file" accept=".json" style="display:none;" onchange="importCustomChecks(this)">
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Existing custom checks list -->
+                    <div id="custom-checks-list">
+                        {% for cc in custom_checks %}
+                        <div class="custom-check-row" data-id="{{ cc.id }}"
+                             style="border:1px solid var(--border);border-radius:10px;margin-bottom:12px;overflow:hidden;transition:border-color 0.2s;">
+                            <div style="display:flex;align-items:center;gap:12px;padding:14px 18px;background:var(--bg-secondary);cursor:pointer;user-select:none;"
+                                 onclick="toggleCustomCheckEdit(this.parentElement)">
+                                <span style="font-size:20px;">{% if cc.check_type == 'script' %}📜{% else %}🧪{% endif %}</span>
+                                <div style="flex:1;min-width:0;">
+                                    <div style="font-weight:600;font-size:14px;color:var(--text);">{{ cc.name }}</div>
+                                    <div style="font-size:11px;color:var(--text-secondary);font-family:monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                                        {% if cc.check_type == 'script' %}📜 {{ cc.script_filename or 'script.sh' }}{% else %}{{ cc.command }}{% endif %}
+                                    </div>
+                                </div>
+                                {% if cc.check_type == 'script' %}
+                                <span style="font-size:11px;padding:3px 8px;border-radius:10px;background:#f0883e20;color:#f0883e;">Script</span>
+                                {% endif %}
+                                <span style="font-size:11px;padding:3px 10px;border-radius:10px;white-space:nowrap;
+                                    {% if cc.run_with == 'health_check' %}background:#238636;color:#fff;
+                                    {% elif cc.run_with == 'scenario' %}background:#1f6feb;color:#fff;
+                                    {% else %}background:#8b5cf6;color:#fff;{% endif %}">
+                                    {% if cc.run_with == 'health_check' %}Health Check
+                                    {% elif cc.run_with == 'scenario' %}Scenario
+                                    {% else %}Both{% endif %}
+                                </span>
+                                {% if not cc.enabled %}
+                                <span style="font-size:11px;padding:3px 8px;border-radius:10px;background:var(--border);color:var(--text-secondary);">Disabled</span>
+                                {% endif %}
+                                <span class="cc-chevron" style="font-size:14px;color:var(--text-secondary);transition:transform 0.2s;">▶</span>
+                            </div>
+                            <div class="cc-edit-panel" style="display:none;padding:16px 18px;border-top:1px solid var(--border);">
+                                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+                                    <div>
+                                        <label style="display:block;font-weight:600;margin-bottom:6px;font-size:12px;color:var(--text);">Name</label>
+                                        <input type="text" class="cc-name" value="{{ cc.name }}"
+                                            style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
+                                    </div>
+                                    <div>
+                                        <label style="display:block;font-weight:600;margin-bottom:6px;font-size:12px;color:var(--text);">Description</label>
+                                        <input type="text" class="cc-desc" value="{{ cc.description }}" placeholder="Optional description"
+                                            style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
+                                    </div>
+                                </div>
+                                <!-- Check Type Toggle -->
+                                <div style="margin-bottom:12px;">
+                                    <label style="display:block;font-weight:600;margin-bottom:6px;font-size:12px;color:var(--text);">Type</label>
+                                    <div style="display:flex;gap:8px;">
+                                        <label class="cc-type-btn" style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:8px;border:2px solid {% if cc.check_type != 'script' %}var(--accent){% else %}var(--border){% endif %};border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;{% if cc.check_type != 'script' %}background:var(--accent-light);{% endif %}"
+                                            onclick="switchCheckType(this.closest('.cc-edit-panel'), 'command')">
+                                            <input type="radio" name="cc_type_{{ cc.id }}" value="command" {{ 'checked' if cc.check_type != 'script' }} style="display:none;" class="cc-type-radio">
+                                            🧪 Command
+                                        </label>
+                                        <label class="cc-type-btn" style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:8px;border:2px solid {% if cc.check_type == 'script' %}var(--accent){% else %}var(--border){% endif %};border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;{% if cc.check_type == 'script' %}background:var(--accent-light);{% endif %}"
+                                            onclick="switchCheckType(this.closest('.cc-edit-panel'), 'script')">
+                                            <input type="radio" name="cc_type_{{ cc.id }}" value="script" {{ 'checked' if cc.check_type == 'script' }} style="display:none;" class="cc-type-radio">
+                                            📜 Script
+                                        </label>
+                                    </div>
+                                </div>
+                                <!-- Command input -->
+                                <div class="cc-command-section" style="margin-bottom:12px;{% if cc.check_type == 'script' %}display:none;{% endif %}">
+                                    <label style="display:block;font-weight:600;margin-bottom:6px;font-size:12px;color:var(--text);">Command</label>
+                                    <input type="text" class="cc-cmd" value="{{ cc.command }}"
+                                        style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:monospace;">
+                                </div>
+                                <!-- Script input -->
+                                <div class="cc-script-section" style="margin-bottom:12px;{% if cc.check_type != 'script' %}display:none;{% endif %}">
+                                    <label style="display:block;font-weight:600;margin-bottom:6px;font-size:12px;color:var(--text);">
+                                        Script
+                                        {% if cc.script_filename %}<span style="font-weight:400;color:var(--text-secondary);margin-left:6px;">{{ cc.script_filename }}</span>{% endif %}
+                                    </label>
+                                    <textarea class="cc-script" rows="6" placeholder="#!/bin/bash&#10;# Your validation script here&#10;..."
+                                        style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:monospace;resize:vertical;background:var(--bg);color:var(--text);">{{ cc.script_content }}</textarea>
+                                    <div style="display:flex;align-items:center;gap:8px;margin-top:6px;">
+                                        <label style="padding:4px 12px;border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:11px;color:var(--accent);font-weight:600;">
+                                            📁 Upload Script
+                                            <input type="file" class="cc-file-upload" accept=".sh,.bash,.py,.pl,.rb,.txt" style="display:none;"
+                                                onchange="loadFileIntoTextarea(this, this.closest('.cc-script-section').querySelector('.cc-script'))">
+                                        </label>
+                                        <span class="cc-filename" style="font-size:11px;color:var(--text-secondary);">{{ cc.script_filename or '' }}</span>
+                                    </div>
+                                </div>
+                                <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px;margin-bottom:12px;">
+                                    <div>
+                                        <label style="display:block;font-weight:600;margin-bottom:6px;font-size:12px;color:var(--text);">Expected Value</label>
+                                        <input type="text" class="cc-expected" value="{{ cc.expected_value }}" placeholder="e.g. Ready, 0, ..."
+                                            style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
+                                    </div>
+                                    <div>
+                                        <label style="display:block;font-weight:600;margin-bottom:6px;font-size:12px;color:var(--text);">Match Type</label>
+                                        <select class="cc-match"
+                                            style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;background:var(--bg);">
+                                            <option value="contains" {{ 'selected' if cc.match_type == 'contains' }}>Contains</option>
+                                            <option value="exact" {{ 'selected' if cc.match_type == 'exact' }}>Exact Match</option>
+                                            <option value="regex" {{ 'selected' if cc.match_type == 'regex' }}>Regex</option>
+                                            <option value="exit_code" {{ 'selected' if cc.match_type == 'exit_code' }}>Exit Code</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label style="display:block;font-weight:600;margin-bottom:6px;font-size:12px;color:var(--text);">Run With</label>
+                                        <select class="cc-runwith"
+                                            style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;background:var(--bg);">
+                                            <option value="health_check" {{ 'selected' if cc.run_with == 'health_check' }}>Health Check</option>
+                                            <option value="scenario" {{ 'selected' if cc.run_with == 'scenario' }}>Scenario Only</option>
+                                            <option value="both" {{ 'selected' if cc.run_with == 'both' }}>Both</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label style="display:block;font-weight:600;margin-bottom:6px;font-size:12px;color:var(--text);">Linked Scenario</label>
+                                        <select class="cc-scenario"
+                                            style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;background:var(--bg);">
+                                            <option value="">All / None</option>
+                                            {% for sid, sc in cnv_scenarios.items() %}
+                                            <option value="{{ sid }}" {{ 'selected' if cc.linked_scenario == sid }}>{{ sc.name }}</option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                </div>
+                                <div style="display:flex;align-items:center;justify-content:space-between;">
+                                    <div style="display:flex;align-items:center;gap:12px;">
+                                        <label class="toggle-switch" style="position:relative;display:inline-block;width:42px;height:22px;">
+                                            <input type="checkbox" class="cc-enabled" {{ 'checked' if cc.enabled }}
+                                                style="opacity:0;width:0;height:0;">
+                                            <span class="toggle-slider"></span>
+                                        </label>
+                                        <span style="font-size:12px;color:var(--text-secondary);">{{ 'Enabled' if cc.enabled else 'Disabled' }}</span>
+                                    </div>
+                                    <div style="display:flex;gap:8px;">
+                                        <button type="button" onclick="saveCustomCheck(this.closest('.custom-check-row'))"
+                                            style="padding:6px 16px;border:none;border-radius:6px;background:var(--accent);color:#fff;cursor:pointer;font-size:12px;font-weight:600;">
+                                            Save
+                                        </button>
+                                        <button type="button" onclick="deleteCustomCheck(this.closest('.custom-check-row'))"
+                                            style="padding:6px 16px;border:none;border-radius:6px;background:var(--error);color:#fff;cursor:pointer;font-size:12px;font-weight:600;">
+                                            Delete
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+
+                    <!-- Add New Check -->
+                    <div id="new-check-form" style="display:none;border:2px solid var(--accent);border-radius:10px;padding:18px;margin-bottom:12px;background:var(--bg-secondary);">
+                        <h4 style="margin:0 0 14px;font-size:14px;color:var(--accent);">New Custom Check</h4>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+                            <div>
+                                <label style="display:block;font-weight:600;margin-bottom:6px;font-size:12px;color:var(--text);">Name *</label>
+                                <input type="text" id="new-cc-name" placeholder="e.g. Check VM count"
+                                    style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
+                            </div>
+                            <div>
+                                <label style="display:block;font-weight:600;margin-bottom:6px;font-size:12px;color:var(--text);">Description</label>
+                                <input type="text" id="new-cc-desc" placeholder="What this check validates"
+                                    style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
+                            </div>
+                        </div>
+                        <!-- Check Type Toggle -->
+                        <div style="margin-bottom:12px;">
+                            <label style="display:block;font-weight:600;margin-bottom:6px;font-size:12px;color:var(--text);">Type</label>
+                            <div style="display:flex;gap:8px;">
+                                <label id="new-cc-type-cmd-btn" class="cc-type-btn" style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:8px;border:2px solid var(--accent);border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;background:var(--accent-light);"
+                                    onclick="switchNewCheckType('command')">
+                                    <input type="radio" name="new_cc_type" value="command" checked style="display:none;">
+                                    🧪 Command
+                                </label>
+                                <label id="new-cc-type-script-btn" class="cc-type-btn" style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:8px;border:2px solid var(--border);border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;"
+                                    onclick="switchNewCheckType('script')">
+                                    <input type="radio" name="new_cc_type" value="script" style="display:none;">
+                                    📜 Script
+                                </label>
+                            </div>
+                        </div>
+                        <!-- Command input -->
+                        <div id="new-cc-command-section" style="margin-bottom:12px;">
+                            <label style="display:block;font-weight:600;margin-bottom:6px;font-size:12px;color:var(--text);">Command *</label>
+                            <input type="text" id="new-cc-cmd" placeholder="e.g. oc get vms -A --no-headers | wc -l"
+                                style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:monospace;">
+                        </div>
+                        <!-- Script input -->
+                        <div id="new-cc-script-section" style="margin-bottom:12px;display:none;">
+                            <label style="display:block;font-weight:600;margin-bottom:6px;font-size:12px;color:var(--text);">Script *</label>
+                            <textarea id="new-cc-script" rows="8" placeholder="#!/bin/bash&#10;# Your validation script here&#10;# The script's stdout output will be compared with the expected value&#10;# Example:&#10;COUNT=$(oc get vms -A --no-headers | wc -l)&#10;echo $COUNT"
+                                style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:monospace;resize:vertical;background:var(--bg);color:var(--text);"></textarea>
+                            <div style="display:flex;align-items:center;gap:8px;margin-top:6px;">
+                                <label style="padding:6px 14px;border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:12px;color:var(--accent);font-weight:600;transition:all 0.2s;"
+                                    onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">
+                                    📁 Upload Script File
+                                    <input type="file" id="new-cc-file" accept=".sh,.bash,.py,.pl,.rb,.txt" style="display:none;"
+                                        onchange="loadFileIntoTextarea(this, document.getElementById('new-cc-script'))">
+                                </label>
+                                <span id="new-cc-filename" style="font-size:11px;color:var(--text-secondary);"></span>
+                            </div>
+                            <div style="margin-top:6px;padding:8px 12px;background:var(--bg);border-radius:6px;font-size:11px;color:var(--text-secondary);">
+                                💡 The script will be uploaded to the jump host and executed. Its stdout output is compared against the expected value.
+                            </div>
+                        </div>
+                        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px;margin-bottom:14px;">
+                            <div>
+                                <label style="display:block;font-weight:600;margin-bottom:6px;font-size:12px;color:var(--text);">Expected Value</label>
+                                <input type="text" id="new-cc-expected" placeholder="e.g. 0, Ready, ..."
+                                    style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
+                            </div>
+                            <div>
+                                <label style="display:block;font-weight:600;margin-bottom:6px;font-size:12px;color:var(--text);">Match Type</label>
+                                <select id="new-cc-match"
+                                    style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;background:var(--bg);">
+                                    <option value="contains">Contains</option>
+                                    <option value="exact">Exact Match</option>
+                                    <option value="regex">Regex</option>
+                                    <option value="exit_code">Exit Code</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label style="display:block;font-weight:600;margin-bottom:6px;font-size:12px;color:var(--text);">Run With</label>
+                                <select id="new-cc-runwith"
+                                    style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;background:var(--bg);">
+                                    <option value="health_check">Health Check</option>
+                                    <option value="scenario">Scenario Only</option>
+                                    <option value="both">Both</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label style="display:block;font-weight:600;margin-bottom:6px;font-size:12px;color:var(--text);">Linked Scenario</label>
+                                <select id="new-cc-scenario"
+                                    style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;background:var(--bg);">
+                                    <option value="">All / None</option>
+                                    {% for sid, sc in cnv_scenarios.items() %}
+                                    <option value="{{ sid }}">{{ sc.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                        <div style="display:flex;gap:8px;">
+                            <button type="button" onclick="createCustomCheck()"
+                                style="padding:8px 24px;border:none;border-radius:6px;background:var(--accent);color:#fff;cursor:pointer;font-size:13px;font-weight:600;">
+                                Create Check
+                            </button>
+                            <button type="button" onclick="document.getElementById('new-check-form').style.display='none';document.getElementById('add-check-btn').style.display='block';"
+                                style="padding:8px 24px;border:1px solid var(--border);border-radius:6px;background:transparent;color:var(--text-secondary);cursor:pointer;font-size:13px;">
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                    <button type="button" id="add-check-btn" onclick="document.getElementById('new-check-form').style.display='block';this.style.display='none';document.getElementById('new-cc-name').focus();"
+                        style="width:100%;padding:12px;border:2px dashed var(--border);border-radius:8px;background:transparent;color:var(--accent);cursor:pointer;font-size:14px;font-weight:600;transition:all 0.2s;"
+                        onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">
+                        + Add Custom Check
+                    </button>
+                </div>
+            </div>
+
             <!-- Save Button -->
             <div style="display:flex;gap:12px;margin-top:20px;">
                 <button type="submit" class="btn btn-primary" style="flex:1;padding:16px;font-size:16px;">
@@ -632,6 +922,224 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 });
+
+/* ── Custom Checks CRUD ───────────────────────────────────────────── */
+function toggleCustomCheckEdit(row) {
+    var panel = row.querySelector('.cc-edit-panel');
+    var chevron = row.querySelector('.cc-chevron');
+    if (panel.style.display === 'none') {
+        panel.style.display = 'block';
+        chevron.textContent = '▼';
+        row.style.borderColor = 'var(--accent)';
+    } else {
+        panel.style.display = 'none';
+        chevron.textContent = '▶';
+        row.style.borderColor = 'var(--border)';
+    }
+}
+
+/* Toggle between command / script mode in edit panels */
+function switchCheckType(panel, type) {
+    var cmdSection = panel.querySelector('.cc-command-section');
+    var scriptSection = panel.querySelector('.cc-script-section');
+    var btns = panel.querySelectorAll('.cc-type-btn');
+    btns.forEach(function(b) {
+        var radio = b.querySelector('.cc-type-radio');
+        if (radio && radio.value === type) {
+            b.style.borderColor = 'var(--accent)';
+            b.style.background = 'var(--accent-light)';
+            radio.checked = true;
+        } else {
+            b.style.borderColor = 'var(--border)';
+            b.style.background = '';
+        }
+    });
+    if (type === 'script') {
+        cmdSection.style.display = 'none';
+        scriptSection.style.display = 'block';
+    } else {
+        cmdSection.style.display = 'block';
+        scriptSection.style.display = 'none';
+    }
+}
+
+/* Toggle for the "New Check" form */
+function switchNewCheckType(type) {
+    var cmdBtn = document.getElementById('new-cc-type-cmd-btn');
+    var scriptBtn = document.getElementById('new-cc-type-script-btn');
+    var cmdSection = document.getElementById('new-cc-command-section');
+    var scriptSection = document.getElementById('new-cc-script-section');
+    if (type === 'script') {
+        cmdBtn.style.borderColor = 'var(--border)'; cmdBtn.style.background = '';
+        scriptBtn.style.borderColor = 'var(--accent)'; scriptBtn.style.background = 'var(--accent-light)';
+        cmdSection.style.display = 'none';
+        scriptSection.style.display = 'block';
+    } else {
+        scriptBtn.style.borderColor = 'var(--border)'; scriptBtn.style.background = '';
+        cmdBtn.style.borderColor = 'var(--accent)'; cmdBtn.style.background = 'var(--accent-light)';
+        scriptSection.style.display = 'none';
+        cmdSection.style.display = 'block';
+    }
+}
+
+/* Read file content into textarea */
+function loadFileIntoTextarea(fileInput, textarea) {
+    var file = fileInput.files[0];
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function(e) {
+        textarea.value = e.target.result;
+        // Show filename
+        var label = fileInput.closest('div').querySelector('.cc-filename') ||
+                    document.getElementById('new-cc-filename');
+        if (label) label.textContent = file.name;
+    };
+    reader.readAsText(file);
+}
+
+function createCustomCheck() {
+    var name = document.getElementById('new-cc-name').value.trim();
+    var isScript = document.getElementById('new-cc-type-script-btn').style.borderColor.indexOf('accent') >= 0 ||
+                   document.querySelector('input[name="new_cc_type"][value="script"]').checked;
+    var cmd = document.getElementById('new-cc-cmd').value.trim();
+    var scriptContent = (document.getElementById('new-cc-script') || {}).value || '';
+    scriptContent = scriptContent.trim();
+    var checkType = isScript ? 'script' : 'command';
+
+    if (!name) { alert('Name is required.'); return; }
+    if (checkType === 'command' && !cmd) { alert('Command is required.'); return; }
+    if (checkType === 'script' && !scriptContent) { alert('Script content is required (paste or upload a file).'); return; }
+
+    // Get filename if uploaded
+    var fileInput = document.getElementById('new-cc-file');
+    var scriptFilename = '';
+    if (fileInput && fileInput.files[0]) scriptFilename = fileInput.files[0].name;
+
+    fetch('/api/custom-checks', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            name: name,
+            check_type: checkType,
+            command: cmd,
+            script_content: scriptContent,
+            script_filename: scriptFilename,
+            description: document.getElementById('new-cc-desc').value.trim(),
+            expected_value: document.getElementById('new-cc-expected').value.trim(),
+            match_type: document.getElementById('new-cc-match').value,
+            run_with: document.getElementById('new-cc-runwith').value,
+            linked_scenario: document.getElementById('new-cc-scenario').value,
+            enabled: true
+        })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) {
+            location.reload();
+        } else {
+            alert('Error: ' + (data.error || 'Unknown error'));
+        }
+    });
+}
+
+function saveCustomCheck(row) {
+    var id = row.getAttribute('data-id');
+    var panel = row.querySelector('.cc-edit-panel');
+    var checkedRadio = panel.querySelector('.cc-type-radio:checked');
+    var checkType = checkedRadio ? checkedRadio.value : 'command';
+    var scriptEl = panel.querySelector('.cc-script');
+
+    fetch('/api/custom-checks/' + id, {
+        method: 'PUT',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            name: row.querySelector('.cc-name').value.trim(),
+            check_type: checkType,
+            command: row.querySelector('.cc-cmd').value.trim(),
+            script_content: scriptEl ? scriptEl.value.trim() : '',
+            description: row.querySelector('.cc-desc').value.trim(),
+            expected_value: row.querySelector('.cc-expected').value.trim(),
+            match_type: row.querySelector('.cc-match').value,
+            run_with: row.querySelector('.cc-runwith').value,
+            linked_scenario: row.querySelector('.cc-scenario').value,
+            enabled: row.querySelector('.cc-enabled').checked
+        })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) {
+            location.reload();
+        } else {
+            alert('Error: ' + (data.error || 'Unknown error'));
+        }
+    });
+}
+
+function deleteCustomCheck(row) {
+    if (!confirm('Delete this custom check?')) return;
+    var id = row.getAttribute('data-id');
+    fetch('/api/custom-checks/' + id, { method: 'DELETE' })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) {
+            row.remove();
+            updateCustomCheckCount();
+        } else {
+            alert('Error: ' + (data.error || 'Unknown error'));
+        }
+    });
+}
+
+function updateCustomCheckCount() {
+    var cnt = document.querySelectorAll('.custom-check-row').length;
+    document.getElementById('custom-check-count').textContent = cnt + ' check' + (cnt !== 1 ? 's' : '');
+}
+
+/* ── Import custom checks from JSON file ─────────────────────────── */
+function importCustomChecks(fileInput) {
+    var file = fileInput.files[0];
+    if (!file) return;
+
+    var mode = 'merge';
+    if (document.querySelectorAll('.custom-check-row').length > 0) {
+        var choice = confirm(
+            'You already have custom checks.\n\n' +
+            'OK = Merge (skip duplicates by name)\n' +
+            'Cancel = Replace all existing checks'
+        );
+        mode = choice ? 'merge' : 'replace';
+        if (mode === 'replace' && !confirm('Are you sure? This will delete ALL existing checks and replace with the imported ones.')) {
+            fileInput.value = '';
+            return;
+        }
+    }
+
+    var formData = new FormData();
+    formData.append('file', file);
+    formData.append('mode', mode);
+
+    fetch('/api/custom-checks/import', {
+        method: 'POST',
+        body: formData
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) {
+            alert('Import complete!\n\n' +
+                  'Imported: ' + data.imported + '\n' +
+                  'Skipped: ' + data.skipped + ' (duplicates or invalid)\n' +
+                  'Total in file: ' + data.total);
+            location.reload();
+        } else {
+            alert('Import failed: ' + (data.error || 'Unknown error'));
+        }
+    })
+    .catch(function(e) {
+        alert('Import error: ' + e);
+    });
+
+    fileInput.value = '';
+}
 
 // Track unsaved changes — warn before leaving the page
 (function() {

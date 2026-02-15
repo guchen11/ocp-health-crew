@@ -113,19 +113,69 @@
                     <span class="collapse-icon" style="margin-left:auto;">▼</span>
                 </div>
                 <div class="card-body">
-                    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;">
-                        <label class="task-type-option" style="display:flex;flex-direction:column;padding:20px;border:2px solid var(--accent);border-radius:10px;cursor:pointer;transition:all 0.2s;background:var(--accent-light);">
-                            <input type="radio" name="task_type" value="health_check" style="margin-bottom:10px;" onchange="switchTaskType()" checked>
+                    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;">
+                        <label class="task-type-option" style="display:flex;flex-direction:column;padding:20px;border:2px solid {{ 'var(--border)' if preset == 'cnv_sanity' else 'var(--accent)' }};border-radius:10px;cursor:pointer;transition:all 0.2s;{{ '' if preset == 'cnv_sanity' else 'background:var(--accent-light);' }}">
+                            <input type="radio" name="task_type" value="health_check" style="margin-bottom:10px;" onchange="switchTaskType()" {{ '' if preset == 'cnv_sanity' else 'checked' }}>
                             <span style="font-size:28px;margin-bottom:8px;">🩺</span>
                             <span style="font-weight:700;color:var(--text);font-size:15px;">Health Check</span>
                             <span style="color:var(--text-secondary);font-size:12px;margin-top:4px;">Run OCP/CNV health diagnostics with optional root cause analysis</span>
                         </label>
-                        <label class="task-type-option" style="display:flex;flex-direction:column;padding:20px;border:2px solid var(--border);border-radius:10px;cursor:pointer;transition:all 0.2s;">
-                            <input type="radio" name="task_type" value="cnv_scenarios" style="margin-bottom:10px;" onchange="switchTaskType()">
+                        <label class="task-type-option" style="display:flex;flex-direction:column;padding:20px;border:2px solid {{ 'var(--accent)' if preset == 'cnv_sanity' else 'var(--border)' }};border-radius:10px;cursor:pointer;transition:all 0.2s;{{ 'background:var(--accent-light);' if preset == 'cnv_sanity' else '' }}">
+                            <input type="radio" name="task_type" value="cnv_scenarios" style="margin-bottom:10px;" onchange="switchTaskType()" {{ 'checked' if preset == 'cnv_sanity' else '' }}>
                             <span style="font-size:28px;margin-bottom:8px;">🔥</span>
                             <span style="font-weight:700;color:var(--text);font-size:15px;">CNV Scenarios</span>
                             <span style="color:var(--text-secondary);font-size:12px;margin-top:4px;">Run kube-burner workload tests: CPU, memory, disk, hot-plug, scale</span>
                         </label>
+                        <label class="task-type-option" style="display:flex;flex-direction:column;padding:20px;border:2px solid var(--border);border-radius:10px;cursor:pointer;transition:all 0.2s;">
+                            <input type="radio" name="task_type" value="cnv_combined" style="margin-bottom:10px;" onchange="switchTaskType()">
+                            <span style="font-size:28px;margin-bottom:8px;">🧬</span>
+                            <span style="font-weight:700;color:var(--text);font-size:15px;">CNV Combined</span>
+                            <span style="color:var(--text-secondary);font-size:12px;margin-top:4px;">Run scenarios, then health check, then cleanup -- all in one report</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ═══════════════════════════════════════════════════════════ -->
+            <!-- COMBINED RUN INFO BANNER (hidden by default) -->
+            <!-- ═══════════════════════════════════════════════════════════ -->
+            <div id="combined-run-banner" style="display:none;">
+                <div class="card" style="border:2px solid #8b5cf6;background:linear-gradient(135deg,rgba(139,92,246,0.08),rgba(99,102,241,0.05));">
+                    <div class="card-body" style="padding:20px;">
+                        <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+                            <span style="font-size:24px;">🧬</span>
+                            <div>
+                                <div style="font-weight:700;color:var(--text);font-size:16px;">Combined Run Pipeline</div>
+                                <div style="color:var(--text-secondary);font-size:13px;">Scenarios + Health Check + Cleanup in a single build</div>
+                            </div>
+                        </div>
+                        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;">
+                            <div style="padding:14px;border-radius:8px;background:var(--bg-secondary);border:1px solid var(--border);text-align:center;">
+                                <div style="font-size:22px;margin-bottom:4px;">1</div>
+                                <div style="font-weight:600;font-size:13px;color:var(--text);">Run Scenarios</div>
+                                <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">cleanup=false (resources kept)</div>
+                            </div>
+                            <div style="padding:14px;border-radius:8px;background:var(--bg-secondary);border:1px solid var(--border);text-align:center;">
+                                <div style="font-size:22px;margin-bottom:4px;">2</div>
+                                <div style="font-weight:600;font-size:13px;color:var(--text);">Health Check</div>
+                                <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">Inspect cluster with test resources</div>
+                            </div>
+                            <div style="padding:14px;border-radius:8px;background:var(--bg-secondary);border:1px solid var(--border);text-align:center;">
+                                <div style="font-size:22px;margin-bottom:4px;">3</div>
+                                <div style="font-weight:600;font-size:13px;color:var(--text);">Cleanup</div>
+                                <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">Remove test resources (optional)</div>
+                            </div>
+                        </div>
+                        <div style="margin-top:16px;padding:14px;border:1px solid var(--border);border-radius:8px;background:var(--bg-secondary);">
+                            <div style="display:flex;align-items:center;gap:10px;">
+                                <input type="checkbox" id="combined_cleanup" name="combined_cleanup" checked
+                                    style="width:18px;height:18px;accent-color:#8b5cf6;cursor:pointer;">
+                                <label for="combined_cleanup" style="cursor:pointer;flex:1;">
+                                    <span style="font-weight:600;font-size:14px;color:var(--text);">Cleanup After Health Check</span>
+                                    <span style="display:block;font-size:12px;color:var(--text-secondary);margin-top:2px;">Re-run scenarios with cleanup=true to remove all test resources after the health check completes</span>
+                                </label>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -167,6 +217,46 @@
                             {% endfor %}
                         </div>
                         {% endfor %}
+
+                        <!-- Custom Checks linked to scenarios -->
+                        {% set scenario_customs = [] %}
+                        {% for cc in custom_checks %}
+                            {% if cc.run_with in ['scenario', 'both'] %}
+                                {% if scenario_customs.append(cc) %}{% endif %}
+                            {% endif %}
+                        {% endfor %}
+                        {% if scenario_customs %}
+                        <div class="category-header" onclick="toggleCategory(this)" style="cursor:pointer;display:flex;align-items:center;">
+                            🧪 Custom Checks
+                            <span style="margin-left:8px;font-size:11px;color:var(--text-muted);font-weight:400;">User-defined validations</span>
+                            <span style="font-size:11px;padding:2px 8px;border-radius:8px;background:#8b5cf620;color:#8b5cf6;margin-left:8px;">{{ scenario_customs|length }}</span>
+                            <span class="collapse-icon" style="margin-left:auto;font-size:12px;">▼</span>
+                        </div>
+                        <div class="checkbox-grid category-content">
+                            {% for cc in scenario_customs %}
+                            <div class="checkbox-item has-commands">
+                                <input type="checkbox" id="scenario_custom_{{ cc.id }}" name="scenario_custom_checks" value="{{ cc.id }}"
+                                    class="scenario-input" data-category="Custom">
+                                <label for="scenario_custom_{{ cc.id }}">
+                                    <span class="check-name">{% if cc.check_type == 'script' %}📜{% else %}🧪{% endif %} {{ cc.name }}</span>
+                                    <span class="check-desc">{{ cc.description or 'Custom check' }}{% if cc.check_type == 'script' %} <em>(script)</em>{% endif %}{% if cc.linked_scenario %} · linked to {{ cc.linked_scenario }}{% endif %}</span>
+                                </label>
+                                <button type="button" class="cmd-toggle-btn" onclick="event.stopPropagation();this.closest('.checkbox-item').classList.toggle('show-cmds');" title="Show details">⌘</button>
+                                <div class="cmd-panel">
+                                    <div class="cmd-panel-label">{% if cc.check_type == 'script' %}Script{% else %}Command{% endif %} Details</div>
+                                    <div class="cmd-entry">
+                                        {% if cc.check_type == 'script' %}
+                                        <code class="cmd-line" style="white-space:pre-wrap;font-size:11px;">{{ cc.script_content[:300] }}{% if cc.script_content|length > 300 %}...{% endif %}</code>
+                                        {% else %}
+                                        <code class="cmd-line">{{ cc.command }}</code>
+                                        {% endif %}
+                                        <div class="cmd-validates">Expected: {{ cc.expected_value or '(any)' }} ({{ cc.match_type }})</div>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
                     </div>
                 </div>
 
@@ -258,11 +348,11 @@
 
                 <!-- Variable Overrides -->
                 <div class="card">
-                    <div class="card-header collapsed" onclick="toggleCard(this)">
+                    <div class="card-header" onclick="toggleCard(this)">
                         🔧 Variable Overrides (Advanced)
-                        <span class="collapse-icon" style="margin-left:auto;">▼</span>
+                        <span class="collapse-icon" style="margin-left:auto;">▲</span>
                     </div>
-                    <div class="card-body collapsed">
+                    <div class="card-body">
                         <!-- ── Global Parameters ────────────────────────────── -->
                         <div style="margin-bottom:24px;">
                             <div style="font-weight:700;font-size:14px;color:var(--text);margin-bottom:6px;display:flex;align-items:center;gap:8px;">
@@ -271,16 +361,35 @@
                             <p style="font-size:12px;color:var(--text-muted);margin-bottom:12px;">
                                 Apply to all selected scenarios. Leave empty to use defaults.
                             </p>
-                            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;">
+                            <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;">
                                 {% for var_name, var_info in cnv_global_vars.items() %}
                                 <div>
                                     <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:4px;">
                                         {{ var_info.icon }} <strong>{{ var_info.label }}</strong>
                                     </label>
+                                    {% if var_info.type == 'bool' %}
+                                    {% set def_sanity = var_info.default.sanity if var_info.default is mapping else var_info.default %}
+                                    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg-secondary);">
+                                        <input type="hidden" name="cnv_var_{{ var_name }}" value="false">
+                                        <input type="checkbox" name="cnv_var_{{ var_name }}" value="true"
+                                            {% if cnv_config.global_vars is defined and var_name in cnv_config.global_vars %}
+                                                {% if cnv_config.global_vars[var_name] in [true, 'true', 'True', '1'] %}checked{% endif %}
+                                            {% elif def_sanity %}checked{% endif %}
+                                            style="width:18px;height:18px;accent-color:var(--accent);cursor:pointer;">
+                                        <span style="font-size:13px;color:var(--text);">Enabled</span>
+                                    </label>
+                                    {% else %}
+                                    {% set ph_sanity = var_info.placeholder.sanity if var_info.placeholder is mapping else (var_info.placeholder or '') %}
+                                    {% set ph_full = var_info.placeholder.full if var_info.placeholder is mapping else (var_info.placeholder or '') %}
+                                    {% set cur_ph = ph_full if cnv_config.mode == 'full' else ph_sanity %}
                                     <input type="text" name="cnv_var_{{ var_name }}"
+                                        class="cnv-global-var-input"
                                         value="{{ cnv_config.global_vars[var_name] if cnv_config.global_vars is defined and var_name in cnv_config.global_vars and cnv_config.global_vars[var_name] else '' }}"
-                                        placeholder="{{ var_info.placeholder or ('Default: ' + (var_info.default|string)) }}"
+                                        placeholder="{{ cur_ph }}"
+                                        data-placeholder-sanity="{{ ph_sanity }}"
+                                        data-placeholder-full="{{ ph_full }}"
                                         style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;background:var(--bg-secondary);">
+                                    {% endif %}
                                 </div>
                                 {% endfor %}
                             </div>
@@ -353,11 +462,11 @@
                 </div>
                 <div class="card-body">
                     <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:20px;">
-                        <div class="checkbox-item" style="flex-direction:column;align-items:stretch;">
+                        <div class="checkbox-item" style="flex-direction:column;align-items:stretch;{% if not current_user.is_admin %}opacity:0.45;pointer-events:none;{% endif %}" {% if not current_user.is_admin %}title="Admin only"{% endif %}>
                             <div style="display:flex;align-items:flex-start;gap:12px;">
-                                <input type="checkbox" id="opt_jira" name="check_jira" {{ 'checked' if preset == 'all' else '' }} onchange="toggleJiraScan()">
+                                <input type="checkbox" id="opt_jira" name="check_jira" {{ 'checked' if preset == 'all' and current_user.is_admin else '' }} onchange="toggleJiraScan()" {% if not current_user.is_admin %}disabled{% endif %}>
                                 <label for="opt_jira">
-                                    <span class="check-name">🔍 Jira Integration</span>
+                                    <span class="check-name">🔍 Jira Integration{% if not current_user.is_admin %} (Admin only){% endif %}</span>
                                     <span class="check-desc">Check Jira for recent bugs & suggest adding new tests</span>
                                 </label>
                             </div>
@@ -379,131 +488,6 @@
                             <input type="email" name="email_to" id="email_to" placeholder="Enter email address (e.g. user@redhat.com)" 
                                 style="margin-top:10px;padding:8px 12px;border:1px solid var(--border);border-radius:6px;font-size:13px;width:100%;"
                                 value="{{ current_user.email }}">
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Scheduling Options -->
-            <div class="card">
-                <div class="card-header" onclick="toggleCard(this)">
-                    🕐 Schedule Build
-                    <span class="collapse-icon" style="margin-left:auto;">▼</span>
-                </div>
-                <div class="card-body">
-                    <div style="margin-bottom:20px;">
-                        <div style="font-weight:600;color:var(--text);margin-bottom:12px;font-size:14px;">Run Type</div>
-                        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;">
-                            <label class="schedule-option" style="display:flex;flex-direction:column;padding:16px;border:2px solid var(--border);border-radius:8px;cursor:pointer;transition:all 0.2s;">
-                                <input type="radio" name="schedule_type" value="now" style="margin-bottom:8px;" onchange="toggleScheduleOptions()" checked>
-                                <span style="font-weight:600;color:var(--text);font-size:14px;">▶️ Run Now</span>
-                                <span style="color:var(--text-secondary);font-size:12px;margin-top:4px;">Execute immediately</span>
-                            </label>
-                            <label class="schedule-option" style="display:flex;flex-direction:column;padding:16px;border:2px solid var(--border);border-radius:8px;cursor:pointer;transition:all 0.2s;">
-                                <input type="radio" name="schedule_type" value="once" style="margin-bottom:8px;" onchange="toggleScheduleOptions()">
-                                <span style="font-weight:600;color:var(--text);font-size:14px;">📅 Schedule Once</span>
-                                <span style="color:var(--text-secondary);font-size:12px;margin-top:4px;">Run at specific date/time</span>
-                            </label>
-                            <label class="schedule-option" style="display:flex;flex-direction:column;padding:16px;border:2px solid var(--border);border-radius:8px;cursor:pointer;transition:all 0.2s;">
-                                <input type="radio" name="schedule_type" value="recurring" style="margin-bottom:8px;" onchange="toggleScheduleOptions()">
-                                <span style="font-weight:600;color:var(--text);font-size:14px;">🔄 Recurring</span>
-                                <span style="color:var(--text-secondary);font-size:12px;margin-top:4px;">Run on a schedule</span>
-                            </label>
-                        </div>
-                    </div>
-                    
-                    <!-- Schedule Once Options -->
-                    <div id="schedule-once-options" style="display:none;">
-                        <hr style="border:none;border-top:1px solid var(--border);margin:20px 0;">
-                        <div style="font-weight:600;color:var(--text);margin-bottom:12px;font-size:14px;">📅 Schedule Date & Time</div>
-                        <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;">
-                            <div>
-                                <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:6px;">Date</label>
-                                <input type="date" name="schedule_date" id="schedule_date" 
-                                    style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:6px;font-size:14px;">
-                            </div>
-                            <div>
-                                <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:6px;">Time</label>
-                                <input type="time" name="schedule_time" id="schedule_time" 
-                                    style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:6px;font-size:14px;">
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Recurring Options -->
-                    <div id="schedule-recurring-options" style="display:none;">
-                        <hr style="border:none;border-top:1px solid var(--border);margin:20px 0;">
-                        <div style="font-weight:600;color:var(--text);margin-bottom:12px;font-size:14px;">🔄 Recurring Schedule</div>
-                        
-                        <div style="margin-bottom:16px;">
-                            <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:6px;">Frequency</label>
-                            <select name="recurring_frequency" id="recurring_frequency" onchange="toggleRecurringDetails()"
-                                style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:6px;font-size:14px;background:var(--bg-secondary);">
-                                <option value="hourly">Every Hour</option>
-                                <option value="daily" selected>Daily</option>
-                                <option value="weekly">Weekly</option>
-                                <option value="monthly">Monthly</option>
-                                <option value="custom">Custom (Cron)</option>
-                            </select>
-                        </div>
-                        
-                        <!-- Time for daily/weekly/monthly -->
-                        <div id="recurring-time" style="margin-bottom:16px;">
-                            <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:6px;">Time of Day</label>
-                            <input type="time" name="recurring_time" id="recurring_time" value="06:00"
-                                style="width:200px;padding:10px 12px;border:1px solid var(--border);border-radius:6px;font-size:14px;">
-                        </div>
-                        
-                        <!-- Days for weekly -->
-                        <div id="recurring-days" style="display:none;margin-bottom:16px;">
-                            <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:6px;">Days of Week</label>
-                            <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                                <label style="display:flex;align-items:center;gap:4px;padding:8px 12px;border:1px solid var(--border);border-radius:6px;cursor:pointer;">
-                                    <input type="checkbox" name="recurring_days" value="mon" checked> Mon
-                                </label>
-                                <label style="display:flex;align-items:center;gap:4px;padding:8px 12px;border:1px solid var(--border);border-radius:6px;cursor:pointer;">
-                                    <input type="checkbox" name="recurring_days" value="tue"> Tue
-                                </label>
-                                <label style="display:flex;align-items:center;gap:4px;padding:8px 12px;border:1px solid var(--border);border-radius:6px;cursor:pointer;">
-                                    <input type="checkbox" name="recurring_days" value="wed"> Wed
-                                </label>
-                                <label style="display:flex;align-items:center;gap:4px;padding:8px 12px;border:1px solid var(--border);border-radius:6px;cursor:pointer;">
-                                    <input type="checkbox" name="recurring_days" value="thu"> Thu
-                                </label>
-                                <label style="display:flex;align-items:center;gap:4px;padding:8px 12px;border:1px solid var(--border);border-radius:6px;cursor:pointer;">
-                                    <input type="checkbox" name="recurring_days" value="fri" checked> Fri
-                                </label>
-                                <label style="display:flex;align-items:center;gap:4px;padding:8px 12px;border:1px solid var(--border);border-radius:6px;cursor:pointer;">
-                                    <input type="checkbox" name="recurring_days" value="sat"> Sat
-                                </label>
-                                <label style="display:flex;align-items:center;gap:4px;padding:8px 12px;border:1px solid var(--border);border-radius:6px;cursor:pointer;">
-                                    <input type="checkbox" name="recurring_days" value="sun"> Sun
-                                </label>
-                            </div>
-                        </div>
-                        
-                        <!-- Day of month for monthly -->
-                        <div id="recurring-dayofmonth" style="display:none;margin-bottom:16px;">
-                            <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:6px;">Day of Month</label>
-                            <input type="number" name="recurring_dayofmonth" id="recurring_dayofmonth" value="1" min="1" max="28"
-                                style="width:100px;padding:10px 12px;border:1px solid var(--border);border-radius:6px;font-size:14px;">
-                        </div>
-                        
-                        <!-- Custom cron -->
-                        <div id="recurring-cron" style="display:none;margin-bottom:16px;">
-                            <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:6px;">Cron Expression</label>
-                            <input type="text" name="recurring_cron" id="recurring_cron" placeholder="0 6 * * *" 
-                                style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:6px;font-size:14px;font-family:monospace;">
-                            <span style="font-size:11px;color:var(--text-muted);margin-top:4px;display:block;">
-                                Format: minute hour day month weekday (e.g., "0 6 * * 1-5" = 6AM weekdays)
-                            </span>
-                        </div>
-                        
-                        <!-- Schedule name -->
-                        <div style="margin-bottom:16px;">
-                            <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:6px;">Schedule Name (optional)</label>
-                            <input type="text" name="schedule_name" id="schedule_name" placeholder="e.g., Daily Morning Check"
-                                style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:6px;font-size:14px;">
                         </div>
                     </div>
                 </div>
@@ -555,10 +539,10 @@
                                     <span class="check-desc">Search Gmail for related discussions & alerts</span>
                                 </label>
                             </div>
-                            <div class="checkbox-item" style="padding:12px;border:1px solid var(--border);border-radius:8px;">
-                                <input type="checkbox" id="opt_web_rca" name="rca_web" {{ 'checked' if preset == 'all' else '' }}>
+                            <div class="checkbox-item" style="padding:12px;border:1px solid var(--border);border-radius:8px;opacity:0.45;pointer-events:none;" title="Not available yet">
+                                <input type="checkbox" id="opt_web_rca" name="rca_web" disabled>
                                 <label for="opt_web_rca">
-                                    <span class="check-name">🌐 Web Search</span>
+                                    <span class="check-name">🌐 Web Search (Coming soon)</span>
                                     <span class="check-desc">Search docs, forums & knowledge bases</span>
                                 </label>
                             </div>
@@ -712,9 +696,171 @@
                         {% endfor %}
                     </div>
                     {% endfor %}
+
+                    <!-- Custom Checks -->
+                    {% if custom_checks %}
+                    <div class="category-header" onclick="toggleCategory(this)" style="cursor:pointer;display:flex;align-items:center;">
+                        🧪 Custom Checks
+                        <span style="font-size:11px;padding:2px 8px;border-radius:8px;background:#8b5cf620;color:#8b5cf6;margin-left:8px;">{{ custom_checks|length }}</span>
+                        <span class="collapse-icon" style="margin-left:auto;font-size:12px;">▼</span>
+                    </div>
+                    <div class="checkbox-grid category-content">
+                        {% for cc in custom_checks %}
+                        {% if cc.run_with in ['health_check', 'both'] %}
+                        <div class="checkbox-item has-commands">
+                            <input type="checkbox" id="custom_{{ cc.id }}" name="custom_checks" value="{{ cc.id }}"
+                                class="check-input" data-category="Custom">
+                            <label for="custom_{{ cc.id }}">
+                                <span class="check-name">{% if cc.check_type == 'script' %}📜{% else %}🧪{% endif %} {{ cc.name }}</span>
+                                <span class="check-desc">{{ cc.description or 'Custom check' }}{% if cc.check_type == 'script' %} <em>(script{% if cc.script_filename %}: {{ cc.script_filename }}{% endif %})</em>{% endif %}</span>
+                            </label>
+                            <button type="button" class="cmd-toggle-btn" onclick="event.stopPropagation();this.closest('.checkbox-item').classList.toggle('show-cmds');" title="Show details">⌘</button>
+                            <div class="cmd-panel">
+                                <div class="cmd-panel-label">{% if cc.check_type == 'script' %}Script{% else %}Command{% endif %} Details</div>
+                                <div class="cmd-entry">
+                                    {% if cc.check_type == 'script' %}
+                                    <code class="cmd-line" style="white-space:pre-wrap;font-size:11px;">{{ cc.script_content[:300] }}{% if cc.script_content|length > 300 %}...{% endif %}</code>
+                                    {% else %}
+                                    <code class="cmd-line">{{ cc.command }}</code>
+                                    {% endif %}
+                                    <div class="cmd-validates">Expected: {{ cc.expected_value or '(any)' }} ({{ cc.match_type }})</div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+                        {% endfor %}
+                    </div>
+                    {% endif %}
                 </div>
             </div>
             </div><!-- /health-check-section -->
+
+            <!-- ═══════════════════════════════════════════════════════════ -->
+            <!-- SCHEDULING OPTIONS (always visible, all task types) -->
+            <!-- ═══════════════════════════════════════════════════════════ -->
+            <div class="card">
+                <div class="card-header" onclick="toggleCard(this)">
+                    🕐 Schedule Build
+                    <span class="collapse-icon" style="margin-left:auto;">▼</span>
+                </div>
+                <div class="card-body">
+                    <div style="margin-bottom:20px;">
+                        <div style="font-weight:600;color:var(--text);margin-bottom:12px;font-size:14px;">Run Type</div>
+                        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;">
+                            <label class="schedule-option" style="display:flex;flex-direction:column;padding:16px;border:2px solid var(--border);border-radius:8px;cursor:pointer;transition:all 0.2s;">
+                                <input type="radio" name="schedule_type" value="now" style="margin-bottom:8px;" onchange="toggleScheduleOptions()" checked>
+                                <span style="font-weight:600;color:var(--text);font-size:14px;">▶️ Run Now</span>
+                                <span style="color:var(--text-secondary);font-size:12px;margin-top:4px;">Execute immediately</span>
+                            </label>
+                            <label class="schedule-option" style="display:flex;flex-direction:column;padding:16px;border:2px solid var(--border);border-radius:8px;cursor:pointer;transition:all 0.2s;">
+                                <input type="radio" name="schedule_type" value="once" style="margin-bottom:8px;" onchange="toggleScheduleOptions()">
+                                <span style="font-weight:600;color:var(--text);font-size:14px;">📅 Schedule Once</span>
+                                <span style="color:var(--text-secondary);font-size:12px;margin-top:4px;">Run at specific date/time</span>
+                            </label>
+                            <label class="schedule-option" style="display:flex;flex-direction:column;padding:16px;border:2px solid var(--border);border-radius:8px;cursor:pointer;transition:all 0.2s;">
+                                <input type="radio" name="schedule_type" value="recurring" style="margin-bottom:8px;" onchange="toggleScheduleOptions()">
+                                <span style="font-weight:600;color:var(--text);font-size:14px;">🔄 Recurring</span>
+                                <span style="color:var(--text-secondary);font-size:12px;margin-top:4px;">Run on a schedule</span>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <!-- Schedule Once Options -->
+                    <div id="schedule-once-options" style="display:none;">
+                        <hr style="border:none;border-top:1px solid var(--border);margin:20px 0;">
+                        <div style="font-weight:600;color:var(--text);margin-bottom:12px;font-size:14px;">📅 Schedule Date & Time</div>
+                        <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;">
+                            <div>
+                                <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:6px;">Date</label>
+                                <input type="date" name="schedule_date" id="schedule_date" 
+                                    style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:6px;font-size:14px;">
+                            </div>
+                            <div>
+                                <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:6px;">Time</label>
+                                <input type="time" name="schedule_time" id="schedule_time" 
+                                    style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:6px;font-size:14px;">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Recurring Options -->
+                    <div id="schedule-recurring-options" style="display:none;">
+                        <hr style="border:none;border-top:1px solid var(--border);margin:20px 0;">
+                        <div style="font-weight:600;color:var(--text);margin-bottom:12px;font-size:14px;">🔄 Recurring Schedule</div>
+                        
+                        <div style="margin-bottom:16px;">
+                            <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:6px;">Frequency</label>
+                            <select name="recurring_frequency" id="recurring_frequency" onchange="toggleRecurringDetails()"
+                                style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:6px;font-size:14px;background:var(--bg-secondary);">
+                                <option value="hourly">Every Hour</option>
+                                <option value="daily" selected>Daily</option>
+                                <option value="weekly">Weekly</option>
+                                <option value="monthly">Monthly</option>
+                                <option value="custom">Custom (Cron)</option>
+                            </select>
+                        </div>
+                        
+                        <!-- Time for daily/weekly/monthly -->
+                        <div id="recurring-time" style="margin-bottom:16px;">
+                            <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:6px;">Time of Day</label>
+                            <input type="time" name="recurring_time" id="recurring_time" value="06:00"
+                                style="width:200px;padding:10px 12px;border:1px solid var(--border);border-radius:6px;font-size:14px;">
+                        </div>
+                        
+                        <!-- Days for weekly -->
+                        <div id="recurring-days" style="display:none;margin-bottom:16px;">
+                            <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:6px;">Days of Week</label>
+                            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                                <label style="display:flex;align-items:center;gap:4px;padding:8px 12px;border:1px solid var(--border);border-radius:6px;cursor:pointer;">
+                                    <input type="checkbox" name="recurring_days" value="mon" checked> Mon
+                                </label>
+                                <label style="display:flex;align-items:center;gap:4px;padding:8px 12px;border:1px solid var(--border);border-radius:6px;cursor:pointer;">
+                                    <input type="checkbox" name="recurring_days" value="tue"> Tue
+                                </label>
+                                <label style="display:flex;align-items:center;gap:4px;padding:8px 12px;border:1px solid var(--border);border-radius:6px;cursor:pointer;">
+                                    <input type="checkbox" name="recurring_days" value="wed"> Wed
+                                </label>
+                                <label style="display:flex;align-items:center;gap:4px;padding:8px 12px;border:1px solid var(--border);border-radius:6px;cursor:pointer;">
+                                    <input type="checkbox" name="recurring_days" value="thu"> Thu
+                                </label>
+                                <label style="display:flex;align-items:center;gap:4px;padding:8px 12px;border:1px solid var(--border);border-radius:6px;cursor:pointer;">
+                                    <input type="checkbox" name="recurring_days" value="fri" checked> Fri
+                                </label>
+                                <label style="display:flex;align-items:center;gap:4px;padding:8px 12px;border:1px solid var(--border);border-radius:6px;cursor:pointer;">
+                                    <input type="checkbox" name="recurring_days" value="sat"> Sat
+                                </label>
+                                <label style="display:flex;align-items:center;gap:4px;padding:8px 12px;border:1px solid var(--border);border-radius:6px;cursor:pointer;">
+                                    <input type="checkbox" name="recurring_days" value="sun"> Sun
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <!-- Day of month for monthly -->
+                        <div id="recurring-dayofmonth" style="display:none;margin-bottom:16px;">
+                            <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:6px;">Day of Month</label>
+                            <input type="number" name="recurring_dayofmonth" id="recurring_dayofmonth" value="1" min="1" max="28"
+                                style="width:100px;padding:10px 12px;border:1px solid var(--border);border-radius:6px;font-size:14px;">
+                        </div>
+                        
+                        <!-- Custom cron -->
+                        <div id="recurring-cron" style="display:none;margin-bottom:16px;">
+                            <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:6px;">Cron Expression</label>
+                            <input type="text" name="recurring_cron" id="recurring_cron" placeholder="0 6 * * *" 
+                                style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:6px;font-size:14px;font-family:monospace;">
+                            <span style="font-size:11px;color:var(--text-muted);margin-top:4px;display:block;">
+                                Format: minute hour day month weekday (e.g., "0 6 * * 1-5" = 6AM weekdays)
+                            </span>
+                        </div>
+                        
+                        <!-- Schedule name -->
+                        <div style="margin-bottom:16px;">
+                            <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:6px;">Schedule Name (optional)</label>
+                            <input type="text" name="schedule_name" id="schedule_name" placeholder="e.g., Daily Morning Check"
+                                style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:6px;font-size:14px;">
+                        </div>
+                    </div>
+                </div>
+            </div>
             
             <!-- Submit -->
             <div style="display:flex;gap:12px;margin-top:20px;">
@@ -752,7 +898,8 @@
         document.querySelector('input[name="rca_level"][value="full"]').checked = true;
         document.getElementById('opt_jira_rca').checked = true;
         document.getElementById('opt_email_rca').checked = true;
-        document.getElementById('opt_jira').checked = true;
+        var jiraOpt = document.getElementById('opt_jira');
+        if (!jiraOpt.disabled) jiraOpt.checked = true;
         document.getElementById('opt_email').checked = true;
         toggleRcaSources();
         return false;
@@ -904,20 +1051,24 @@
         var taskType = document.querySelector('input[name="task_type"]:checked').value;
         var hcSection = document.getElementById('health-check-section');
         var cnvSection = document.getElementById('cnv-scenarios-section');
+        var combinedBanner = document.getElementById('combined-run-banner');
         var submitBtn = document.getElementById('submit-btn');
 
         if (taskType === 'cnv_scenarios') {
             hcSection.style.display = 'none';
             cnvSection.style.display = 'block';
-            if (submitBtn.textContent.includes('Run Now')) {
-                submitBtn.innerHTML = '🔥 Run Scenarios';
-            }
+            combinedBanner.style.display = 'none';
+            submitBtn.innerHTML = '🔥 Run Scenarios';
+        } else if (taskType === 'cnv_combined') {
+            hcSection.style.display = 'block';
+            cnvSection.style.display = 'block';
+            combinedBanner.style.display = 'block';
+            submitBtn.innerHTML = '🧬 Run Combined';
         } else {
             hcSection.style.display = 'block';
             cnvSection.style.display = 'none';
-            if (submitBtn.textContent.includes('Run Scenarios')) {
-                submitBtn.innerHTML = '▶️ Run Now';
-            }
+            combinedBanner.style.display = 'none';
+            submitBtn.innerHTML = '▶️ Run Now';
         }
         updateTaskTypeStyles();
     }
@@ -965,6 +1116,15 @@
                 opt.style.background = 'transparent';
             }
         });
+        // Update global var placeholders based on selected mode
+        var mode = document.querySelector('input[name="scenario_mode"]:checked');
+        var modeVal = mode ? mode.value : 'sanity';
+        document.querySelectorAll('.cnv-global-var-input').forEach(function(inp) {
+            var ph = inp.getAttribute('data-placeholder-' + modeVal);
+            if (ph !== null) {
+                inp.placeholder = ph;
+            }
+        });
     }
 
     // ── Show only selected test-specific variable groups ─
@@ -998,10 +1158,22 @@
 
     // Initial state
     updateScenarioVarGroups();
+    updateModeStyles();
 
     // Init task type
     document.querySelectorAll('input[name="task_type"]').forEach(function(r) { r.addEventListener('change', switchTaskType); });
     switchTaskType();
+
+    // Quick Sanity preset: select all scenario tests + sanity mode
+    {% if preset == 'cnv_sanity' %}
+    (function() {
+        // Select sanity mode
+        var sanityRadio = document.querySelector('input[name="scenario_mode"][value="sanity"]');
+        if (sanityRadio) { sanityRadio.checked = true; updateModeStyles(); }
+        // Select all scenario tests
+        document.querySelectorAll('input.scenario-input[name="scenario_tests"]').forEach(function(cb) { cb.checked = true; });
+    })();
+    {% endif %}
 
     // CNV email toggle
     var cnvEmailCb = document.getElementById('cnv_send_email');

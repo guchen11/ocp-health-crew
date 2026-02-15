@@ -96,6 +96,7 @@ class Build(db.Model):
             'output': self.output or '',
             'report_file': self.report_file,
             'timestamp': self.started_at.strftime('%Y-%m-%d %H:%M') if self.started_at else '',
+            'started_at_iso': self.started_at.isoformat() + 'Z' if self.started_at else '',
             'duration': self.duration or '',
             'triggered_by': self.triggered_by_user.username if self.triggered_by_user else 'system',
             'scheduled': self.scheduled,
@@ -215,3 +216,47 @@ class AuditLog(db.Model):
 
     def __repr__(self):
         return f'<AuditLog {self.username}: {self.action}>'
+
+
+class CustomCheck(db.Model):
+    """User-defined custom health checks."""
+
+    __tablename__ = 'custom_checks'
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(200), nullable=False)
+    check_type = db.Column(db.String(10), default='command')  # 'command' or 'script'
+    command = db.Column(db.Text, nullable=False, default='')
+    script_content = db.Column(db.Text, nullable=True)  # shell script content
+    script_filename = db.Column(db.String(255), nullable=True)  # original filename
+    expected_value = db.Column(db.Text, nullable=False, default='')
+    match_type = db.Column(db.String(20), default='contains')  # contains, exact, regex, exit_code
+    description = db.Column(db.Text, default='')
+    run_with = db.Column(db.String(30), default='health_check')  # health_check, scenario, both
+    linked_scenario = db.Column(db.String(100), nullable=True)  # e.g. 'cpu-limits' or null for all
+    enabled = db.Column(db.Boolean, default=True)
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    owner = db.relationship('User', backref='custom_checks')
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'check_type': self.check_type or 'command',
+            'command': self.command or '',
+            'script_content': self.script_content or '',
+            'script_filename': self.script_filename or '',
+            'expected_value': self.expected_value,
+            'match_type': self.match_type,
+            'description': self.description,
+            'run_with': self.run_with,
+            'linked_scenario': self.linked_scenario or '',
+            'enabled': self.enabled,
+            'created_by': self.owner.username if self.owner else 'system',
+            'created_at': self.created_at.strftime('%Y-%m-%d %H:%M') if self.created_at else '',
+        }
+
+    def __repr__(self):
+        return f'<CustomCheck {self.name} (by user {self.created_by})>'

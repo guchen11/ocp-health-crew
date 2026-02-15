@@ -2262,10 +2262,21 @@ def escape_html(text):
     """Escape HTML special characters"""
     return str(text).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
+class SSHConnectionError(Exception):
+    """Raised when SSH connection to the target host fails."""
+    def __init__(self, message, host=None, user=None, key_path=None, original_error=None):
+        self.host = host
+        self.user = user
+        self.key_path = key_path
+        self.original_error = original_error
+        super().__init__(message)
+
+
 def get_ssh_client():
     """
     Get or create SSH client.
     Connects directly to the target host that has oc access.
+    Raises SSHConnectionError with detailed info on failure.
     """
     global ssh_client
 
@@ -2277,30 +2288,193 @@ def get_ssh_client():
         # Transport is dead; reset
         ssh_client = None
 
+    # Validate configuration before attempting connection
+    if not HOST:
+        raise SSHConnectionError(
+            "No target host configured. Set RH_LAB_HOST environment variable or pass --server <host>.",
+            host=HOST, user=USER, key_path=KEY_PATH,
+        )
+    if not KEY_PATH:
+        raise SSHConnectionError(
+            "No SSH key path configured. Set SSH_KEY_PATH environment variable.",
+            host=HOST, user=USER, key_path=KEY_PATH,
+        )
+    if not os.path.isfile(KEY_PATH):
+        raise SSHConnectionError(
+            f"SSH key file not found: {KEY_PATH}",
+            host=HOST, user=USER, key_path=KEY_PATH,
+        )
+
     ssh_client = paramiko.SSHClient()
     ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    ssh_client.connect(HOST, username=USER, key_filename=KEY_PATH, timeout=10)
+    try:
+        ssh_client.connect(HOST, username=USER, key_filename=KEY_PATH, timeout=10)
+    except paramiko.AuthenticationException as e:
+        ssh_client = None
+        raise SSHConnectionError(
+            f"SSH authentication failed for {USER}@{HOST} (key: {KEY_PATH}): {e}",
+            host=HOST, user=USER, key_path=KEY_PATH, original_error=e,
+        )
+    except paramiko.SSHException as e:
+        ssh_client = None
+        raise SSHConnectionError(
+            f"SSH protocol error connecting to {USER}@{HOST}: {e}",
+            host=HOST, user=USER, key_path=KEY_PATH, original_error=e,
+        )
+    except OSError as e:
+        ssh_client = None
+        raise SSHConnectionError(
+            f"Cannot connect to {HOST} — host unreachable or connection refused: {e}",
+            host=HOST, user=USER, key_path=KEY_PATH, original_error=e,
+        )
+    except Exception as e:
+        ssh_client = None
+        raise SSHConnectionError(
+            f"SSH connection failed to {USER}@{HOST} (key: {KEY_PATH}): {e}",
+            host=HOST, user=USER, key_path=KEY_PATH, original_error=e,
+        )
 
     return ssh_client
 
 def ssh_command(command, timeout=30):
-    """Execute command via SSH"""
+    """Execute command via SSH. Raises SSHConnectionError if connection fails."""
     full_cmd = f"export KUBECONFIG={KUBECONFIG} && {command}"
     try:
         client = get_ssh_client()
         stdin, stdout, stderr = client.exec_command(full_cmd, timeout=timeout)
         return stdout.read().decode().strip()
-    except:
+    except SSHConnectionError:
+        raise  # Let connection errors propagate — don't mask them
+    except Exception:
         return ""
 
 def collect_data():
-    """Collect all cluster health data"""
+    """Collect all cluster health data. Raises SSHConnectionError if cannot connect."""
     import sys
     
     def log(msg):
         print(f"  {msg}", flush=True)
     
     log("📊 Starting data collection...")
+    
+    # ── Validate SSH connection upfront ──
+    log("  → Verifying SSH connection to host...")
+    try:
+        client = get_ssh_client()
+    except SSHConnectionError:
+        raise  # Propagate with full details
+    
+    # Quick smoke test — verify oc is reachable (capture stderr for diagnostics)
+    log("  → Verifying oc CLI access...")
+    diag_cmd = (
+        f"export KUBECONFIG={KUBECONFIG}; "
+        "echo \"KUBECONFIG=$KUBECONFIG\"; "
+        "echo \"KUBECONFIG_EXISTS=$(test -f $KUBECONFIG && echo yes || echo no)\"; "
+        "echo \"OC_PATH=$(which oc 2>/dev/null || echo NOT_FOUND)\"; "
+        "OC_OUT=$(oc whoami 2>&1); OC_RC=$?; "
+        "echo \"OC_RC=$OC_RC\"; "
+        "echo \"OC_OUT=$OC_OUT\""
+    )
+    # Run raw (without ssh_command's KUBECONFIG prefix) to control the flow
+    try:
+        raw_client = get_ssh_client()
+        stdin, stdout, stderr = raw_client.exec_command(diag_cmd, timeout=15)
+        diag_output = stdout.read().decode().strip()
+    except SSHConnectionError:
+        raise
+    except Exception as e:
+        diag_output = f"Failed to run diagnostics: {e}"
+
+    # Parse diagnostic output
+    diag = {}
+    for line in diag_output.split('\n'):
+        if '=' in line:
+            key, _, val = line.partition('=')
+            diag[key.strip()] = val.strip()
+
+    oc_rc = diag.get('OC_RC', '1')
+    oc_out = diag.get('OC_OUT', '')
+    oc_path = diag.get('OC_PATH', 'NOT_FOUND')
+    kc_exists = diag.get('KUBECONFIG_EXISTS', 'no')
+
+    if oc_rc != '0' or not oc_out or oc_out == 'NOT_FOUND':
+        # Check if this is an auth/login issue that we can auto-fix
+        is_auth_issue = any(kw in oc_out.lower() for kw in [
+            'unauthorized', 'must be logged in', 'token', 'forbidden',
+            'certificate has expired', 'certificate is not yet valid',
+        ]) if oc_out else False
+
+        if is_auth_issue and oc_path != 'NOT_FOUND' and kc_exists == 'yes':
+            log(f"  ⚠ Auth expired: {oc_out}")
+            log(f"  → Attempting auto-login with kubeadmin credentials...")
+            # Derive paths from KUBECONFIG — kubeadmin-password is in the same dir
+            kc_dir = '/'.join(KUBECONFIG.rsplit('/', 1)[:-1]) if '/' in KUBECONFIG else '.'
+            login_cmd = (
+                f"export KUBECONFIG={KUBECONFIG}; "
+                f"PASS_FILE={kc_dir}/kubeadmin-password; "
+                "if [ -f \"$PASS_FILE\" ]; then "
+                "  oc login -u kubeadmin -p $(cat \"$PASS_FILE\") 2>&1; "
+                "  echo \"LOGIN_RC=$?\"; "
+                "  echo \"LOGIN_USER=$(oc whoami 2>&1)\"; "
+                "else "
+                "  echo \"LOGIN_RC=1\"; "
+                "  echo \"LOGIN_USER=PASS_FILE_NOT_FOUND: $PASS_FILE\"; "
+                "fi"
+            )
+            try:
+                raw_client = get_ssh_client()
+                stdin, stdout, stderr = raw_client.exec_command(login_cmd, timeout=20)
+                login_output = stdout.read().decode().strip()
+            except SSHConnectionError:
+                raise
+            except Exception as e:
+                login_output = f"LOGIN_RC=1\nLOGIN_USER=auto-login failed: {e}"
+
+            login_info = {}
+            for line in login_output.split('\n'):
+                if '=' in line:
+                    key, _, val = line.partition('=')
+                    login_info[key.strip()] = val.strip()
+
+            login_rc = login_info.get('LOGIN_RC', '1')
+            login_user = login_info.get('LOGIN_USER', '')
+
+            if login_rc == '0' and login_user and 'PASS_FILE_NOT_FOUND' not in login_user:
+                log(f"  ✓ Auto-login successful! Connected as: {login_user}")
+            else:
+                # Auto-login failed — report full details
+                fail_reason = login_user or 'unknown error'
+                log(f"  ✗ Auto-login failed: {fail_reason}")
+                raise SSHConnectionError(
+                    f"'oc' CLI check failed on {HOST}: {oc_out}\n"
+                    f"  Auto-login attempted but failed: {fail_reason}\n"
+                    f"  KUBECONFIG={KUBECONFIG} (exists: {kc_exists})\n"
+                    f"  oc path: {oc_path}\n"
+                    f"  Manually run: oc login -u kubeadmin -p $(cat {kc_dir}/kubeadmin-password)",
+                    host=HOST, user=USER, key_path=KEY_PATH,
+                )
+        else:
+            # Non-auth issue — fail with detailed error
+            details = []
+            if oc_path == 'NOT_FOUND':
+                details.append("'oc' binary not found in PATH")
+            if kc_exists == 'no':
+                details.append(f"KUBECONFIG file not found: {KUBECONFIG}")
+            if oc_out and oc_path != 'NOT_FOUND':
+                details.append(f"oc error: {oc_out}")
+            if not details:
+                details.append("oc whoami returned empty output")
+
+            detail_str = '; '.join(details)
+            raise SSHConnectionError(
+                f"'oc' CLI check failed on {HOST}: {detail_str}\n"
+                f"  KUBECONFIG={KUBECONFIG} (exists: {kc_exists})\n"
+                f"  oc path: {oc_path}\n"
+                f"  Ensure the cluster API is reachable and the kubeconfig is valid.",
+                host=HOST, user=USER, key_path=KEY_PATH,
+            )
+    else:
+        log(f"  ✓ Connected as: {oc_out}")
     
     # Run optimized commands
     log("  → Checking nodes...")
@@ -2707,6 +2881,81 @@ def has_issues(data):
         len(data["cordoned_vms"]) > 0 or
         len(data["stuck_migrations"]) > 0
     )
+
+def generate_error_report_html(ssh_error):
+    """Generate an HTML error report when SSH connection fails."""
+    from datetime import datetime as _dt
+    ts = _dt.now().strftime("%Y-%m-%d %H:%M:%S")
+    host = escape_html(str(ssh_error.host or '(not set)'))
+    user = escape_html(str(ssh_error.user or '(not set)'))
+    key = escape_html(str(ssh_error.key_path or '(not set)'))
+    error_msg = escape_html(str(ssh_error))
+    orig = ''
+    if ssh_error.original_error:
+        orig = escape_html(f"{type(ssh_error.original_error).__name__}: {ssh_error.original_error}")
+
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Health Check — Connection Error</title>
+<style>
+  :root {{ --bg:#1a1a2e; --card:#16213e; --red:#e74c3c; --yellow:#f39c12; --text:#e0e0e0; --muted:#888; }}
+  * {{ margin:0; padding:0; box-sizing:border-box; }}
+  body {{ font-family:'Segoe UI',system-ui,-apple-system,sans-serif; background:var(--bg); color:var(--text); padding:20px; }}
+  .container {{ max-width:800px; margin:0 auto; }}
+  .header {{ text-align:center; padding:30px 0; }}
+  .header h1 {{ color:var(--red); font-size:2em; margin-bottom:10px; }}
+  .header .ts {{ color:var(--muted); font-size:0.9em; }}
+  .error-card {{ background:var(--card); border:2px solid var(--red); border-radius:12px; padding:24px; margin:20px 0; }}
+  .error-card h2 {{ color:var(--red); margin-bottom:16px; font-size:1.3em; }}
+  .error-msg {{ background:#1a1a1a; border-radius:8px; padding:16px; font-family:monospace; color:#ff6b6b;
+    white-space:pre-wrap; word-break:break-word; margin-bottom:16px; font-size:0.95em; }}
+  .details {{ margin:16px 0; }}
+  .details table {{ width:100%; border-collapse:collapse; }}
+  .details td {{ padding:8px 12px; border-bottom:1px solid #333; }}
+  .details td:first-child {{ color:var(--yellow); font-weight:600; width:100px; }}
+  .details td:last-child {{ font-family:monospace; }}
+  .troubleshoot {{ background:var(--card); border:1px solid #333; border-radius:12px; padding:24px; margin:20px 0; }}
+  .troubleshoot h2 {{ color:var(--yellow); margin-bottom:16px; }}
+  .troubleshoot ol {{ padding-left:20px; }}
+  .troubleshoot li {{ margin:8px 0; line-height:1.6; }}
+  .troubleshoot code {{ background:#1a1a1a; padding:2px 8px; border-radius:4px; font-size:0.9em; }}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>&#x274C; Connection Error</h1>
+    <div class="ts">{ts}</div>
+  </div>
+  <div class="error-card">
+    <h2>SSH Connection Failed</h2>
+    <div class="error-msg">{error_msg}</div>
+    <div class="details">
+      <table>
+        <tr><td>Host</td><td>{host}</td></tr>
+        <tr><td>User</td><td>{user}</td></tr>
+        <tr><td>SSH Key</td><td>{key}</td></tr>
+        {"<tr><td>Detail</td><td>" + orig + "</td></tr>" if orig else ""}
+      </table>
+    </div>
+  </div>
+  <div class="troubleshoot">
+    <h2>&#x1F527; Troubleshooting</h2>
+    <ol>
+      <li>Verify the host is reachable: <code>ssh {user}@{host}</code></li>
+      <li>Check the SSH key exists and has correct permissions (<code>chmod 600</code>)</li>
+      <li>Ensure <code>RH_LAB_HOST</code> and <code>SSH_KEY_PATH</code> environment variables are set correctly</li>
+      <li>If using <code>--server</code>, double-check the hostname/IP is correct</li>
+      <li>Verify the target host allows SSH key-based authentication</li>
+      <li>Check firewall rules and network connectivity to port 22</li>
+    </ol>
+  </div>
+</div>
+</body>
+</html>"""
+
 
 def generate_html_report(data, include_rca=False, rca_level='none'):
     """Generate Grafana-style HTML dashboard report
@@ -3549,6 +3798,10 @@ def main():
             print(f"  💡 {len(new_checks)} new checks will be included in this run.\n")
     
     print(f"  {BLUE}📡 Connecting to cluster...{RESET}")
+    print(f"     Host: {HOST or '(not set)'}")
+    print(f"     User: {USER}")
+    print(f"     Key:  {KEY_PATH or '(not set)'}")
+    print()
     
     try:
         print(f"\n  {BLUE}📊 Collecting cluster data...{RESET}")
@@ -3648,6 +3901,45 @@ def main():
         
         print()
         
+    except SSHConnectionError as e:
+        RED = '\033[91m'
+        print(f"\n  {RED}{'='*60}{RESET}")
+        print(f"  {RED}❌ CONNECTION ERROR{RESET}")
+        print(f"  {RED}{'='*60}{RESET}")
+        print(f"\n  {RED}{e}{RESET}\n")
+        print(f"  {YELLOW}Connection details:{RESET}")
+        print(f"     Host:  {e.host or '(not set)'}")
+        print(f"     User:  {e.user or '(not set)'}")
+        print(f"     Key:   {e.key_path or '(not set)'}")
+        if e.original_error:
+            print(f"     Error:  {type(e.original_error).__name__}: {e.original_error}")
+        print()
+        print(f"  {YELLOW}Troubleshooting:{RESET}")
+        print(f"     1. Verify the host is reachable: ssh {e.user or 'root'}@{e.host or '<host>'}")
+        print(f"     2. Check SSH key exists and has correct permissions")
+        print(f"     3. Ensure RH_LAB_HOST and SSH_KEY_PATH are set correctly")
+        print(f"     4. If using --server, verify the hostname is correct")
+        print()
+
+        # Generate an error report so the dashboard shows useful info
+        try:
+            from datetime import datetime as _dt
+            project_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            reports_dir = os.path.join(project_dir, 'reports')
+            os.makedirs(reports_dir, exist_ok=True)
+            timestamp = _dt.now().strftime("%Y-%m-%d_%H-%M-%S")
+            html_file = f"health_report_{timestamp}.html"
+            html_path = os.path.join(reports_dir, html_file)
+            error_html = generate_error_report_html(e)
+            with open(html_path, 'w') as f:
+                f.write(error_html)
+            print(f"  {YELLOW}📄 Error report saved: {html_file}{RESET}")
+        except Exception:
+            pass
+
+        print()
+        sys.exit(1)
+
     except Exception as e:
         print(f"\n  ❌ Error: {e}\n")
         import traceback

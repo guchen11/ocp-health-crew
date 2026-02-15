@@ -46,7 +46,7 @@ def create_app(config_object=None):
     
     # Create database tables
     with app.app_context():
-        from app.models import User, Build, Schedule, Host, AuditLog  # noqa: F811
+        from app.models import User, Build, Schedule, Host, AuditLog, CustomCheck  # noqa: F811
         db.create_all()
     
     # Register blueprints

@@ -58,6 +58,8 @@ def parse_args():
     parser.add_argument("--lab-name", default="", help="Lab name for display")
     parser.add_argument("--log-level", default="", help="kube-burner log level (debug, info, warn, error)")
     parser.add_argument("--timeout", default="", help="kube-burner timeout (e.g. 1h, 2h)")
+    parser.add_argument("--cleanup-only", action="store_true",
+                        help="Skip running tests; only clean up resources from a previous run (re-runs workloads with cleanup=true)")
     return parser.parse_args()
 
 
@@ -84,12 +86,28 @@ def build_remote_command(args):
     # Environment setup
     parts.append(f"export KUBECONFIG={args.kubeconfig}")
 
+    # Auto-login to refresh the token (kubeadmin password file next to kubeconfig)
+    kubeconfig_dir = args.kubeconfig.rsplit('/', 1)[0] if '/' in args.kubeconfig else '.'
+    parts.append(
+        f'if [ -f {kubeconfig_dir}/kubeadmin-password ]; then '
+        f'oc login -u kubeadmin -p $(cat {kubeconfig_dir}/kubeadmin-password) --insecure-skip-tls-verify=true > /dev/null 2>&1 || true; '
+        f'fi'
+    )
+
     # Env var overrides (e.g. cpuCores=8,memorySize=64Gi)
     if args.env_vars:
         for pair in args.env_vars.split(","):
             pair = pair.strip()
             if "=" in pair:
+                # In cleanup-only mode, skip the original cleanup setting —
+                # we force cleanup=true below.
+                if args.cleanup_only and pair.startswith("cleanup="):
+                    continue
                 parts.append(f"export {pair}")
+
+    # In cleanup-only mode force cleanup=true so kube-burner tears down resources
+    if args.cleanup_only:
+        parts.append("export cleanup=true")
 
     # cd into the cnv-scenarios directory
     parts.append(f"cd {args.cnv_path}")
@@ -189,9 +207,28 @@ def fetch_results_summary(client, cnv_path, tests, mode):
         if raw:
             try:
                 summary = json.loads(raw)
-                summaries.append(summary)
             except json.JSONDecodeError:
-                pass
+                continue
+
+            # Fetch iteration result files (latency, PVC, validation, jobSummary)
+            iteration_data = {}
+            for pattern, key in [
+                ("vmiLatencyQuantilesMeasurement-*.json", "vmi_latency"),
+                ("pvcLatencyQuantilesMeasurement-*.json", "pvc_latency"),
+                ("validation-*.json", "validation"),
+                ("jobSummary.json", "job_summary"),
+            ]:
+                cmd = f"cat {latest_dir}/iteration-1/{pattern} 2>/dev/null"
+                stdin, stdout, stderr = client.exec_command(cmd)
+                fraw = stdout.read().decode().strip()
+                if fraw:
+                    try:
+                        iteration_data[key] = json.loads(fraw)
+                    except json.JSONDecodeError:
+                        pass
+
+            summary["iteration_data"] = iteration_data
+            summaries.append(summary)
 
     if summaries:
         log(f"\n{'='*70}")
@@ -219,16 +256,26 @@ def main():
         print(f"{RED}ERROR: No server specified. Use --server HOST or set RH_LAB_HOST env var.{RESET}", flush=True)
         sys.exit(1)
 
+    is_cleanup = getattr(args, 'cleanup_only', False)
+
     # ── Print header ─────────────────────────────────────────────────────
     print(flush=True)
     log(f"{BOLD}{'='*60}{RESET}")
-    log(f"{BOLD}  CNV Scenarios — kube-burner Test Suite{RESET}")
+    if is_cleanup:
+        log(f"{BOLD}  CNV Scenarios — Cleanup Only{RESET}")
+    else:
+        log(f"{BOLD}  CNV Scenarios — kube-burner Test Suite{RESET}")
     log(f"{BOLD}{'='*60}{RESET}")
-    log(f"  CNV Scenarios Starting")
+    if is_cleanup:
+        log(f"  CNV Scenarios Cleanup Starting")
+    else:
+        log(f"  CNV Scenarios Starting")
     log(f"  Server:    {args.server}")
     log(f"  Tests:     {args.tests}")
     log(f"  Mode:      {args.mode}")
     log(f"  Parallel:  {args.parallel}")
+    if is_cleanup:
+        log(f"  Cleanup:   true (cleanup-only mode)")
     if args.lab_name:
         log(f"  Lab:       {args.lab_name}")
     if args.log_level:
@@ -263,7 +310,10 @@ def main():
     log(f"{CYAN}Running: {remote_cmd}{RESET}")
     print(flush=True)
     log("─" * 60)
-    log(f"Running test: {args.tests}")
+    if is_cleanup:
+        log(f"Cleaning up resources for: {args.tests}")
+    else:
+        log(f"Running test: {args.tests}")
     log("─" * 60)
     print(flush=True)
 
@@ -271,6 +321,18 @@ def main():
 
     print(flush=True)
     log("─" * 60)
+
+    # ── Cleanup-only mode: skip result collection, emit marker ───────────
+    if is_cleanup:
+        client.close()
+        elapsed = int(time.time() - start_time)
+        elapsed_str = f"{elapsed // 60}m {elapsed % 60}s"
+        print(flush=True)
+        if exit_code == 0:
+            log(f"{GREEN}{BOLD}CLEANUP COMPLETE — resources removed ({elapsed_str}){RESET}")
+        else:
+            log(f"{RED}{BOLD}CLEANUP FAILED — exit code {exit_code} ({elapsed_str}){RESET}")
+        sys.exit(exit_code)
 
     # ── Collect results ──────────────────────────────────────────────────
     test_names = args.tests
@@ -302,6 +364,13 @@ def main():
     failed = (len(summaries) - passed) if summaries else (0 if exit_code == 0 else 1)
     total = len(summaries) if summaries else 1
     log(f"PASSED: {passed} | FAILED: {failed} | TOTAL: {total}")
+
+    # Emit iteration data as a tagged JSON block for the report generator
+    if summaries:
+        print(f"__CNV_ITERATION_DATA_START__", flush=True)
+        print(json.dumps(summaries, default=str), flush=True)
+        print(f"__CNV_ITERATION_DATA_END__", flush=True)
+
     log(f"CNV Scenarios finished")
 
     sys.exit(exit_code)
