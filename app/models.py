@@ -6,6 +6,7 @@ SQLAlchemy models for multi-user support:
   - Build: health check build records (replaces .builds.json)
   - Schedule: scheduled tasks (replaces schedules.json)
   - AuditLog: audit trail for team accountability
+  - Template: user-saved test configuration templates
 """
 
 from datetime import datetime, timezone
@@ -260,3 +261,39 @@ class CustomCheck(db.Model):
 
     def __repr__(self):
         return f'<CustomCheck {self.name} (by user {self.created_by})>'
+
+
+class Template(db.Model):
+    """User-saved test configuration templates."""
+
+    __tablename__ = 'templates'
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(200), nullable=False)
+    description = db.Column(db.Text, default='')
+    icon = db.Column(db.String(10), default='📋')
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+    shared = db.Column(db.Boolean, default=False)
+    config = db.Column(db.JSON, nullable=False)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc),
+                           onupdate=lambda: datetime.now(timezone.utc))
+
+    owner = db.relationship('User', backref='templates')
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'description': self.description or '',
+            'icon': self.icon or '📋',
+            'shared': self.shared,
+            'config': self.config or {},
+            'created_by': self.owner.username if self.owner else 'unknown',
+            'created_by_id': self.created_by,
+            'created_at': self.created_at.strftime('%Y-%m-%d %H:%M') if self.created_at else '',
+            'updated_at': self.updated_at.strftime('%Y-%m-%d %H:%M') if self.updated_at else '',
+        }
+
+    def __repr__(self):
+        return f'<Template {self.name} (by user {self.created_by})>'

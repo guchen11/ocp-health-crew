@@ -74,6 +74,7 @@ class Config:
     # Flask Configuration
     FLASK_HOST = os.getenv("FLASK_HOST", "0.0.0.0")
     FLASK_PORT = int(os.getenv("FLASK_PORT", "5000"))
+    DASHBOARD_BASE_URL = os.getenv("DASHBOARD_BASE_URL", "http://10.46.254.144:5000")
     FLASK_DEBUG = False
     
     # Build Configuration

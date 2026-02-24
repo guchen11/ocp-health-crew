@@ -44,6 +44,10 @@
                 <span class="sidebar-icon">▶️</span>
                 New Build
             </a>
+            <a href="#" onclick="event.preventDefault();openBuildTemplateModal();" class="sidebar-item">
+                <span class="sidebar-icon">💾</span>
+                Save as Template
+            </a>
         </div>
     </aside>
     
@@ -314,4 +318,94 @@
 })();
 </script>
 {% endif %}
+
+<!-- Save as Template Modal -->
+<div id="buildTemplateModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center;" onclick="if(event.target===this)closeBuildTemplateModal()">
+    <div style="background:var(--bg);border-radius:12px;padding:24px;max-width:480px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+            <h3 style="margin:0;font-size:18px;color:var(--text);">💾 Save Build Config as Template</h3>
+            <span onclick="closeBuildTemplateModal()" style="cursor:pointer;font-size:20px;color:var(--text-muted);">&times;</span>
+        </div>
+        <div style="margin-bottom:16px;">
+            <label style="display:block;font-weight:600;margin-bottom:6px;font-size:13px;">Template Name *</label>
+            <input type="text" id="build-tmpl-name" placeholder="e.g. Scale test 10K" value="From Build #{{ build.number }}" style="width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:var(--bg-secondary);">
+        </div>
+        <div style="margin-bottom:16px;">
+            <label style="display:block;font-weight:600;margin-bottom:6px;font-size:13px;">Description</label>
+            <input type="text" id="build-tmpl-desc" placeholder="Short description" value="Saved from build #{{ build.number }}{% if build.name %} - {{ build.name }}{% endif %}" style="width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:var(--bg-secondary);">
+        </div>
+        <div style="margin-bottom:16px;">
+            <label style="display:block;font-weight:600;margin-bottom:6px;font-size:13px;">Icon</label>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                <span class="build-tmpl-icon" data-icon="📋" onclick="pickBuildTmplIcon(this)" style="cursor:pointer;font-size:22px;padding:6px;border:2px solid var(--accent);border-radius:8px;">📋</span>
+                <span class="build-tmpl-icon" data-icon="🚀" onclick="pickBuildTmplIcon(this)" style="cursor:pointer;font-size:22px;padding:6px;border:2px solid transparent;border-radius:8px;">🚀</span>
+                <span class="build-tmpl-icon" data-icon="🔥" onclick="pickBuildTmplIcon(this)" style="cursor:pointer;font-size:22px;padding:6px;border:2px solid transparent;border-radius:8px;">🔥</span>
+                <span class="build-tmpl-icon" data-icon="🏋️" onclick="pickBuildTmplIcon(this)" style="cursor:pointer;font-size:22px;padding:6px;border:2px solid transparent;border-radius:8px;">🏋️</span>
+                <span class="build-tmpl-icon" data-icon="⚡" onclick="pickBuildTmplIcon(this)" style="cursor:pointer;font-size:22px;padding:6px;border:2px solid transparent;border-radius:8px;">⚡</span>
+                <span class="build-tmpl-icon" data-icon="🧪" onclick="pickBuildTmplIcon(this)" style="cursor:pointer;font-size:22px;padding:6px;border:2px solid transparent;border-radius:8px;">🧪</span>
+            </div>
+        </div>
+        <div style="margin-bottom:20px;">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                <input type="checkbox" id="build-tmpl-shared">
+                <span style="font-size:13px;">Share with team</span>
+            </label>
+        </div>
+        <div style="display:flex;gap:10px;justify-content:flex-end;">
+            <button class="btn" onclick="closeBuildTemplateModal()">Cancel</button>
+            <button class="btn btn-primary" onclick="saveBuildTemplate()" id="build-tmpl-save-btn" style="padding:10px 24px;">💾 Save</button>
+        </div>
+    </div>
+</div>
+
+<script>
+var _buildTmplIcon = '📋';
+
+function pickBuildTmplIcon(el) {
+    document.querySelectorAll('.build-tmpl-icon').forEach(function(e) { e.style.borderColor = 'transparent'; });
+    el.style.borderColor = 'var(--accent)';
+    _buildTmplIcon = el.getAttribute('data-icon');
+}
+
+function openBuildTemplateModal() {
+    document.getElementById('buildTemplateModal').style.display = 'flex';
+    document.getElementById('build-tmpl-name').focus();
+}
+
+function closeBuildTemplateModal() {
+    document.getElementById('buildTemplateModal').style.display = 'none';
+}
+
+function saveBuildTemplate() {
+    var name = document.getElementById('build-tmpl-name').value.trim();
+    if (!name) { alert('Please enter a name'); return; }
+    var btn = document.getElementById('build-tmpl-save-btn');
+    btn.disabled = true;
+    btn.textContent = 'Saving...';
+
+    fetch('/api/templates/from-build/{{ build.number }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            name: name,
+            description: document.getElementById('build-tmpl-desc').value.trim(),
+            icon: _buildTmplIcon,
+            shared: document.getElementById('build-tmpl-shared').checked
+        })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.error) { alert('Error: ' + data.error); }
+        else {
+            closeBuildTemplateModal();
+            alert('Template "' + data.name + '" saved! You can find it in the Configure page sidebar.');
+        }
+    })
+    .catch(function(err) { alert('Failed: ' + err); })
+    .finally(function() {
+        btn.disabled = false;
+        btn.textContent = '💾 Save';
+    });
+}
+</script>
 {% endblock %}

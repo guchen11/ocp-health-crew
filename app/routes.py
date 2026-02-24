@@ -17,7 +17,7 @@ from datetime import datetime
 from flask import Blueprint, render_template, jsonify, request, send_from_directory, redirect, url_for
 from flask_login import login_required, current_user
 from functools import wraps
-from app.models import db, Host
+from app.models import db, Host, Template
 
 # Import configuration
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -587,6 +587,13 @@ def dashboard():
         'failed': sum(1 for b in builds if b.get('status') == 'failed')
     }
 
+    # Load user templates for sidebar
+    from sqlalchemy import or_
+    user_templates = [t.to_dict() for t in
+                      Template.query.filter(
+                          or_(Template.created_by == current_user.id, Template.shared == True)
+                      ).order_by(Template.name).all()] if current_user.is_authenticated else []
+
     return render_template('dashboard.html',
                            builds=display_builds[:10],
                            recent_builds=display_builds[:10],
@@ -595,6 +602,7 @@ def dashboard():
                            running_build=running_list[0] if running_list else None,
                            queued_count=len(queued_jobs),
                            current_view=view,
+                           user_templates=user_templates,
                            active_page='dashboard')
 
 
@@ -613,10 +621,24 @@ def configure():
 
     cnv_config = settings.get('cnv', _DEFAULT_CNV_SETTINGS)
 
-    # Load custom checks for this user
     from app.models import CustomCheck
     custom_checks = [c.to_dict() for c in
                      CustomCheck.query.filter_by(created_by=current_user.id, enabled=True).order_by(CustomCheck.name).all()]
+
+    # Load user templates (own + shared by others)
+    from sqlalchemy import or_
+    user_templates = [t.to_dict() for t in
+                      Template.query.filter(
+                          or_(Template.created_by == current_user.id, Template.shared == True)
+                      ).order_by(Template.name).all()]
+
+    # If loading a specific template
+    load_template = None
+    template_id = request.args.get('template', type=int)
+    if template_id:
+        tmpl = Template.query.get(template_id)
+        if tmpl and (tmpl.created_by == current_user.id or tmpl.shared or current_user.is_admin):
+            load_template = tmpl.to_dict()
 
     return render_template('configure.html',
                            checks=AVAILABLE_CHECKS,
@@ -634,6 +656,8 @@ def configure():
                            cnv_global_vars=CNV_GLOBAL_VARIABLES,
                            cnv_config=cnv_config,
                            custom_checks=custom_checks,
+                           user_templates=user_templates,
+                           load_template=load_template,
                            active_page='configure')
 
 
@@ -859,6 +883,125 @@ def quick_sanity():
     return redirect(url_for('dashboard.configure') + '?preset=cnv_sanity')
 
 
+@dashboard_bp.route('/job/quick-full')
+@operator_required
+def quick_full():
+    """Full CNV scenarios - redirect to configure with full mode pre-selected and 4.21.0 defaults"""
+    return redirect(url_for('dashboard.configure') + '?preset=cnv_full')
+
+
+@dashboard_bp.route('/job/quick-10k')
+@operator_required
+def quick_10k():
+    """Create 10K VMs - per-host density preset optimized for create-only at scale"""
+    return redirect(url_for('dashboard.configure') + '?preset=10k_density')
+
+
+# ── Template CRUD API ────────────────────────────────────────────────────
+
+@dashboard_bp.route('/api/templates', methods=['GET'])
+@login_required
+def api_templates_list():
+    """List templates visible to current user (own + shared)."""
+    from sqlalchemy import or_
+    templates = Template.query.filter(
+        or_(Template.created_by == current_user.id, Template.shared == True)
+    ).order_by(Template.updated_at.desc()).all()
+    return jsonify([t.to_dict() for t in templates])
+
+
+@dashboard_bp.route('/api/templates', methods=['POST'])
+@operator_required
+def api_templates_create():
+    """Create a new template from JSON body."""
+    data = request.get_json(silent=True)
+    if not data or not data.get('name') or not data.get('config'):
+        return jsonify({'error': 'name and config are required'}), 400
+
+    tmpl = Template(
+        name=data['name'][:200],
+        description=(data.get('description') or '')[:500],
+        icon=data.get('icon', '📋')[:10],
+        created_by=current_user.id,
+        shared=bool(data.get('shared', False)),
+        config=data['config'],
+    )
+    db.session.add(tmpl)
+    db.session.commit()
+    return jsonify(tmpl.to_dict()), 201
+
+
+@dashboard_bp.route('/api/templates/<int:tmpl_id>', methods=['PUT'])
+@operator_required
+def api_templates_update(tmpl_id):
+    """Update an existing template (owner or admin only)."""
+    tmpl = Template.query.get_or_404(tmpl_id)
+    if tmpl.created_by != current_user.id and not current_user.is_admin:
+        return jsonify({'error': 'forbidden'}), 403
+
+    data = request.get_json(silent=True)
+    if not data:
+        return jsonify({'error': 'invalid JSON'}), 400
+
+    if 'name' in data:
+        tmpl.name = data['name'][:200]
+    if 'description' in data:
+        tmpl.description = (data['description'] or '')[:500]
+    if 'icon' in data:
+        tmpl.icon = data['icon'][:10]
+    if 'shared' in data:
+        tmpl.shared = bool(data['shared'])
+    if 'config' in data:
+        tmpl.config = data['config']
+
+    db.session.commit()
+    return jsonify(tmpl.to_dict())
+
+
+@dashboard_bp.route('/api/templates/<int:tmpl_id>', methods=['DELETE'])
+@operator_required
+def api_templates_delete(tmpl_id):
+    """Delete a template (owner or admin only)."""
+    tmpl = Template.query.get_or_404(tmpl_id)
+    if tmpl.created_by != current_user.id and not current_user.is_admin:
+        return jsonify({'error': 'forbidden'}), 403
+
+    db.session.delete(tmpl)
+    db.session.commit()
+    return jsonify({'ok': True})
+
+
+@dashboard_bp.route('/api/templates/from-build/<int:build_num>', methods=['POST'])
+@operator_required
+def api_templates_from_build(build_num):
+    """Create a template from a past build's options."""
+    from app.models import Build
+    build = Build.query.filter_by(build_number=build_num).first_or_404()
+
+    data = request.get_json(silent=True) or {}
+    name = data.get('name', f'From Build #{build_num}')[:200]
+    description = data.get('description', f'Saved from build #{build_num}')[:500]
+    icon = data.get('icon', '📋')[:10]
+    shared = bool(data.get('shared', False))
+
+    config = build.options or {}
+    # Also store the checks/tests list in config for full reproducibility
+    if build.checks:
+        config['_checks'] = build.checks
+
+    tmpl = Template(
+        name=name,
+        description=description,
+        icon=icon,
+        created_by=current_user.id,
+        shared=shared,
+        config=config,
+    )
+    db.session.add(tmpl)
+    db.session.commit()
+    return jsonify(tmpl.to_dict()), 201
+
+
 @dashboard_bp.route('/job/history')
 @login_required
 def history():
@@ -937,6 +1080,7 @@ def build_detail(build_num):
                            build=build,
                            checks=AVAILABLE_CHECKS,
                            cnv_meta=cnv_meta,
+                           user_templates=[],
                            active_page='history')
 
 

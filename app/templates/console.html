@@ -43,6 +43,19 @@
                 Console Output
             </a>
         </div>
+        <div class="sidebar-section">
+            <div class="sidebar-title">Actions</div>
+            <a href="/job/rebuild/{{ build.number }}" class="sidebar-item">
+                <span class="sidebar-icon">🔄</span>
+                Rerun
+            </a>
+            {% if build.report_file %}
+            <a href="/report/{{ build.report_file }}" class="sidebar-item" target="_blank">
+                <span class="sidebar-icon">📄</span>
+                View Report
+            </a>
+            {% endif %}
+        </div>
     </aside>
     
     <main class="main">

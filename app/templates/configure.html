@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}{% if preset == 'all' %}Quick Run{% else %}Run with Parameters{% endif %} - CNV HealthCrew AI{% endblock %}
+{% block title %}{% if preset == 'all' %}Quick Run{% elif preset == 'cnv_full' %}Full CNV Regression Test{% elif preset == '10k_density' %}Create 10K VMs{% else %}Run with Parameters{% endif %} - CNV HealthCrew AI{% endblock %}
 
 {% block breadcrumb %}
 <span>›</span>
@@ -40,6 +40,27 @@
                 Virtualization Only
             </a>
         </div>
+        <div class="sidebar-section">
+            <div class="sidebar-title" onclick="toggleSidebarSection(this)" style="cursor:pointer;display:flex;align-items:center;">
+                My Templates
+                <span class="collapse-icon" style="margin-left:auto;font-size:10px;">▼</span>
+            </div>
+            <div class="sidebar-content">
+                {% if user_templates %}
+                {% for t in user_templates %}
+                <a href="/job/configure?template={{ t.id }}" class="sidebar-item" style="display:flex;align-items:center;gap:6px;" title="{{ t.description }}">
+                    <span class="sidebar-icon">{{ t.icon }}</span>
+                    <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ t.name }}</span>
+                    {% if t.created_by_id == current_user.id %}
+                    <span onclick="event.preventDefault();event.stopPropagation();deleteTemplate({{ t.id }}, '{{ t.name|e }}');" style="opacity:0.4;cursor:pointer;font-size:11px;" title="Delete">&times;</span>
+                    {% endif %}
+                </a>
+                {% endfor %}
+                {% else %}
+                <div style="padding:8px 12px;font-size:12px;color:var(--text-muted);">No saved templates yet</div>
+                {% endif %}
+            </div>
+        </div>
     </aside>
     
     <main class="main">
@@ -49,6 +70,321 @@
             <div>
                 <div style="font-weight:600;color:var(--success);font-size:16px;">Quick Run Mode</div>
                 <div style="color:var(--text-secondary);font-size:13px;">All checks are pre-selected. Review and click "Run Now" to start.</div>
+            </div>
+        </div>
+        {% elif preset == 'cnv_full' %}
+        <div style="background:var(--bg-secondary);border:1px solid var(--accent);border-radius:12px;margin-bottom:20px;overflow:hidden;">
+            <div style="background:linear-gradient(135deg, var(--accent), #1565c0);padding:16px 24px;display:flex;align-items:center;gap:12px;">
+                <span style="font-size:26px;">🏋️</span>
+                <div>
+                    <div style="font-weight:700;color:#fff;font-size:17px;">Full CNV Regression Test</div>
+                    <div style="color:rgba(255,255,255,0.8);font-size:12px;">Reference column is read-only. Edit <strong>Test Value</strong> to customize your run.</div>
+                </div>
+            </div>
+            <div style="padding:0;overflow-x:auto;">
+                <style>
+                    #fcnv-tbl { width:100%; border-collapse:separate; border-spacing:0; font-size:13px; table-layout:fixed; }
+                    #fcnv-tbl th { padding:12px 12px; text-align:center; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; white-space:nowrap; background:#f8f9fa; border-bottom:2px solid #dee2e6; color:#37474f; }
+                    #fcnv-tbl td { padding:11px 12px; border-bottom:1px solid #eee; vertical-align:middle; }
+                    #fcnv-tbl tbody tr { transition:all 0.2s ease; }
+                    #fcnv-tbl tbody tr.data-row:hover { background:#f0f7ff !important; }
+                    #fcnv-tbl .obj { text-align:left; font-size:13px; color:#333; padding-left:20px; font-weight:500; word-wrap:break-word; overflow-wrap:break-word; }
+                    #fcnv-tbl .badge { font-size:11px; padding:4px 10px; border-radius:6px; font-weight:600; white-space:nowrap; display:inline-block; letter-spacing:0.2px; }
+                    #fcnv-tbl .param { text-align:center; }
+                    #fcnv-tbl .param code { font-family:'SF Mono',Monaco,Consolas,'Courier New',monospace; font-size:11px; background:#f1f3f5; padding:3px 8px; border-radius:4px; color:#37474f; border:1px solid #e9ecef; }
+                    #fcnv-tbl .ref { text-align:center; font-weight:600; font-size:13px; }
+                    #fcnv-tbl .ref-theo { color:#78909c; }
+                    #fcnv-tbl .ref-4x { color:#7c3aed; }
+                    #fcnv-tbl .ref-420 { color:#ea580c; }
+                    #fcnv-tbl .ref-421 { color:#1976d2; font-weight:700; }
+                    #fcnv-tbl .grp td { padding:8px 20px; background:linear-gradient(135deg,#f8f9fa,#f1f3f5); border-bottom:1px solid #dee2e6; border-top:1px solid #dee2e6; font-size:12px; font-weight:700; color:#37474f; text-transform:uppercase; letter-spacing:1px; }
+                    #fcnv-tbl .tv-cell { padding:6px 8px !important; }
+                    #fcnv-tbl .tv-input { width:100%; padding:7px 8px; border:2px solid #22c55e; border-radius:8px; font-size:13px; font-weight:700; background:#fff; text-align:center; color:#1a1a1a; outline:none; transition:all 0.2s ease; box-shadow:0 1px 2px rgba(0,0,0,0.04); }
+                    #fcnv-tbl .tv-input:focus { border-color:#16a34a; box-shadow:0 0 0 3px rgba(34,197,94,0.2),0 1px 2px rgba(0,0,0,0.04); }
+                    #fcnv-tbl .tv-input:hover { border-color:#16a34a; }
+                </style>
+                <table id="fcnv-tbl">
+                    <thead>
+                        <tr>
+                            <th style="text-align:left;padding-left:20px;width:22%;">Objective</th>
+                            <th style="width:13%;">Test</th>
+                            <th style="width:11%;">Parameter</th>
+                            <th style="color:#546e7a;width:10%;">Theoretical</th>
+                            <th style="color:#7c3aed;width:10%;">4.x Max</th>
+                            <th style="color:#ea580c;width:10%;">4.20.0</th>
+                            <th style="color:#1976d2;width:10%;">4.21.0</th>
+                            <th style="color:#16a34a;width:14%;">Test Value</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- ── Category: Resource Limits ── -->
+                        <tr class="grp"><td colspan="8">📏 Resource Limits</td></tr>
+                        <tr class="data-row">
+                            <td class="obj">Maximum virtual CPUs per VM</td>
+                            <td style="text-align:center;"><span class="badge" style="background:#fff7ed;color:#c2410c;border:1px solid #fed7aa;">🔥 CPU Limits</span></td>
+                            <td class="param"><code>cpuCores</code></td>
+                            <td class="ref ref-theo">255</td>
+                            <td class="ref ref-4x">216</td>
+                            <td class="ref ref-420">512</td>
+                            <td class="ref ref-421">512</td>
+                            <td class="tv-cell"><input type="number" class="full-cnv-input tv-input" data-target-scenario="cpu_limits" data-target-var="cpuCores" value="512" min="1" max="1024"></td>
+                        </tr>
+                        <tr class="data-row" style="background:#fafafa;">
+                            <td class="obj">Maximum memory per VM</td>
+                            <td style="text-align:center;"><span class="badge" style="background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;">💾 Memory Limits</span></td>
+                            <td class="param"><code>memorySize</code></td>
+                            <td class="ref ref-theo">16 TiB</td>
+                            <td class="ref ref-4x">6 TiB</td>
+                            <td class="ref ref-420">450 GiB</td>
+                            <td class="ref ref-421">350 GiB</td>
+                            <td class="tv-cell"><input type="text" class="full-cnv-input tv-input" data-target-scenario="memory_limits" data-target-var="memorySize" value="350Gi"></td>
+                        </tr>
+
+                        <!-- ── Category: Performance ── -->
+                        <tr class="grp"><td colspan="8">⚡ Performance</td></tr>
+                        <tr class="data-row">
+                            <td class="obj">Maximum memory (high memory)</td>
+                            <td style="text-align:center;"><span class="badge" style="background:#f0fdf4;color:#166534;border:1px solid #bbf7d0;">📈 High Memory</span></td>
+                            <td class="param"><code>highMemory</code></td>
+                            <td class="ref ref-theo">16 TiB</td>
+                            <td class="ref ref-4x">6 TiB</td>
+                            <td class="ref ref-420">450 GiB</td>
+                            <td class="ref ref-421">350 GiB</td>
+                            <td class="tv-cell"><input type="text" class="full-cnv-input tv-input" data-target-scenario="high_memory" data-target-var="highMemory" value="350Gi"></td>
+                        </tr>
+                        <tr class="data-row" style="background:#fafafa;">
+                            <td class="obj">Maximum single disk size per VM</td>
+                            <td style="text-align:center;"><span class="badge" style="background:#f0fdfa;color:#115e59;border:1px solid #99f6e4;">🗄️ Large Disk</span></td>
+                            <td class="param"><code>largeDiskSize</code></td>
+                            <td class="ref ref-theo">100 TB</td>
+                            <td class="ref ref-4x">20 TB</td>
+                            <td class="ref ref-420">100 TB</td>
+                            <td class="ref ref-421">100 TB</td>
+                            <td class="tv-cell"><input type="text" class="full-cnv-input tv-input" data-target-scenario="large_disk" data-target-var="largeDiskSize" value="100Ti"></td>
+                        </tr>
+                        <tr class="data-row">
+                            <td class="obj">Minimum CPU per VM</td>
+                            <td style="text-align:center;"><span class="badge" style="background:#faf5ff;color:#7e22ce;border:1px solid #e9d5ff;">🪶 Minimal Resources</span></td>
+                            <td class="param"><code>minCpu</code></td>
+                            <td class="ref ref-theo">—</td>
+                            <td class="ref ref-4x">New</td>
+                            <td class="ref ref-420">100m</td>
+                            <td class="ref ref-421">256m</td>
+                            <td class="tv-cell"><input type="text" class="full-cnv-input tv-input" data-target-scenario="minimal_resources" data-target-var="minCpu" value="256m"></td>
+                        </tr>
+                        <tr class="data-row" style="background:#fafafa;">
+                            <td class="obj">Minimum memory per VM</td>
+                            <td style="text-align:center;"><span class="badge" style="background:#faf5ff;color:#7e22ce;border:1px solid #e9d5ff;">🪶 Minimal Resources</span></td>
+                            <td class="param"><code>minMemory</code></td>
+                            <td class="ref ref-theo">—</td>
+                            <td class="ref ref-4x">512 MB</td>
+                            <td class="ref ref-420">64M</td>
+                            <td class="ref ref-421">256m</td>
+                            <td class="tv-cell"><input type="text" class="full-cnv-input tv-input" data-target-scenario="minimal_resources" data-target-var="minMemory" value="256Mi"></td>
+                        </tr>
+                        <tr class="data-row">
+                            <td class="obj">Minimum disk per VM</td>
+                            <td style="text-align:center;"><span class="badge" style="background:#faf5ff;color:#7e22ce;border:1px solid #e9d5ff;">🪶 Minimal Resources</span></td>
+                            <td class="param"><code>minStorage</code></td>
+                            <td class="ref ref-theo">—</td>
+                            <td class="ref ref-4x">New</td>
+                            <td class="ref ref-420">100m</td>
+                            <td class="ref ref-421">256m</td>
+                            <td class="tv-cell"><input type="text" class="full-cnv-input tv-input" data-target-scenario="minimal_resources" data-target-var="minStorage" value="256Mi"></td>
+                        </tr>
+
+                        <!-- ── Category: Hot-plug ── -->
+                        <tr class="grp"><td colspan="8">🔌 Hot-plug</td></tr>
+                        <tr class="data-row">
+                            <td class="obj">Maximum hot-pluggable disks per VM</td>
+                            <td style="text-align:center;"><span class="badge" style="background:#fff1f2;color:#be123c;border:1px solid #fecdd3;">🔌 Disk Hot-plug</span></td>
+                            <td class="param"><code>diskCount</code></td>
+                            <td class="ref ref-theo">—</td>
+                            <td class="ref ref-4x">255</td>
+                            <td class="ref ref-420">255</td>
+                            <td class="ref ref-421">255</td>
+                            <td class="tv-cell"><input type="number" class="full-cnv-input tv-input" data-target-scenario="disk_hotplug" data-target-var="diskCount" value="255" min="1" max="256"></td>
+                        </tr>
+                        <tr class="data-row" style="background:#fafafa;">
+                            <td class="obj">Add vNICs to a VM</td>
+                            <td style="text-align:center;"><span class="badge" style="background:#eef2ff;color:#3730a3;border:1px solid #c7d2fe;">🌐 NIC Hot-plug</span></td>
+                            <td class="param"><code>nicCount</code></td>
+                            <td class="ref ref-theo">—</td>
+                            <td class="ref ref-4x">—</td>
+                            <td class="ref ref-420">—</td>
+                            <td class="ref ref-421">28</td>
+                            <td class="tv-cell"><input type="number" class="full-cnv-input tv-input" data-target-scenario="nic_hotplug" data-target-var="nicCount" value="28" min="1" max="28"></td>
+                        </tr>
+
+                        <!-- ── Category: Scale ── -->
+                        <tr class="grp"><td colspan="8">📊 Scale</td></tr>
+                        <tr class="data-row">
+                            <td class="obj">Maximum number of defined VMs</td>
+                            <td style="text-align:center;"><span class="badge" style="background:#fefce8;color:#a16207;border:1px solid #fde68a;">📊 Per-Host Density</span></td>
+                            <td class="param"><code>vmsPerNamespace</code></td>
+                            <td class="ref ref-theo">10000</td>
+                            <td class="ref ref-4x">10000</td>
+                            <td class="ref ref-420">5000</td>
+                            <td class="ref ref-421">10000</td>
+                            <td class="tv-cell"><input type="number" class="full-cnv-input tv-input" data-target-scenario="per_host_density" data-target-var="vmsPerNamespace" data-extra-scenario="per_host_density" data-extra-var="namespaceCount" data-extra-value="20" value="500" min="1" max="10000" title="VMs per namespace (x20 namespaces = 10,000 total)"></td>
+                        </tr>
+                        <tr class="data-row" style="background:#fafafa;">
+                            <td class="obj">Maximum VMs per host</td>
+                            <td style="text-align:center;"><span class="badge" style="background:#fefce8;color:#a16207;border:1px solid #fde68a;">📊 Per-Host Density</span></td>
+                            <td class="param"><code>namespaceCount</code></td>
+                            <td class="ref ref-theo">1K</td>
+                            <td class="ref ref-4x">460</td>
+                            <td class="ref ref-420">460</td>
+                            <td class="ref ref-421">460</td>
+                            <td class="tv-cell"><input type="number" class="full-cnv-input tv-input" data-target-scenario="per_host_density" data-target-var="namespaceCount" value="20" min="1" max="100" title="Namespace count"></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <!-- Global Variable Overrides -->
+            <div style="border-top:2px solid var(--border);padding:16px 24px;">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+                    <span style="font-size:16px;">🔧</span>
+                    <span style="font-weight:700;font-size:14px;color:var(--text);">Global Variable Overrides</span>
+                    <span style="font-size:12px;color:#546e7a;margin-left:4px;">Apply to all scenarios</span>
+                </div>
+                <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;">
+                    <div>
+                        <label style="display:block;font-size:12px;color:#455a64;margin-bottom:4px;">
+                            💿 <strong>Storage Class</strong>
+                        </label>
+                        <input type="text" class="full-cnv-global-input" data-global-var="storageClassName"
+                            value="" placeholder="ocs-storagecluster-ceph-rbd-virtualization"
+                            style="width:100%;padding:7px 10px;border:2px solid var(--success);border-radius:8px;font-size:12px;font-weight:600;background:var(--bg);color:var(--text);">
+                    </div>
+                    <div>
+                        <label style="display:block;font-size:12px;color:#455a64;margin-bottom:4px;">
+                            🎯 <strong>Node Selector</strong>
+                        </label>
+                        <input type="text" class="full-cnv-global-input" data-global-var="nodeSelector"
+                            value="" placeholder="e.g. node-role.kubernetes.io/worker="
+                            style="width:100%;padding:7px 10px;border:2px solid var(--success);border-radius:8px;font-size:12px;font-weight:600;background:var(--bg);color:var(--text);">
+                    </div>
+                    <div>
+                        <label style="display:block;font-size:12px;color:#455a64;margin-bottom:4px;">
+                            ⏱️ <strong>Max Wait Timeout</strong>
+                        </label>
+                        <input type="text" class="full-cnv-global-input" data-global-var="maxWaitTimeout"
+                            value="30m" placeholder="Full default: 30m"
+                            style="width:100%;padding:7px 10px;border:2px solid var(--success);border-radius:8px;font-size:12px;font-weight:600;background:var(--bg);color:var(--text);">
+                    </div>
+                    <div>
+                        <label style="display:block;font-size:12px;color:#455a64;margin-bottom:4px;">
+                            ⏸️ <strong>Job Pause</strong>
+                        </label>
+                        <input type="text" class="full-cnv-global-input" data-global-var="jobPause"
+                            value="2m" placeholder="Full default: 2m"
+                            style="width:100%;padding:7px 10px;border:2px solid var(--success);border-radius:8px;font-size:12px;font-weight:600;background:var(--bg);color:var(--text);">
+                    </div>
+                    <div>
+                        <label style="display:block;font-size:12px;color:#455a64;margin-bottom:4px;">
+                            🧹 <strong>Cleanup After Test</strong>
+                        </label>
+                        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:6px 10px;border:2px solid var(--success);border-radius:8px;background:var(--bg);">
+                            <input type="checkbox" class="full-cnv-global-input" data-global-var="cleanup" data-is-bool="true" checked
+                                style="width:18px;height:18px;accent-color:var(--success);cursor:pointer;">
+                            <span style="font-size:12px;font-weight:600;color:var(--text);">Enabled</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+            <!-- Test-Specific Parameters (collapsible) -->
+            <div style="border-top:2px solid var(--border);padding:16px 24px;">
+                <div onclick="var b=this.nextElementSibling;var ic=this.querySelector('.tsp-icon');if(b.style.display==='none'){b.style.display='block';ic.textContent='▼';}else{b.style.display='none';ic.textContent='▶';}" style="display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none;">
+                    <span style="font-size:16px;">🎛️</span>
+                    <span style="font-weight:700;font-size:14px;color:var(--text);">Test-Specific Parameters</span>
+                    <span style="font-size:12px;color:#546e7a;margin-left:4px;">Fine-tune each scenario</span>
+                    <span class="tsp-icon" style="margin-left:auto;font-size:12px;color:#455a64;font-weight:700;">▶</span>
+                </div>
+                <div style="display:none;">
+                <p style="font-size:12px;color:#546e7a;margin:10px 0 14px 0;">Changes here sync to the form below automatically.</p>
+
+                {% for sid, sc in cnv_scenarios.items() %}
+                {% if sc.variables %}
+                <div style="margin-bottom:14px;padding:12px 14px;border:1px solid var(--border);border-radius:8px;background:var(--bg-secondary);">
+                    <div style="font-weight:600;font-size:13px;color:var(--text);margin-bottom:10px;display:flex;align-items:center;gap:6px;">
+                        {{ sc.icon }} {{ sc.name }}
+                        <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;background:var(--success-light);color:var(--success);margin-left:auto;">SELECTED</span>
+                    </div>
+                    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;">
+                        {% for var_name, var_info in sc.variables.items() %}
+                        <div>
+                            <label style="display:block;font-size:12px;color:#455a64;margin-bottom:3px;">
+                                <strong>{{ var_info.label }}</strong>
+                            </label>
+                            {% if var_info.type == 'bool' %}
+                            <select class="full-cnv-scenario-input" data-sync-scenario="{{ sid }}" data-sync-var="{{ var_name }}" data-sync-type="select"
+                                style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;background:var(--bg);">
+                                <option value="">Default ({{ 'true' if var_info.default else 'false' }})</option>
+                                <option value="true">true</option>
+                                <option value="false">false</option>
+                            </select>
+                            {% elif var_info.type == 'choice' %}
+                            <select class="full-cnv-scenario-input" data-sync-scenario="{{ sid }}" data-sync-var="{{ var_name }}" data-sync-type="select"
+                                style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;background:var(--bg);">
+                                <option value="">Default ({{ var_info.default }})</option>
+                                {% for choice in var_info.choices %}
+                                <option value="{{ choice }}">{{ choice }}</option>
+                                {% endfor %}
+                            </select>
+                            {% elif var_info.type == 'int' %}
+                            <input type="number" class="full-cnv-scenario-input" data-sync-scenario="{{ sid }}" data-sync-var="{{ var_name }}" data-sync-type="input"
+                                placeholder="Default: {{ var_info.default }}"
+                                {% if var_info.min is defined %}min="{{ var_info.min }}"{% endif %}
+                                {% if var_info.max is defined %}max="{{ var_info.max }}"{% endif %}
+                                style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;background:var(--bg);">
+                            {% else %}
+                            <input type="text" class="full-cnv-scenario-input" data-sync-scenario="{{ sid }}" data-sync-var="{{ var_name }}" data-sync-type="input"
+                                placeholder="{{ var_info.placeholder or ('Default: ' + (var_info.default|string)) }}"
+                                style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;background:var(--bg);">
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+                {% endfor %}
+                </div>
+            </div>
+        </div>
+        {% elif preset == '10k_density' %}
+        <div style="background:var(--bg-secondary);border:1px solid #f59e0b;border-radius:12px;margin-bottom:20px;overflow:hidden;">
+            <div style="background:linear-gradient(135deg, #f59e0b, #d97706);padding:16px 24px;display:flex;align-items:center;gap:12px;">
+                <span style="font-size:26px;">🚀</span>
+                <div>
+                    <div style="font-weight:700;color:#fff;font-size:17px;">Create 10K VMs</div>
+                    <div style="color:rgba(255,255,255,0.85);font-size:12px;">Per-Host Density preset: 10,000 VMs in 1 namespace, create-only (no shutdown/restart), multi-node.</div>
+                </div>
+            </div>
+            <div style="padding:16px 24px;">
+                <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;font-size:13px;">
+                    <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px 14px;">
+                        <div style="font-weight:700;color:#92400e;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;">Total VMs</div>
+                        <div style="font-weight:800;font-size:22px;color:#d97706;">10,000</div>
+                        <div style="color:#92400e;font-size:11px;">10,000/ns x 1 namespace</div>
+                    </div>
+                    <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px 14px;">
+                        <div style="font-weight:700;color:#166534;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;">Timeouts</div>
+                        <div style="font-weight:800;font-size:22px;color:#16a34a;">48h</div>
+                        <div style="color:#166534;font-size:11px;">Max wait + kube-burner</div>
+                    </div>
+                    <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:10px 14px;">
+                        <div style="font-weight:700;color:#1e40af;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;">Validation</div>
+                        <div style="font-weight:800;font-size:22px;color:#2563eb;">0%</div>
+                        <div style="color:#1e40af;font-size:11px;">SSH validation skipped</div>
+                    </div>
+                    <div style="background:#faf5ff;border:1px solid #e9d5ff;border-radius:8px;padding:10px 14px;">
+                        <div style="font-weight:700;color:#6b21a8;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;">Mode</div>
+                        <div style="font-weight:800;font-size:22px;color:#7c3aed;">Create-only</div>
+                        <div style="color:#6b21a8;font-size:11px;">Shutdown + restart skipped</div>
+                    </div>
+                </div>
+                <div style="margin-top:12px;font-size:12px;color:var(--text-secondary);">Review the settings below and click <strong>Run Now</strong> to start. All values are pre-filled but editable.</div>
             </div>
         </div>
         {% endif %}
@@ -114,14 +450,14 @@
                 </div>
                 <div class="card-body">
                     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;">
-                        <label class="task-type-option" style="display:flex;flex-direction:column;padding:20px;border:2px solid {{ 'var(--border)' if preset == 'cnv_sanity' else 'var(--accent)' }};border-radius:10px;cursor:pointer;transition:all 0.2s;{{ '' if preset == 'cnv_sanity' else 'background:var(--accent-light);' }}">
-                            <input type="radio" name="task_type" value="health_check" style="margin-bottom:10px;" onchange="switchTaskType()" {{ '' if preset == 'cnv_sanity' else 'checked' }}>
+                        <label class="task-type-option" style="display:flex;flex-direction:column;padding:20px;border:2px solid {{ 'var(--border)' if preset in ('cnv_sanity', 'cnv_full', '10k_density') else 'var(--accent)' }};border-radius:10px;cursor:pointer;transition:all 0.2s;{{ '' if preset in ('cnv_sanity', 'cnv_full', '10k_density') else 'background:var(--accent-light);' }}">
+                            <input type="radio" name="task_type" value="health_check" style="margin-bottom:10px;" onchange="switchTaskType()" {{ '' if preset in ('cnv_sanity', 'cnv_full', '10k_density') else 'checked' }}>
                             <span style="font-size:28px;margin-bottom:8px;">🩺</span>
                             <span style="font-weight:700;color:var(--text);font-size:15px;">Health Check</span>
                             <span style="color:var(--text-secondary);font-size:12px;margin-top:4px;">Run OCP/CNV health diagnostics with optional root cause analysis</span>
                         </label>
-                        <label class="task-type-option" style="display:flex;flex-direction:column;padding:20px;border:2px solid {{ 'var(--accent)' if preset == 'cnv_sanity' else 'var(--border)' }};border-radius:10px;cursor:pointer;transition:all 0.2s;{{ 'background:var(--accent-light);' if preset == 'cnv_sanity' else '' }}">
-                            <input type="radio" name="task_type" value="cnv_scenarios" style="margin-bottom:10px;" onchange="switchTaskType()" {{ 'checked' if preset == 'cnv_sanity' else '' }}>
+                        <label class="task-type-option" style="display:flex;flex-direction:column;padding:20px;border:2px solid {{ 'var(--accent)' if preset in ('cnv_sanity', 'cnv_full', '10k_density') else 'var(--border)' }};border-radius:10px;cursor:pointer;transition:all 0.2s;{{ 'background:var(--accent-light);' if preset in ('cnv_sanity', 'cnv_full', '10k_density') else '' }}">
+                            <input type="radio" name="task_type" value="cnv_scenarios" style="margin-bottom:10px;" onchange="switchTaskType()" {{ 'checked' if preset in ('cnv_sanity', 'cnv_full', '10k_density') else '' }}>
                             <span style="font-size:28px;margin-bottom:8px;">🔥</span>
                             <span style="font-weight:700;color:var(--text);font-size:15px;">CNV Scenarios</span>
                             <span style="color:var(--text-secondary);font-size:12px;margin-top:4px;">Run kube-burner workload tests: CPU, memory, disk, hot-plug, scale</span>
@@ -863,14 +1199,60 @@
             </div>
             
             <!-- Submit -->
-            <div style="display:flex;gap:12px;margin-top:20px;">
+            <div style="display:flex;gap:12px;margin-top:20px;align-items:center;">
                 <button type="submit" id="submit-btn" class="btn btn-primary" style="padding:12px 30px;font-size:14px;">
                     ▶️ Run Now
+                </button>
+                <button type="button" class="btn" style="padding:12px 20px;font-size:14px;" onclick="openSaveTemplateModal()">
+                    💾 Save as Template
                 </button>
                 <a href="/" class="btn">Cancel</a>
                 <a href="/schedules" class="btn" style="margin-left:auto;">📅 View Scheduled Tasks</a>
             </div>
         </form>
+
+    <!-- Save Template Modal -->
+    <div id="saveTemplateModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center;" onclick="if(event.target===this)closeSaveTemplateModal()">
+        <div style="background:var(--bg);border-radius:12px;padding:24px;max-width:480px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+                <h3 style="margin:0;font-size:18px;color:var(--text);">💾 Save as Template</h3>
+                <span onclick="closeSaveTemplateModal()" style="cursor:pointer;font-size:20px;color:var(--text-muted);">&times;</span>
+            </div>
+            <div style="margin-bottom:16px;">
+                <label style="display:block;font-weight:600;margin-bottom:6px;font-size:13px;color:var(--text);">Template Name *</label>
+                <input type="text" id="tmpl-name" placeholder="e.g. My 10K VMs Test" style="width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:var(--bg-secondary);">
+            </div>
+            <div style="margin-bottom:16px;">
+                <label style="display:block;font-weight:600;margin-bottom:6px;font-size:13px;color:var(--text);">Description (optional)</label>
+                <input type="text" id="tmpl-desc" placeholder="Short description of this test configuration" style="width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:var(--bg-secondary);">
+            </div>
+            <div style="margin-bottom:16px;">
+                <label style="display:block;font-weight:600;margin-bottom:6px;font-size:13px;color:var(--text);">Icon</label>
+                <div id="tmpl-icon-picker" style="display:flex;gap:8px;flex-wrap:wrap;">
+                    <span class="tmpl-icon-opt" data-icon="📋" onclick="pickTemplateIcon(this)" style="cursor:pointer;font-size:22px;padding:6px;border:2px solid var(--accent);border-radius:8px;">📋</span>
+                    <span class="tmpl-icon-opt" data-icon="🚀" onclick="pickTemplateIcon(this)" style="cursor:pointer;font-size:22px;padding:6px;border:2px solid transparent;border-radius:8px;">🚀</span>
+                    <span class="tmpl-icon-opt" data-icon="🔥" onclick="pickTemplateIcon(this)" style="cursor:pointer;font-size:22px;padding:6px;border:2px solid transparent;border-radius:8px;">🔥</span>
+                    <span class="tmpl-icon-opt" data-icon="🏋️" onclick="pickTemplateIcon(this)" style="cursor:pointer;font-size:22px;padding:6px;border:2px solid transparent;border-radius:8px;">🏋️</span>
+                    <span class="tmpl-icon-opt" data-icon="⚡" onclick="pickTemplateIcon(this)" style="cursor:pointer;font-size:22px;padding:6px;border:2px solid transparent;border-radius:8px;">⚡</span>
+                    <span class="tmpl-icon-opt" data-icon="🧪" onclick="pickTemplateIcon(this)" style="cursor:pointer;font-size:22px;padding:6px;border:2px solid transparent;border-radius:8px;">🧪</span>
+                    <span class="tmpl-icon-opt" data-icon="🎯" onclick="pickTemplateIcon(this)" style="cursor:pointer;font-size:22px;padding:6px;border:2px solid transparent;border-radius:8px;">🎯</span>
+                    <span class="tmpl-icon-opt" data-icon="💻" onclick="pickTemplateIcon(this)" style="cursor:pointer;font-size:22px;padding:6px;border:2px solid transparent;border-radius:8px;">💻</span>
+                    <span class="tmpl-icon-opt" data-icon="🏗️" onclick="pickTemplateIcon(this)" style="cursor:pointer;font-size:22px;padding:6px;border:2px solid transparent;border-radius:8px;">🏗️</span>
+                    <span class="tmpl-icon-opt" data-icon="📊" onclick="pickTemplateIcon(this)" style="cursor:pointer;font-size:22px;padding:6px;border:2px solid transparent;border-radius:8px;">📊</span>
+                </div>
+            </div>
+            <div style="margin-bottom:20px;">
+                <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                    <input type="checkbox" id="tmpl-shared">
+                    <span style="font-size:13px;color:var(--text);">Share with all team members</span>
+                </label>
+            </div>
+            <div style="display:flex;gap:10px;justify-content:flex-end;">
+                <button type="button" class="btn" onclick="closeSaveTemplateModal()">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveTemplate()" id="tmpl-save-btn" style="padding:10px 24px;">💾 Save Template</button>
+            </div>
+        </div>
+    </div>
     </main>
 </div>
 {% endblock %}
@@ -1172,6 +1554,265 @@
         if (sanityRadio) { sanityRadio.checked = true; updateModeStyles(); }
         // Select all scenario tests
         document.querySelectorAll('input.scenario-input[name="scenario_tests"]').forEach(function(cb) { cb.checked = true; });
+    })();
+    {% endif %}
+
+    // Full CNV Regression preset: select all scenarios in full mode, sync table to fields
+    {% if preset == 'cnv_full' %}
+    (function() {
+        // Select full mode
+        var fullRadio = document.querySelector('input[name="scenario_mode"][value="full"]');
+        if (fullRadio) { fullRadio.checked = true; updateModeStyles(); }
+
+        // Set full-mode global variable defaults
+        var globalFullDefaults = { 'maxWaitTimeout': '30m', 'jobPause': '2m' };
+        for (var gName in globalFullDefaults) {
+            var gInput = document.querySelector('input[name="cnv_var_' + gName + '"].cnv-global-var-input');
+            if (gInput) { gInput.value = globalFullDefaults[gName]; }
+        }
+
+        // Select all scenario tests
+        document.querySelectorAll('input.scenario-input[name="scenario_tests"]').forEach(function(cb) { cb.checked = true; });
+
+        // Sync a table input value to its target scenario field
+        function syncToScenarioField(tableInput) {
+            var scenario = tableInput.getAttribute('data-target-scenario');
+            var varName = tableInput.getAttribute('data-target-var');
+            var value = tableInput.value;
+            // Find the scenario field
+            var field = document.querySelector('[name="cnv_var_' + varName + '"][data-scenario="' + scenario + '"]');
+            if (!field) field = document.querySelector('[name="cnv_var_' + varName + '"]');
+            if (field) {
+                if (field.tagName === 'SELECT') {
+                    for (var i = 0; i < field.options.length; i++) {
+                        if (field.options[i].value === value) { field.selectedIndex = i; break; }
+                    }
+                } else {
+                    field.value = value;
+                }
+            }
+            // Handle extra linked field (e.g. namespaceCount for per_host_density)
+            var extraScenario = tableInput.getAttribute('data-extra-scenario');
+            var extraVar = tableInput.getAttribute('data-extra-var');
+            var extraVal = tableInput.getAttribute('data-extra-value');
+            if (extraScenario && extraVar && extraVal) {
+                var extraField = document.querySelector('[name="cnv_var_' + extraVar + '"][data-scenario="' + extraScenario + '"]');
+                if (!extraField) extraField = document.querySelector('[name="cnv_var_' + extraVar + '"]');
+                if (extraField) extraField.value = extraVal;
+            }
+        }
+
+        // Helper: find matching Test-Specific param input for a table input
+        function findMatchingScenarioInput(tableInput) {
+            var sc = tableInput.getAttribute('data-target-scenario');
+            var vn = tableInput.getAttribute('data-target-var');
+            return document.querySelector('.full-cnv-scenario-input[data-sync-scenario="' + sc + '"][data-sync-var="' + vn + '"]');
+        }
+        // Helper: find matching table input for a Test-Specific param input
+        function findMatchingTableInput(scenarioInput) {
+            var sc = scenarioInput.getAttribute('data-sync-scenario');
+            var vn = scenarioInput.getAttribute('data-sync-var');
+            return document.querySelector('.full-cnv-input[data-target-scenario="' + sc + '"][data-target-var="' + vn + '"]');
+        }
+
+        // Initial sync: push all table values into scenario fields AND test-specific params
+        document.querySelectorAll('.full-cnv-input').forEach(function(inp) {
+            syncToScenarioField(inp);
+            // Also push value into test-specific param input
+            var match = findMatchingScenarioInput(inp);
+            if (match) {
+                if (match.tagName === 'SELECT') { match.value = inp.value; }
+                else { match.value = inp.value; }
+            }
+            // Live sync on change: table → form + test-specific params
+            inp.addEventListener('input', function() {
+                syncToScenarioField(this);
+                var m = findMatchingScenarioInput(this);
+                if (m) { m.value = this.value; syncScenarioParam(m); }
+            });
+            inp.addEventListener('change', function() {
+                syncToScenarioField(this);
+                var m = findMatchingScenarioInput(this);
+                if (m) { m.value = this.value; syncScenarioParam(m); }
+            });
+        });
+
+        // Sync global variable overrides from the top card to the form fields below
+        function syncGlobalOverride(topInput) {
+            var varName = topInput.getAttribute('data-global-var');
+            var isBool = topInput.getAttribute('data-is-bool') === 'true';
+            var formField = document.querySelector('input[name="cnv_var_' + varName + '"].cnv-global-var-input');
+            var formCheckbox = document.querySelector('#cnv-scenarios-section input[name="cnv_var_' + varName + '"][type="checkbox"]');
+            if (isBool && formCheckbox) {
+                formCheckbox.checked = topInput.checked;
+                // Also update the hidden sibling
+                var hidden = formCheckbox.previousElementSibling;
+                if (hidden && hidden.type === 'hidden') hidden.value = topInput.checked ? 'true' : 'false';
+            } else if (formField) {
+                formField.value = topInput.value;
+            }
+        }
+
+        // Initial sync + live listeners for global overrides
+        document.querySelectorAll('.full-cnv-global-input').forEach(function(inp) {
+            syncGlobalOverride(inp);
+            inp.addEventListener('input', function() { syncGlobalOverride(this); });
+            inp.addEventListener('change', function() { syncGlobalOverride(this); });
+        });
+
+        // Sync test-specific parameter inputs from top card to form fields below
+        function syncScenarioParam(topInput) {
+            var scenario = topInput.getAttribute('data-sync-scenario');
+            var varName = topInput.getAttribute('data-sync-var');
+            var syncType = topInput.getAttribute('data-sync-type');
+            // Find the matching form field
+            var formField = document.querySelector('[name="cnv_var_' + varName + '"][data-scenario="' + scenario + '"]');
+            if (!formField) return;
+            if (syncType === 'select' && formField.tagName === 'SELECT') {
+                formField.value = topInput.value;
+            } else if (formField.tagName === 'SELECT') {
+                for (var i = 0; i < formField.options.length; i++) {
+                    if (formField.options[i].value === topInput.value) { formField.selectedIndex = i; break; }
+                }
+            } else {
+                formField.value = topInput.value;
+            }
+        }
+
+        // Initial sync + live listeners for test-specific parameters (bidirectional)
+        document.querySelectorAll('.full-cnv-scenario-input').forEach(function(inp) {
+            inp.addEventListener('input', function() {
+                syncScenarioParam(this);
+                var tbl = findMatchingTableInput(this);
+                if (tbl) { tbl.value = this.value; syncToScenarioField(tbl); }
+            });
+            inp.addEventListener('change', function() {
+                syncScenarioParam(this);
+                var tbl = findMatchingTableInput(this);
+                if (tbl) { tbl.value = this.value; syncToScenarioField(tbl); }
+            });
+        });
+
+        // Expand the Variable Overrides card so it's visible
+        var varOverridesCard = document.querySelector('#cnv-scenarios-section .card-header');
+        var cards = document.querySelectorAll('#cnv-scenarios-section .card-header');
+        cards.forEach(function(hdr) {
+            var txt = hdr.textContent || '';
+            if (txt.indexOf('Variable Overrides') !== -1) {
+                // If collapsed (has ▲), click to expand
+                var icon = hdr.querySelector('.collapse-icon');
+                if (icon && icon.textContent.trim() === '▲') {
+                    hdr.click();
+                }
+            }
+        });
+    })();
+    {% endif %}
+
+    {% if preset == '10k_density' %}
+    (function() {
+        // Select full mode
+        var fullRadio = document.querySelector('input[name="scenario_mode"][value="full"]');
+        if (fullRadio) { fullRadio.checked = true; updateModeStyles(); }
+
+        // Select only per-host-density test
+        document.querySelectorAll('input.scenario-input[name="scenario_tests"]').forEach(function(cb) {
+            cb.checked = (cb.value === 'per-host-density');
+        });
+
+        // Helper to set a scenario variable field by name and optional scenario
+        function setVar(varName, value, scenario) {
+            var sel = scenario
+                ? '[name="cnv_var_' + varName + '"][data-scenario="' + scenario + '"]'
+                : '[name="cnv_var_' + varName + '"]';
+            var field = document.querySelector(sel);
+            if (!field) return;
+            if (field.tagName === 'SELECT') {
+                for (var i = 0; i < field.options.length; i++) {
+                    if (field.options[i].value === value) { field.selectedIndex = i; break; }
+                }
+            } else if (field.type === 'checkbox') {
+                field.checked = (value === 'true');
+                var hidden = field.previousElementSibling;
+                if (hidden && hidden.type === 'hidden') hidden.value = value;
+            } else {
+                field.value = value;
+            }
+        }
+
+        // Per-Host Density - every field filled in
+        setVar('vmsPerNamespace', '10000', 'per_host_density');
+        setVar('namespaceCount', '1', 'per_host_density');
+        setVar('scaleMode', 'multi-node', 'per_host_density');
+        setVar('targetNode', '', 'per_host_density');
+        setVar('cleanup', 'false', 'per_host_density');
+        setVar('percentage_of_vms_to_validate', '0', 'per_host_density');
+        setVar('max_ssh_retries', '240', 'per_host_density');
+        setVar('vmMemory', '256Mi', 'per_host_density');
+        setVar('vmCpuCores', '100', 'per_host_density');
+        setVar('vmCpuRequest', '100m', 'per_host_density');
+        setVar('vmCpuLimit', '1000m', 'per_host_density');
+        setVar('sourceStorageSize', '256', 'per_host_density');
+        setVar('vmStorageSize', '256', 'per_host_density');
+        setVar('imageUrl', '', 'per_host_density');
+        setVar('shutdownBatchSize', '50', 'per_host_density');
+        setVar('sleepBetweenPhases', '2m', 'per_host_density');
+        setVar('skipVmShutdown', 'true', 'per_host_density');
+        setVar('skipVmRestart', 'true', 'per_host_density');
+        setVar('qpsCreate', '20', 'per_host_density');
+        setVar('burstCreate', '40', 'per_host_density');
+        setVar('qpsShutdown', '10', 'per_host_density');
+        setVar('burstShutdown', '20', 'per_host_density');
+        setVar('qpsStartup', '30', 'per_host_density');
+        setVar('burstStartup', '60', 'per_host_density');
+
+        // Global overrides
+        setVar('storageClassName', '');
+        setVar('nodeSelector', '');
+        setVar('maxWaitTimeout', '48h');
+        setVar('jobPause', '2m');
+
+        // Uncheck global cleanup
+        var cleanupCheckboxes = document.querySelectorAll('input[name="cnv_var_cleanup"]');
+        cleanupCheckboxes.forEach(function(cb) {
+            if (cb.type === 'checkbox') {
+                cb.checked = false;
+                var hidden = cb.previousElementSibling;
+                if (hidden && hidden.type === 'hidden') hidden.value = 'false';
+            }
+        });
+
+        // kube-burner timeout
+        var kbTimeout = document.querySelector('input[name="kb_timeout"]');
+        if (kbTimeout) kbTimeout.value = '48h';
+
+        // Enable email report
+        var emailCb = document.querySelector('input[name="cnv_send_email"]');
+        if (emailCb) emailCb.checked = true;
+
+        // Refresh UI: show CNV section and make per-host-density fields visible
+        switchTaskType();
+        updateScenarioVarGroups();
+
+        // Expand the Variable Overrides card so all fields are visible
+        document.querySelectorAll('#cnv-scenarios-section .card-header').forEach(function(hdr) {
+            var txt = hdr.textContent || '';
+            if (txt.indexOf('Variable Overrides') !== -1) {
+                var body = hdr.nextElementSibling;
+                var icon = hdr.querySelector('.collapse-icon');
+                if (body && body.style.display === 'none') {
+                    hdr.click();
+                } else if (icon && icon.textContent.trim() === '▲') {
+                    hdr.click();
+                }
+            }
+        });
+    })();
+    {% endif %}
+
+    {% if load_template %}
+    (function() {
+        loadTemplateConfig({{ load_template.config | tojson }});
     })();
     {% endif %}
 
@@ -1484,6 +2125,253 @@
         input.name = 'checks';
         input.value = suggestion.suggested_check;
         document.getElementById('buildForm').appendChild(input);
+    }
+
+    function toggleSidebarSection(title) {
+        title.classList.toggle('collapsed');
+        var content = title.nextElementSibling;
+        if (content && content.classList.contains('sidebar-content')) {
+            content.classList.toggle('collapsed');
+        }
+    }
+
+    // ── Template Save/Load ──────────────────────────────────────────────
+    var _selectedTemplateIcon = '📋';
+
+    function pickTemplateIcon(el) {
+        document.querySelectorAll('.tmpl-icon-opt').forEach(function(e) {
+            e.style.borderColor = 'transparent';
+        });
+        el.style.borderColor = 'var(--accent)';
+        _selectedTemplateIcon = el.getAttribute('data-icon');
+    }
+
+    function openSaveTemplateModal() {
+        var modal = document.getElementById('saveTemplateModal');
+        modal.style.display = 'flex';
+        document.getElementById('tmpl-name').value = '';
+        document.getElementById('tmpl-desc').value = '';
+        document.getElementById('tmpl-shared').checked = false;
+        _selectedTemplateIcon = '📋';
+        document.querySelectorAll('.tmpl-icon-opt').forEach(function(e) {
+            e.style.borderColor = e.getAttribute('data-icon') === '📋' ? 'var(--accent)' : 'transparent';
+        });
+        document.getElementById('tmpl-name').focus();
+    }
+
+    function closeSaveTemplateModal() {
+        document.getElementById('saveTemplateModal').style.display = 'none';
+    }
+
+    function serializeFormConfig() {
+        var form = document.getElementById('buildForm');
+        var config = {};
+
+        config.task_type = (form.querySelector('input[name="task_type"]:checked') || {}).value || 'health_check';
+        config.run_name = (form.querySelector('[name="run_name"]') || {}).value || '';
+        config.server_host = (form.querySelector('[name="server_host"]') || {}).value || '';
+
+        // Health checks
+        config.checks = [];
+        form.querySelectorAll('input[name="checks"]:checked').forEach(function(cb) {
+            config.checks.push(cb.value);
+        });
+
+        // CNV scenarios
+        config.scenario_mode = (form.querySelector('input[name="scenario_mode"]:checked') || {}).value || 'sanity';
+        config.scenario_tests = [];
+        form.querySelectorAll('input[name="scenario_tests"]:checked').forEach(function(cb) {
+            config.scenario_tests.push(cb.value);
+        });
+        config.scenario_parallel = !!(form.querySelector('input[name="scenario_parallel"]') || {}).checked;
+        config.cnv_path = (form.querySelector('[name="cnv_path"]') || {}).value || '';
+        config.kb_log_level = (form.querySelector('[name="kb_log_level"]') || {}).value || '';
+        config.kb_timeout = (form.querySelector('[name="kb_timeout"]') || {}).value || '';
+
+        // Env vars (cnv_var_*)
+        config.env_vars = {};
+        form.querySelectorAll('[name^="cnv_var_"]').forEach(function(el) {
+            var varName = el.name.replace('cnv_var_', '');
+            var scenario = el.getAttribute('data-scenario') || '_global';
+            var key = scenario === '_global' ? varName : scenario + '.' + varName;
+            if (el.type === 'checkbox') {
+                config.env_vars[key] = el.checked ? 'true' : 'false';
+            } else {
+                config.env_vars[key] = el.value;
+            }
+        });
+
+        // RCA / email / thresholds
+        config.rca_level = (form.querySelector('[name="rca_level"]') || {}).value || 'none';
+        config.email = !!(form.querySelector('[name="cnv_send_email"]') || {}).checked;
+        config.email_to = (form.querySelector('[name="cnv_email_to"]') || {}).value || '';
+
+        return config;
+    }
+
+    function saveTemplate() {
+        var name = document.getElementById('tmpl-name').value.trim();
+        if (!name) {
+            alert('Please enter a template name');
+            document.getElementById('tmpl-name').focus();
+            return;
+        }
+        var btn = document.getElementById('tmpl-save-btn');
+        btn.disabled = true;
+        btn.textContent = 'Saving...';
+
+        fetch('/api/templates', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                name: name,
+                description: document.getElementById('tmpl-desc').value.trim(),
+                icon: _selectedTemplateIcon,
+                shared: document.getElementById('tmpl-shared').checked,
+                config: serializeFormConfig()
+            })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.error) {
+                alert('Error: ' + data.error);
+            } else {
+                closeSaveTemplateModal();
+                location.reload();
+            }
+        })
+        .catch(function(err) {
+            alert('Failed to save: ' + err);
+        })
+        .finally(function() {
+            btn.disabled = false;
+            btn.textContent = '💾 Save Template';
+        });
+    }
+
+    function deleteTemplate(id, name) {
+        if (!confirm('Delete template "' + name + '"?')) return;
+        fetch('/api/templates/' + id, {method: 'DELETE'})
+        .then(function(r) { return r.json(); })
+        .then(function() { location.reload(); })
+        .catch(function(err) { alert('Failed: ' + err); });
+    }
+
+    // Load a user template into the form
+    function loadTemplateConfig(config) {
+        var form = document.getElementById('buildForm');
+        if (!config) return;
+
+        // Task type
+        if (config.task_type) {
+            var radio = form.querySelector('input[name="task_type"][value="' + config.task_type + '"]');
+            if (radio) { radio.checked = true; switchTaskType(); }
+        }
+
+        // Run name
+        if (config.run_name) {
+            var rn = form.querySelector('[name="run_name"]');
+            if (rn) rn.value = config.run_name;
+        }
+
+        // Server host
+        if (config.server_host) {
+            var sh = form.querySelector('[name="server_host"]');
+            if (sh) sh.value = config.server_host;
+        }
+
+        // Health checks
+        if (config.checks && config.checks.length) {
+            form.querySelectorAll('input[name="checks"]').forEach(function(cb) {
+                cb.checked = config.checks.indexOf(cb.value) !== -1;
+            });
+        }
+
+        // Scenario mode
+        if (config.scenario_mode) {
+            var modeRadio = form.querySelector('input[name="scenario_mode"][value="' + config.scenario_mode + '"]');
+            if (modeRadio) { modeRadio.checked = true; if (typeof updateModeStyles === 'function') updateModeStyles(); }
+        }
+
+        // Scenario tests
+        if (config.scenario_tests && config.scenario_tests.length) {
+            form.querySelectorAll('input[name="scenario_tests"]').forEach(function(cb) {
+                cb.checked = config.scenario_tests.indexOf(cb.value) !== -1;
+            });
+        }
+
+        // Scenario parallel
+        if (config.scenario_parallel !== undefined) {
+            var sp = form.querySelector('input[name="scenario_parallel"]');
+            if (sp) sp.checked = !!config.scenario_parallel;
+        }
+
+        // cnv_path
+        if (config.cnv_path) {
+            var cp = form.querySelector('[name="cnv_path"]');
+            if (cp) cp.value = config.cnv_path;
+        }
+
+        // kb_timeout, kb_log_level
+        if (config.kb_timeout) {
+            var kt = form.querySelector('[name="kb_timeout"]');
+            if (kt) kt.value = config.kb_timeout;
+        }
+        if (config.kb_log_level) {
+            var kl = form.querySelector('[name="kb_log_level"]');
+            if (kl) kl.value = config.kb_log_level;
+        }
+
+        // Env vars
+        if (config.env_vars) {
+            Object.keys(config.env_vars).forEach(function(key) {
+                var val = config.env_vars[key];
+                var parts = key.split('.');
+                var varName, scenario;
+                if (parts.length === 2) {
+                    scenario = parts[0];
+                    varName = parts[1];
+                } else {
+                    varName = parts[0];
+                    scenario = null;
+                }
+                var sel = scenario
+                    ? '[name="cnv_var_' + varName + '"][data-scenario="' + scenario + '"]'
+                    : '[name="cnv_var_' + varName + '"]';
+                var field = form.querySelector(sel);
+                if (!field) return;
+                if (field.tagName === 'SELECT') {
+                    for (var i = 0; i < field.options.length; i++) {
+                        if (field.options[i].value === val) { field.selectedIndex = i; break; }
+                    }
+                } else if (field.type === 'checkbox') {
+                    field.checked = (val === 'true');
+                    var hidden = field.previousElementSibling;
+                    if (hidden && hidden.type === 'hidden') hidden.value = val;
+                } else {
+                    field.value = val;
+                }
+            });
+        }
+
+        // Email
+        if (config.email !== undefined) {
+            var emailCb = form.querySelector('[name="cnv_send_email"]');
+            if (emailCb) emailCb.checked = !!config.email;
+        }
+        if (config.email_to) {
+            var emailTo = form.querySelector('[name="cnv_email_to"]');
+            if (emailTo) emailTo.value = config.email_to;
+        }
+
+        // RCA level
+        if (config.rca_level) {
+            var rl = form.querySelector('[name="rca_level"]');
+            if (rl) rl.value = config.rca_level;
+        }
+
+        // Refresh UI
+        if (typeof updateScenarioVarGroups === 'function') updateScenarioVarGroups();
     }
 </script>
 

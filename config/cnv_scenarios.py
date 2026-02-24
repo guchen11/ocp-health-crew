@@ -194,7 +194,7 @@ CNV_SCENARIOS = {
         "remote_name": "per-host-density",
         "default": False,
         "variables": {
-            "vmsPerNamespace": {"type": "int", "default": 30, "label": "VMs per Namespace", "min": 1, "max": 1000},
+            "vmsPerNamespace": {"type": "int", "default": 30, "label": "VMs per Namespace", "min": 1, "max": 10000},
             "namespaceCount": {"type": "int", "default": 15, "label": "Namespace Count", "min": 1, "max": 100},
             "scaleMode": {"type": "choice", "default": "single-node", "label": "Scale Mode", "choices": ["single-node", "multi-node"]},
             "targetNode": {"type": "str", "default": "", "label": "Target Node", "placeholder": "auto-select if empty (single-node only)"},

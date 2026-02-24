@@ -39,6 +39,7 @@ EMAIL_TO = os.getenv("EMAIL_TO", "guchen@redhat.com")
 EMAIL_FROM = os.getenv("EMAIL_FROM", "cnv-healthcrew@redhat.com")
 SMTP_SERVER = os.getenv("SMTP_SERVER", "smtp.corp.redhat.com")
 SMTP_PORT = int(os.getenv("SMTP_PORT", "25"))
+DASHBOARD_BASE_URL = os.getenv("DASHBOARD_BASE_URL", "http://10.46.254.144:5000")
 
 
 def send_email_report(html_path, recipient=None, subject=None, cluster_name=None, issue_count=0, report_data=None):
@@ -112,6 +113,10 @@ def send_email_report(html_path, recipient=None, subject=None, cluster_name=None
         
         # OOM events
         oom_events = len(data.get('oom_events', []))
+        
+        # Build report URL for the CTA button
+        report_filename = os.path.basename(html_path)
+        report_url = f"{DASHBOARD_BASE_URL}/report/{report_filename}"
         
         # Status styling
         if issue_count > 0:
@@ -381,7 +386,7 @@ def send_email_report(html_path, recipient=None, subject=None, cluster_name=None
                                         <table cellpadding="0" cellspacing="0" style="background:linear-gradient(135deg,#73BF69 0%,#5ba350 100%);border-radius:8px;">
                                             <tr>
                                                 <td style="padding:14px 32px;color:#ffffff;font-weight:600;font-size:14px;">
-                                                    📎 Full Report Attached
+                                                    📎 Full Interactive Report Attached — Open in Browser
                                                 </td>
                                             </tr>
                                         </table>
@@ -412,6 +417,132 @@ def send_email_report(html_path, recipient=None, subject=None, cluster_name=None
 </body>
 </html>'''
         
+        # Build detailed findings section (email-safe tables)
+        findings_html = ""
+        
+        # Degraded / unavailable operators
+        degraded_list = operators.get('degraded', [])
+        unavailable_list = operators.get('unavailable', [])
+        if degraded_list or unavailable_list:
+            op_rows = ""
+            for op in degraded_list:
+                op_rows += f'<tr><td style="padding:8px 12px;color:#e0e0e0;font-size:12px;font-family:monospace;border-bottom:1px solid #2a2a3e;">{op}</td><td style="padding:8px 12px;text-align:right;border-bottom:1px solid #2a2a3e;"><span style="background:#FF9830;color:#fff;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600;">DEGRADED</span></td></tr>'
+            for op in unavailable_list:
+                op_rows += f'<tr><td style="padding:8px 12px;color:#e0e0e0;font-size:12px;font-family:monospace;border-bottom:1px solid #2a2a3e;">{op}</td><td style="padding:8px 12px;text-align:right;border-bottom:1px solid #2a2a3e;"><span style="background:#F2495C;color:#fff;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600;">UNAVAILABLE</span></td></tr>'
+            findings_html += f'''
+            <table width="100%" cellpadding="0" cellspacing="0" style="background:#1e1e2e;border-radius:12px;margin-bottom:16px;overflow:hidden;">
+                <tr><td style="padding:14px 20px;border-bottom:1px solid #2a2a3e;"><span style="color:#FF9830;font-size:13px;font-weight:600;">⚙️ DEGRADED CLUSTER OPERATORS ({len(degraded_list) + len(unavailable_list)})</span></td></tr>
+                <tr><td style="padding:0;"><table width="100%" cellpadding="0" cellspacing="0">{op_rows}</table></td></tr>
+            </table>'''
+        
+        # Health check summary table
+        check_items = [
+            ("🖥️", "Nodes", f"{healthy_nodes}/{total_nodes} Ready", unhealthy_nodes == 0),
+            ("⚙️", "Cluster Operators", f"{healthy_ops}/{total_ops} Available", degraded_ops + unavailable_ops == 0),
+            ("📦", "Pods", f"{healthy_pods}/{total_pods} Running", unhealthy_pods == 0),
+            ("🗄️", "etcd", f"{etcd_members} members healthy", True),
+            ("💾", "PVCs", f"{pending_pvcs} pending" if pending_pvcs > 0 else "All Bound", pending_pvcs == 0),
+            ("🔄", "VM Migrations", f"{running_migrations} running", True),
+            ("💥", "OOM Events", f"{oom_events}" if oom_events > 0 else "None", oom_events == 0),
+        ]
+        
+        # Add CNV checks if available
+        virt_handler = data.get('virt_handler', {})
+        if isinstance(virt_handler, dict):
+            vh_count = len(virt_handler.get('pods', []))
+            vh_unhealthy = len(virt_handler.get('unhealthy', []))
+            if vh_count > 0:
+                check_items.append(("🔧", "virt-handler", f"{vh_count - vh_unhealthy}/{vh_count} healthy", vh_unhealthy == 0))
+        
+        check_rows = ""
+        for icon, name, result, is_ok in check_items:
+            status_icon = "✅" if is_ok else "❌"
+            result_color = "#73BF69" if is_ok else "#FF9830"
+            check_rows += f'''<tr>
+                <td style="padding:10px 16px;border-bottom:1px solid #2a2a3e;font-size:14px;width:30px;">{status_icon}</td>
+                <td style="padding:10px 8px;border-bottom:1px solid #2a2a3e;color:#e0e0e0;font-size:13px;font-weight:600;">{icon} {name}</td>
+                <td style="padding:10px 16px;border-bottom:1px solid #2a2a3e;text-align:right;color:{result_color};font-size:13px;font-weight:600;">{result}</td>
+            </tr>'''
+        
+        findings_html += f'''
+            <table width="100%" cellpadding="0" cellspacing="0" style="background:#1e1e2e;border-radius:12px;margin-bottom:16px;overflow:hidden;">
+                <tr><td style="padding:14px 20px;border-bottom:1px solid #2a2a3e;"><span style="color:#5794F2;font-size:13px;font-weight:600;">📋 HEALTH CHECK RESULTS</span></td></tr>
+                <tr><td style="padding:0;"><table width="100%" cellpadding="0" cellspacing="0">{check_rows}</table></td></tr>
+            </table>'''
+        
+        # Unhealthy nodes details
+        unhealthy_node_list = nodes.get('unhealthy', [])
+        if unhealthy_node_list:
+            node_rows = ""
+            for n in unhealthy_node_list[:10]:
+                n_name = n.get('name', n) if isinstance(n, dict) else str(n)
+                n_status = n.get('status', 'NotReady') if isinstance(n, dict) else 'NotReady'
+                node_rows += f'<tr><td style="padding:8px 12px;color:#e0e0e0;font-size:12px;font-family:monospace;border-bottom:1px solid #2a2a3e;">{n_name}</td><td style="padding:8px 12px;text-align:right;border-bottom:1px solid #2a2a3e;"><span style="background:#F2495C;color:#fff;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600;">{n_status}</span></td></tr>'
+            findings_html += f'''
+            <table width="100%" cellpadding="0" cellspacing="0" style="background:#1e1e2e;border-radius:12px;margin-bottom:16px;overflow:hidden;">
+                <tr><td style="padding:14px 20px;border-bottom:1px solid #2a2a3e;"><span style="color:#F2495C;font-size:13px;font-weight:600;">🖥️ UNHEALTHY NODES ({len(unhealthy_node_list)})</span></td></tr>
+                <tr><td style="padding:0;"><table width="100%" cellpadding="0" cellspacing="0">{node_rows}</table></td></tr>
+            </table>'''
+        
+        # Firing alerts
+        alerts = data.get('alerts', [])
+        if alerts and isinstance(alerts, list) and len(alerts) > 0:
+            alert_rows = ""
+            for a in alerts[:15]:
+                if isinstance(a, dict):
+                    a_name = a.get('name', a.get('alertname', 'Unknown'))
+                    a_sev = a.get('severity', 'warning')
+                elif isinstance(a, str):
+                    a_name = a
+                    a_sev = 'warning'
+                else:
+                    continue
+                sev_bg = '#F2495C' if a_sev == 'critical' else '#FF9830'
+                alert_rows += f'<tr><td style="padding:8px 12px;color:#e0e0e0;font-size:12px;border-bottom:1px solid #2a2a3e;">{a_name}</td><td style="padding:8px 12px;text-align:right;border-bottom:1px solid #2a2a3e;"><span style="background:{sev_bg};color:#fff;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600;">{a_sev.upper()}</span></td></tr>'
+            if alert_rows:
+                findings_html += f'''
+            <table width="100%" cellpadding="0" cellspacing="0" style="background:#1e1e2e;border-radius:12px;margin-bottom:16px;overflow:hidden;">
+                <tr><td style="padding:14px 20px;border-bottom:1px solid #2a2a3e;"><span style="color:#FF9830;font-size:13px;font-weight:600;">🔔 FIRING ALERTS ({len(alerts)})</span></td></tr>
+                <tr><td style="padding:0;"><table width="100%" cellpadding="0" cellspacing="0">{alert_rows}</table></td></tr>
+            </table>'''
+        
+        # Failed VMIs
+        if failed_vmis:
+            vmi_rows = ""
+            for v in failed_vmis[:10]:
+                v_name = v.get('name', v) if isinstance(v, dict) else str(v)
+                v_ns = v.get('namespace', '') if isinstance(v, dict) else ''
+                v_display = f"{v_ns}/{v_name}" if v_ns else v_name
+                vmi_rows += f'<tr><td style="padding:8px 12px;color:#e0e0e0;font-size:12px;font-family:monospace;border-bottom:1px solid #2a2a3e;">{v_display}</td><td style="padding:8px 12px;text-align:right;border-bottom:1px solid #2a2a3e;"><span style="background:#F2495C;color:#fff;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600;">FAILED</span></td></tr>'
+            findings_html += f'''
+            <table width="100%" cellpadding="0" cellspacing="0" style="background:#1e1e2e;border-radius:12px;margin-bottom:16px;overflow:hidden;">
+                <tr><td style="padding:14px 20px;border-bottom:1px solid #2a2a3e;"><span style="color:#F2495C;font-size:13px;font-weight:600;">🗄️ FAILED VMIs ({len(failed_vmis)})</span></td></tr>
+                <tr><td style="padding:0;"><table width="100%" cellpadding="0" cellspacing="0">{vmi_rows}</table></td></tr>
+            </table>'''
+        
+        # Insert findings into the email HTML before the CTA button
+        html_content = html_content.replace(
+            '<!-- CTA Button -->',
+            f'''<!-- Detailed Findings -->
+                    <tr>
+                        <td style="padding:0 24px 10px;">
+                            {findings_html}
+                            {unhealthy_pods_html}
+                        </td>
+                    </tr>
+                    <!-- CTA Button -->'''
+        )
+        # Remove the old separate unhealthy pods section since it's now inside findings
+        html_content = html_content.replace(
+            f'''                    <!-- Unhealthy Pods Section -->
+                    <tr>
+                        <td style="padding:0 24px 20px;">
+                            {unhealthy_pods_html}
+                        </td>
+                    </tr>''',
+            ''
+        )
+        
         # Create message
         msg = MIMEMultipart('mixed')
         msg['Subject'] = subject
@@ -441,10 +572,10 @@ Migrations:   {running_migrations} Running
 
 {'Issues Found: ' + str(issue_count) if issue_count > 0 else 'No issues detected.'}
 
-Full HTML report is attached.
+Full HTML report attached — open in a browser for the interactive view with RCA details.
         """
         
-        # Use the table-based email-friendly HTML (not the full report which uses CSS Grid)
+        # Email body = table-based email-friendly HTML (works in Gmail, Outlook, etc.)
         part1 = MIMEText(plain_text, 'plain')
         part2 = MIMEText(html_content, 'html')
         
@@ -452,7 +583,7 @@ Full HTML report is attached.
         msg_alt.attach(part2)
         msg.attach(msg_alt)
         
-        # Attach the full HTML report file for download
+        # Attach the full HTML report for offline / mobile viewing
         with open(html_path, 'rb') as f:
             attachment = MIMEBase('text', 'html')
             attachment.set_payload(f.read())
@@ -1231,6 +1362,103 @@ KNOWN_ISSUES = {
             "Check if storage backend supports required features"
         ],
         "verify_cmd": "oc get pods -A --no-headers | grep csi | grep -v Running"
+    },
+    "mco-degraded": {
+        "pattern": ["machine-config", "operator-degraded", "machineconfigpool", "syncRequiredMachineConfigPools"],
+        "jira": ["OCPBUGS-47041", "OCPBUGS-38553", "OCPBUGS-41786"],
+        "title": "Machine Config Operator Degraded",
+        "description": "Machine Config Operator is degraded. MachineConfigPool workers may be failing to render or apply updated MachineConfigs.",
+        "root_cause": [
+            "MachineConfigPool 'worker' is degraded — nodes failed to apply the desired MachineConfig (context deadline exceeded)",
+            "Nodes stuck in NotReady or SchedulingDisabled after a failed config render or drain timeout",
+            "Post-upgrade MC render failure due to incompatible custom MachineConfigs (OCPBUGS-47041)",
+            "MCD drain timeout when pods have long terminationGracePeriod or PodDisruptionBudgets blocking eviction"
+        ],
+        "suggestions": [
+            "Check MachineConfigPool status: oc get mcp",
+            "Identify degraded nodes: oc get nodes -o wide | grep -v ' Ready '",
+            "Check MCD logs on degraded node: oc logs -n openshift-machine-config-operator machine-config-daemon-<id>",
+            "Review rendered MC diff: oc describe mc <rendered-mc>",
+            "If stuck after upgrade, approve pending CSRs: oc get csr | grep Pending",
+            "Force reboot stuck node: oc debug node/<node> -- chroot /host systemctl reboot"
+        ],
+        "verify_cmd": "oc get mcp && oc get co machine-config"
+    },
+    "operator-degraded-generic": {
+        "pattern": ["operator-degraded", "degraded"],
+        "jira": [],
+        "title": "Cluster Operator Degraded",
+        "description": "One or more cluster operators are in a Degraded state, indicating an issue within the operator's managed components.",
+        "root_cause": [
+            "Underlying pods managed by the operator are crashing or failing health checks",
+            "Resource constraints (CPU/memory) preventing operator pods from functioning",
+            "Configuration drift or invalid custom resource changes",
+            "Post-upgrade reconciliation failure"
+        ],
+        "suggestions": [
+            "Get operator details: oc describe co <operator-name>",
+            "Check operator namespace pods: oc get pods -n openshift-<operator-name>",
+            "Review operator logs: oc logs -n openshift-<operator-name> deployment/<operator-name>",
+            "Check recent events: oc get events -n openshift-<operator-name> --sort-by='.lastTimestamp'",
+            "If post-upgrade, wait for reconciliation or check for pending CSRs"
+        ],
+        "verify_cmd": "oc get co --no-headers | grep -vE 'True.*False.*False'"
+    },
+    "operator-unavailable": {
+        "pattern": ["operator-unavailable", "unavailable"],
+        "jira": [],
+        "title": "Cluster Operator Unavailable",
+        "description": "One or more cluster operators are unavailable, which means the operator's core functionality is not working.",
+        "root_cause": [
+            "Operator pods are not running or in CrashLoopBackOff",
+            "Critical dependency (e.g., etcd, API server) is down",
+            "Node hosting the operator pod went offline",
+            "Webhook or admission controller blocking operator reconciliation"
+        ],
+        "suggestions": [
+            "Immediately check: oc get co <operator-name> -o yaml",
+            "Check operator pods: oc get pods -n openshift-<operator-name> -o wide",
+            "Look for crashloop: oc get pods -A | grep -E 'CrashLoop|Error'",
+            "Check node health: oc get nodes -o wide",
+            "Review API server availability: oc get pods -n openshift-kube-apiserver"
+        ],
+        "verify_cmd": "oc get co --no-headers | grep -v 'True'"
+    },
+    "node-not-ready": {
+        "pattern": ["node", "not ready", "unhealthy"],
+        "jira": ["OCPBUGS-42135"],
+        "title": "Node Not Ready",
+        "description": "One or more nodes are in NotReady state, meaning workloads cannot be scheduled there.",
+        "root_cause": [
+            "Kubelet crashed or stopped on the affected node",
+            "Network partition between node and control plane",
+            "Disk pressure, memory pressure, or PID pressure conditions",
+            "Node kernel panic or hardware failure"
+        ],
+        "suggestions": [
+            "Check node conditions: oc describe node <node-name> | grep -A20 Conditions",
+            "Check kubelet on node: oc debug node/<node-name> -- chroot /host journalctl -u kubelet --since '30m ago'",
+            "Check system resources: oc adm top node <node-name>",
+            "If unrecoverable, drain and replace: oc adm drain <node-name> --ignore-daemonsets --delete-emptydir-data"
+        ],
+        "verify_cmd": "oc get nodes -o wide"
+    },
+    "alerts-firing": {
+        "pattern": ["alert", "firing"],
+        "jira": [],
+        "title": "Cluster Alerts Firing",
+        "description": "Active alerts indicate components that need attention. Critical alerts may require immediate action.",
+        "root_cause": [
+            "Alerts are symptom indicators — the root cause depends on the specific alert",
+            "Common: resource exhaustion, component failures, certificate expiry, etcd issues"
+        ],
+        "suggestions": [
+            "View active alerts in console: Observe → Alerting → Alerts",
+            "Check Prometheus: oc -n openshift-monitoring exec -c prometheus prometheus-k8s-0 -- promtool query instant http://localhost:9090 'ALERTS{alertstate=\"firing\"}'",
+            "Silence non-critical alerts during maintenance windows",
+            "Address critical alerts first, then warnings"
+        ],
+        "verify_cmd": "oc get pods -n openshift-monitoring"
     }
 }
 
@@ -1299,6 +1527,40 @@ INVESTIGATION_COMMANDS = {
         {"cmd": "oc describe pod {pod} -n {ns} 2>&1 | grep -A5 'Resources:'", "desc": "Pod resource limits"},
         {"cmd": "oc adm top pods -n {ns} --no-headers 2>&1 | head -10", "desc": "Namespace resource usage"},
     ],
+    "operator-degraded": [
+        {"cmd": "oc get co --no-headers 2>&1 | grep -vE 'True.*False.*False'", "desc": "Unhealthy cluster operators"},
+        {"cmd": "oc get co {name} -o yaml 2>&1 | grep -A5 'message:' | head -30", "desc": "Operator error messages (full)"},
+        {"cmd": "oc describe co {name} 2>&1 | grep -A25 'Conditions:' | head -30", "desc": "Operator conditions"},
+        {"cmd": "oc get pods -n openshift-{name} --no-headers 2>&1 | head -20", "desc": "All pods in operator namespace"},
+        {"cmd": "oc get pods -A --no-headers 2>&1 | grep -E 'openshift-.*{name}' | grep -v Running | head -10", "desc": "Non-running pods in operator namespace"},
+        {"cmd": "oc logs -n openshift-{name} $(oc get pods -n openshift-{name} --no-headers -o name 2>/dev/null | head -1) --tail=40 2>&1 | grep -iE 'error|fail|warn|timeout|degrade' | tail -15", "desc": "Recent error/warning logs"},
+        {"cmd": "oc get events -n openshift-{name} --sort-by='.lastTimestamp' 2>&1 | tail -15", "desc": "Recent events in operator namespace"},
+        {"cmd": "oc get mcp 2>&1", "desc": "MachineConfigPool status (if MCO)"},
+        {"cmd": "oc get nodes --no-headers 2>&1 | grep -v ' Ready ' | head -10", "desc": "Nodes not in Ready state"},
+        {"cmd": "oc get csr 2>&1 | grep -i pending | head -5", "desc": "Pending CSRs"},
+    ],
+    "operator-unavailable": [
+        {"cmd": "oc get co --no-headers 2>&1 | grep -vE 'True.*False.*False'", "desc": "Unhealthy cluster operators"},
+        {"cmd": "oc get co {name} -o yaml 2>&1 | grep -A5 'message:' | head -30", "desc": "Operator error messages (full)"},
+        {"cmd": "oc describe co {name} 2>&1 | grep -A25 'Conditions:' | head -30", "desc": "Operator conditions"},
+        {"cmd": "oc get pods -n openshift-{name} --no-headers 2>&1 | head -20", "desc": "All pods in operator namespace"},
+        {"cmd": "oc get pods -A --no-headers 2>&1 | grep -E 'openshift-.*{name}' | grep -v Running | head -10", "desc": "Non-running pods in operator namespace"},
+        {"cmd": "oc logs -n openshift-{name} $(oc get pods -n openshift-{name} --no-headers -o name 2>/dev/null | head -1) --tail=40 2>&1 | grep -iE 'error|fail|warn|timeout' | tail -15", "desc": "Recent error/warning logs"},
+        {"cmd": "oc get events -n openshift-{name} --sort-by='.lastTimestamp' 2>&1 | tail -15", "desc": "Recent events in operator namespace"},
+        {"cmd": "oc get nodes --no-headers 2>&1 | grep -v ' Ready ' | head -10", "desc": "Nodes not in Ready state"},
+    ],
+    "node": [
+        {"cmd": "oc get nodes -o wide 2>&1", "desc": "All node status"},
+        {"cmd": "oc describe node {name} 2>&1 | grep -A20 'Conditions:'", "desc": "Node conditions"},
+        {"cmd": "oc adm top node {name} 2>&1", "desc": "Node resource usage"},
+        {"cmd": "oc get events --field-selector involvedObject.name={name} --sort-by='.lastTimestamp' 2>&1 | tail -10", "desc": "Node events"},
+    ],
+    "alert": [
+        {"cmd": "oc get pods -A --no-headers 2>&1 | grep -v Running | grep -v Completed | head -15", "desc": "Non-running pods"},
+        {"cmd": "oc get co --no-headers 2>&1 | grep -vE 'True.*False.*False'", "desc": "Unhealthy cluster operators"},
+        {"cmd": "oc get nodes --no-headers 2>&1 | grep -v ' Ready' | head -10", "desc": "Unhealthy nodes"},
+        {"cmd": "oc get events -A --sort-by='.lastTimestamp' 2>&1 | grep -i 'warning' | tail -15", "desc": "Recent warning events"},
+    ],
 }
 
 def investigate_issue(issue_type, context, ssh_command_func):
@@ -1320,9 +1582,9 @@ def investigate_issue(issue_type, context, ssh_command_func):
         
         # Run command with shorter timeout for speed
         try:
-            output = ssh_command_func(cmd, timeout=5)
+            output = ssh_command_func(cmd, timeout=8)
             if output:
-                output = output.strip()[:500]  # Limit output size
+                output = output.strip()[:2000]  # Limit output size
             else:
                 output = "(no output)"
         except Exception as e:
@@ -1407,6 +1669,44 @@ def determine_root_cause(issue_type, investigation_results, failure_details):
             root_causes.append(("Network Bandwidth", "medium", "Network bandwidth limiting migration speed"))
         if "cpu" in all_output and "mismatch" in all_output:
             root_causes.append(("CPU Incompatibility", "high", "CPU features mismatch between nodes"))
+    
+    elif issue_type in ["operator-degraded", "operator-unavailable"]:
+        # MCO-specific patterns
+        if "machineconfigpool" in all_output or "machine-config" in all_output or "mcp" in all_output:
+            if "degraded" in all_output and ("worker" in all_output or "master" in all_output):
+                root_causes.append(("MachineConfigPool Degraded", "high", "MachineConfigPool nodes failed to apply updated MachineConfig — check 'oc get mcp' and MCD logs on degraded nodes"))
+            if "context deadline" in all_output or "timeout" in all_output:
+                root_causes.append(("MachineConfig Apply Timeout", "high", "MachineConfig application timed out during node drain or reboot — nodes may be stuck in SchedulingDisabled"))
+            if "syncRequiredMachineConfigPools" in all_output.replace(" ", ""):
+                root_causes.append(("MCO Sync Failure", "high", "MCO failed to sync required MachineConfigPools — check for incompatible custom MachineConfigs"))
+        if "crashloopbackoff" in all_output:
+            root_causes.append(("Operator Pod CrashLoop", "high", "Pods backing the operator are crash-looping"))
+        if "failed to resync" in all_output:
+            root_causes.append(("Operator Resync Failed", "high", "Operator failed to resync to target version — may need manual intervention"))
+        if "progressing" in all_output and "false" in all_output and "degraded" in all_output and "true" in all_output:
+            root_causes.append(("Operator Stuck Degraded", "high", "Operator is degraded and not progressing — manual investigation required"))
+        if "error" in all_output and "reconcil" in all_output:
+            root_causes.append(("Reconciliation Error", "high", "Operator hit an error during reconciliation"))
+        if "unavailable" in all_output or "available.*false" in all_output:
+            root_causes.append(("Operator Unavailable", "high", "Cluster operator core functionality is not working"))
+        if "pending" in all_output and "csr" in all_output:
+            root_causes.append(("Pending CSRs", "medium", "Certificate Signing Requests are pending — approve them: oc get csr | grep Pending"))
+    
+    elif issue_type == "node":
+        if "notready" in all_output.replace(" ", ""):
+            root_causes.append(("Node Not Ready", "high", "Node is in NotReady state"))
+        if "disk" in all_output and "pressure" in all_output:
+            root_causes.append(("Disk Pressure", "high", "Node is experiencing disk pressure"))
+        if "memory" in all_output and "pressure" in all_output:
+            root_causes.append(("Memory Pressure", "high", "Node is experiencing memory pressure"))
+        if "schedulingdisabled" in all_output:
+            root_causes.append(("Node Cordoned", "medium", "Node has been cordoned (SchedulingDisabled)"))
+    
+    elif issue_type == "alert":
+        if "critical" in all_output:
+            root_causes.append(("Critical Alerts", "high", "Critical alerts are firing in the cluster"))
+        if "warning" in all_output:
+            root_causes.append(("Warning Alerts", "medium", "Warning alerts indicate potential issues"))
     
     # Default if no specific cause found
     if not root_causes:
@@ -1619,6 +1919,66 @@ def analyze_failures(data):
     failures = []
     
     # Collect all failures with raw output
+    
+    # Degraded / unavailable cluster operators
+    if data.get("operators", {}).get("degraded"):
+        raw_lines = ["NAME" + " " * 40 + "STATUS"]
+        for op in data["operators"]["degraded"]:
+            raw_lines.append(f"{op:<44} Degraded")
+        failures.append({
+            "type": "operator-degraded",
+            "name": "Cluster Operators",
+            "status": f"{len(data['operators']['degraded'])} degraded",
+            "details": data["operators"]["degraded"],
+            "raw_output": "\n".join(raw_lines)
+        })
+    
+    if data.get("operators", {}).get("unavailable"):
+        raw_lines = ["NAME" + " " * 40 + "STATUS"]
+        for op in data["operators"]["unavailable"]:
+            raw_lines.append(f"{op:<44} Unavailable")
+        failures.append({
+            "type": "operator-unavailable",
+            "name": "Cluster Operators",
+            "status": f"{len(data['operators']['unavailable'])} unavailable",
+            "details": data["operators"]["unavailable"],
+            "raw_output": "\n".join(raw_lines)
+        })
+    
+    # Unhealthy nodes
+    if data.get("nodes", {}).get("unhealthy"):
+        raw_lines = ["NAME" + " " * 30 + "STATUS" + " " * 10 + "ROLES"]
+        for node in data["nodes"]["unhealthy"]:
+            if isinstance(node, dict):
+                raw_lines.append(f"{node.get('name', '-'):<34} {node.get('status', '-'):<16} {node.get('roles', '-')}")
+            else:
+                raw_lines.append(str(node))
+        failures.append({
+            "type": "node",
+            "name": "Nodes",
+            "status": f"{len(data['nodes']['unhealthy'])} not ready",
+            "details": data["nodes"]["unhealthy"],
+            "raw_output": "\n".join(raw_lines)
+        })
+    
+    # Firing alerts
+    if data.get("alerts"):
+        raw_lines = ["ALERT" + " " * 35 + "SEVERITY" + " " * 5 + "NAMESPACE"]
+        for alert in data["alerts"][:15]:
+            if isinstance(alert, dict):
+                raw_lines.append(f"{alert.get('name', '-'):<40} {alert.get('severity', '-'):<13} {alert.get('namespace', '-')}")
+            else:
+                raw_lines.append(str(alert))
+        if len(data["alerts"]) > 15:
+            raw_lines.append(f"... +{len(data['alerts']) - 15} more alerts")
+        failures.append({
+            "type": "alert",
+            "name": "Firing Alerts",
+            "status": f"{len(data['alerts'])} firing",
+            "details": data["alerts"],
+            "raw_output": "\n".join(raw_lines)
+        })
+    
     if data["pods"]["unhealthy"]:
         # Format pod output like oc get pods
         raw_lines = ["NAMESPACE" + " "*22 + "NAME" + " "*41 + "STATUS"]
@@ -1742,24 +2102,29 @@ def analyze_failures(data):
             "raw_output": raw_out
         })
     
-    # Match failures to known issues
+    # Match failures to known issues (prefer specific matches over generic)
     for failure in failures:
         matched_issues = []
         failure_text = f"{failure['type']} {failure['name']} {failure['status']} {str(failure['details'])}".lower()
         
         for issue_key, issue in KNOWN_ISSUES.items():
+            match_count = 0
             for pattern in issue["pattern"]:
                 if pattern.lower() in failure_text:
-                    matched_issues.append(issue)
-                    break
+                    match_count += 1
+            if match_count > 0:
+                matched_issues.append((match_count, len(issue.get("jira", [])), issue))
         
         if matched_issues:
-            # Use the most relevant match
+            # Sort: most pattern matches first, then most Jira refs (= most specific)
+            matched_issues.sort(key=lambda x: (-x[0], -x[1]))
+            best_match = matched_issues[0][2]
+            all_matches = [m[2] for m in matched_issues]
             analysis.append({
                 "failure": failure,
-                "matched_issue": matched_issues[0],
-                "all_matches": matched_issues,
-                "investigation": None,  # Will be populated by deep investigation
+                "matched_issue": best_match,
+                "all_matches": all_matches,
+                "investigation": None,
                 "determined_cause": None
             })
         else:
@@ -1870,6 +2235,28 @@ def run_deep_investigation(analysis, ssh_command_func, max_unique_types=10):
                 context = {"pod": first.get("name", ""), "ns": first.get("ns", "")}
             else:
                 context = {"pod": "", "ns": ""}
+        
+        elif failure_type in ["operator-degraded", "operator-unavailable"]:
+            inv_type = failure_type
+            if isinstance(details, list) and details:
+                context = {"name": details[0] if isinstance(details[0], str) else str(details[0])}
+            else:
+                context = {"name": ""}
+        
+        elif failure_type == "node":
+            inv_type = "node"
+            if isinstance(details, list) and details:
+                first = details[0]
+                if isinstance(first, dict):
+                    context = {"name": first.get("name", "")}
+                else:
+                    context = {"name": str(first)}
+            else:
+                context = {"name": ""}
+        
+        elif failure_type == "alert":
+            inv_type = "alert"
+            context = {}
         
         else:
             inv_type = "pod-unknown"
@@ -2033,6 +2420,29 @@ def generate_rca_html(analysis, cluster_version="", show_investigation=True, ema
             </div>
         '''
     
+    # Build quick action summary
+    action_items = []
+    for title, gdata in grouped.items():
+        causes = gdata.get("determined_causes", [])
+        if causes:
+            best = causes[0]
+            action_items.append(f"<strong>{best['cause']}</strong> — {best['explanation']}")
+        else:
+            action_items.append(f"<strong>{title}</strong> — investigation pending")
+    
+    if action_items:
+        html += '''
+            <div style="margin-bottom:20px;padding:16px;background:linear-gradient(135deg, #1a0a0a 0%, #0d1117 100%);border:1px solid #F2495C;border-radius:8px;">
+                <div style="color:#F2495C;font-weight:700;font-size:14px;margin-bottom:10px;">⚡ Action Required</div>
+                <ol style="color:#e6edf3;font-size:13px;margin-left:18px;line-height:2;">
+        '''
+        for item in action_items:
+            html += f'<li>{item}</li>'
+        html += '''
+                </ol>
+            </div>
+        '''
+    
     for title, data in grouped.items():
         issue = data["issue"]
         failures = data["failures"]
@@ -2126,7 +2536,7 @@ def generate_rca_html(analysis, cluster_version="", show_investigation=True, ema
                 html += f'''
                     <div style="padding:12px 14px;">
                         <div style="color:#f85149;font-size:11px;margin-bottom:6px;">OUTPUT (detected issues):</div>
-                        <pre style="background:#0d1117;padding:10px 12px;border-radius:4px;font-family:'JetBrains Mono',Monaco,monospace;font-size:11px;color:#f85149;white-space:pre-wrap;word-break:break-all;margin:0;max-height:150px;overflow-y:auto;">{combined_output}</pre>
+                        <pre style="background:#0d1117;padding:10px 12px;border-radius:4px;font-family:'JetBrains Mono',Monaco,monospace;font-size:11px;color:#f85149;white-space:pre-wrap;word-break:break-all;margin:0;max-height:250px;overflow-y:auto;">{combined_output}</pre>
                     </div>
                 '''
             
@@ -2204,11 +2614,11 @@ def generate_rca_html(analysis, cluster_version="", show_investigation=True, ema
                         <div style="color:#fff;font-size:15px;font-weight:600;margin-bottom:4px;">🎯 {best_cause["cause"]}</div>
                         <div style="color:#8b949e;font-size:12px;">{best_cause["explanation"]}</div>
                     </div>
-                    <details style="margin-top:10px;">
-                        <summary style="cursor:pointer;color:#58a6ff;font-size:12px;font-weight:500;padding:8px 0;">
-                            📋 View detailed investigation ({len(investigations)} diagnostic commands executed)
+                    <details style="margin-top:10px;" open>
+                        <summary style="cursor:pointer;color:#58a6ff;font-size:13px;font-weight:600;padding:8px 0;">
+                            📋 Detailed Investigation ({len(investigations)} diagnostic commands executed)
                         </summary>
-                        <div id="inv-{inv_id}" style="margin-top:12px;max-height:400px;overflow-y:auto;">
+                        <div id="inv-{inv_id}" style="margin-top:12px;max-height:800px;overflow-y:auto;">
             '''
             
             # Add investigation details for ALL issues
@@ -2228,13 +2638,16 @@ def generate_rca_html(analysis, cluster_version="", show_investigation=True, ema
                     cmd = r.get("command", "")
                     output = r.get("output", "")
                     # Escape HTML
-                    output_escaped = str(output).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")[:300]
+                    output_escaped = str(output).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")[:1500]
+                    # Skip empty / no-output results to reduce noise
+                    if output_escaped.strip() in ("(no output)", "(error: )", ""):
+                        continue
                     
                     html += f'''
-                                <div style="margin-bottom:10px;">
-                                    <div style="color:#58a6ff;font-size:11px;font-weight:500;margin-bottom:4px;">📌 {desc}</div>
-                                    <code style="display:block;background:#161b22;padding:6px 10px;border-radius:4px;font-size:10px;color:#8b949e;margin-bottom:4px;word-break:break-all;">$ {cmd}</code>
-                                    <pre style="background:#0a0e14;padding:8px 10px;border-radius:4px;font-size:10px;color:#e6edf3;margin:0;white-space:pre-wrap;word-break:break-all;max-height:80px;overflow-y:auto;">{output_escaped}</pre>
+                                <div style="margin-bottom:12px;">
+                                    <div style="color:#58a6ff;font-size:12px;font-weight:600;margin-bottom:4px;">📌 {desc}</div>
+                                    <code style="display:block;background:#161b22;padding:6px 10px;border-radius:4px;font-size:11px;color:#8b949e;margin-bottom:4px;word-break:break-all;">$ {cmd}</code>
+                                    <pre style="background:#0a0e14;padding:10px 12px;border-radius:4px;font-size:11px;color:#e6edf3;margin:0;white-space:pre-wrap;word-break:break-all;max-height:200px;overflow-y:auto;line-height:1.5;">{output_escaped}</pre>
                                 </div>
                     '''
                 
