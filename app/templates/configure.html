@@ -48,13 +48,19 @@
             <div class="sidebar-content">
                 {% if user_templates %}
                 {% for t in user_templates %}
-                <a href="/job/configure?template={{ t.id }}" class="sidebar-item" style="display:flex;align-items:center;gap:6px;" title="{{ t.description }}">
-                    <span class="sidebar-icon">{{ t.icon }}</span>
-                    <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ t.name }}</span>
+                <div style="display:flex;align-items:center;position:relative;" class="tmpl-row">
+                    <a href="/job/configure?template={{ t.id }}" class="sidebar-item" style="display:flex;align-items:center;gap:6px;flex:1;overflow:hidden;" title="{{ t.description }}">
+                        <span class="sidebar-icon">{{ t.icon }}</span>
+                        <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ t.name }}</span>
+                    </a>
                     {% if t.created_by_id == current_user.id %}
-                    <span onclick="event.preventDefault();event.stopPropagation();deleteTemplate({{ t.id }}, '{{ t.name|e }}');" style="opacity:0.4;cursor:pointer;font-size:11px;" title="Delete">&times;</span>
+                    <span class="tmpl-menu-trigger" onclick="event.preventDefault();event.stopPropagation();toggleTmplMenu(this);" title="Actions" style="padding:2px 8px;cursor:pointer;opacity:0.7;font-size:15px;flex-shrink:0;">⋮</span>
+                    <div class="tmpl-menu" style="display:none;position:absolute;right:0;top:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.15);z-index:100;min-width:140px;overflow:hidden;">
+                        <div onclick="event.stopPropagation();openEditTemplateModal({{ t.id }});" style="padding:8px 14px;font-size:12px;cursor:pointer;display:flex;align-items:center;gap:8px;color:var(--text);" onmouseenter="this.style.background='var(--bg-secondary)'" onmouseleave="this.style.background=''">✏️ Rename</div>
+                        <div onclick="event.stopPropagation();deleteTemplate({{ t.id }}, '{{ t.name|e }}');" style="padding:8px 14px;font-size:12px;cursor:pointer;display:flex;align-items:center;gap:8px;color:var(--danger);" onmouseenter="this.style.background='var(--bg-secondary)'" onmouseleave="this.style.background=''">🗑️ Delete</div>
+                    </div>
                     {% endif %}
-                </a>
+                </div>
                 {% endfor %}
                 {% else %}
                 <div style="padding:8px 12px;font-size:12px;color:var(--text-muted);">No saved templates yet</div>
@@ -1203,8 +1209,13 @@
                 <button type="submit" id="submit-btn" class="btn btn-primary" style="padding:12px 30px;font-size:14px;">
                     ▶️ Run Now
                 </button>
+                {% if load_template %}
+                <button type="button" class="btn" style="padding:12px 20px;font-size:14px;" id="save-template-btn" onclick="saveExistingTemplate({{ load_template.id }})">
+                    💾 Save
+                </button>
+                {% endif %}
                 <button type="button" class="btn" style="padding:12px 20px;font-size:14px;" onclick="openSaveTemplateModal()">
-                    💾 Save as Template
+                    💾 Save as New Template
                 </button>
                 <a href="/" class="btn">Cancel</a>
                 <a href="/schedules" class="btn" style="margin-left:auto;">📅 View Scheduled Tasks</a>
@@ -1215,7 +1226,7 @@
     <div id="saveTemplateModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center;" onclick="if(event.target===this)closeSaveTemplateModal()">
         <div style="background:var(--bg);border-radius:12px;padding:24px;max-width:480px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
-                <h3 style="margin:0;font-size:18px;color:var(--text);">💾 Save as Template</h3>
+                <h3 style="margin:0;font-size:18px;color:var(--text);">💾 Save as New Template</h3>
                 <span onclick="closeSaveTemplateModal()" style="cursor:pointer;font-size:20px;color:var(--text-muted);">&times;</span>
             </div>
             <div style="margin-bottom:16px;">
@@ -1253,6 +1264,44 @@
             </div>
         </div>
     </div>
+
+    <!-- Edit Template Modal -->
+    <div id="editTemplateModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center;" onclick="if(event.target===this)closeEditTemplateModal()">
+        <div style="background:var(--bg);border-radius:12px;padding:24px;max-width:480px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+                <h3 style="margin:0;font-size:18px;color:var(--text);">✏️ Rename Template</h3>
+                <span onclick="closeEditTemplateModal()" style="cursor:pointer;font-size:20px;color:var(--text-muted);">&times;</span>
+            </div>
+            <input type="hidden" id="edit-tmpl-id">
+            <div style="margin-bottom:16px;">
+                <label style="display:block;font-weight:600;margin-bottom:6px;font-size:13px;color:var(--text);">Template Name *</label>
+                <input type="text" id="edit-tmpl-name" style="width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:var(--bg-secondary);">
+            </div>
+            <div style="margin-bottom:16px;">
+                <label style="display:block;font-weight:600;margin-bottom:6px;font-size:13px;color:var(--text);">Description</label>
+                <input type="text" id="edit-tmpl-desc" style="width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:var(--bg-secondary);">
+            </div>
+            <div style="margin-bottom:16px;">
+                <label style="display:block;font-weight:600;margin-bottom:6px;font-size:13px;color:var(--text);">Icon</label>
+                <div id="edit-tmpl-icon-picker" style="display:flex;gap:8px;flex-wrap:wrap;">
+                    {% for icon in ['📋','🚀','🔥','🏋️','⚡','🧪','🎯','💻','🏗️','📊'] %}
+                    <span class="edit-tmpl-icon-opt" data-icon="{{ icon }}" onclick="pickEditTemplateIcon(this)" style="cursor:pointer;font-size:22px;padding:6px;border:2px solid transparent;border-radius:8px;">{{ icon }}</span>
+                    {% endfor %}
+                </div>
+            </div>
+            <div style="margin-bottom:20px;">
+                <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                    <input type="checkbox" id="edit-tmpl-shared">
+                    <span style="font-size:13px;color:var(--text);">Share with all team members</span>
+                </label>
+            </div>
+            <div style="display:flex;gap:10px;justify-content:flex-end;">
+                <button type="button" class="btn" onclick="closeEditTemplateModal()">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="submitEditTemplate()" id="edit-tmpl-save-btn" style="padding:10px 24px;">💾 Save Changes</button>
+            </div>
+        </div>
+    </div>
+
     </main>
 </div>
 {% endblock %}
@@ -2208,6 +2257,23 @@
         return config;
     }
 
+    function saveExistingTemplate(id) {
+        var btn = document.getElementById('save-template-btn');
+        btn.disabled = true;
+        btn.textContent = 'Saving...';
+        fetch('/api/templates/' + id, {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ config: serializeFormConfig() })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.error) { alert('Error: ' + data.error); btn.disabled = false; btn.textContent = '💾 Save'; }
+            else { window.location.href = '/'; }
+        })
+        .catch(function(err) { alert('Save failed: ' + err); btn.disabled = false; btn.textContent = '💾 Save'; });
+    }
+
     function saveTemplate() {
         var name = document.getElementById('tmpl-name').value.trim();
         if (!name) {
@@ -2248,7 +2314,76 @@
         });
     }
 
+    function toggleTmplMenu(trigger) {
+        var menu = trigger.nextElementSibling;
+        var isOpen = menu.style.display === 'block';
+        document.querySelectorAll('.tmpl-menu').forEach(function(m) { m.style.display = 'none'; });
+        if (!isOpen) menu.style.display = 'block';
+    }
+
+    document.addEventListener('click', function() {
+        document.querySelectorAll('.tmpl-menu').forEach(function(m) { m.style.display = 'none'; });
+    });
+
+    var _editTemplateIcon = '📋';
+    var _templateData = {{ user_templates | tojson }};
+
+    function pickEditTemplateIcon(el) {
+        document.querySelectorAll('.edit-tmpl-icon-opt').forEach(function(e) {
+            e.style.borderColor = 'transparent';
+        });
+        el.style.borderColor = 'var(--accent)';
+        _editTemplateIcon = el.getAttribute('data-icon');
+    }
+
+    function openEditTemplateModal(id) {
+        document.querySelectorAll('.tmpl-menu').forEach(function(m) { m.style.display = 'none'; });
+        var tmpl = _templateData.find(function(t) { return t.id === id; });
+        if (!tmpl) return;
+        document.getElementById('edit-tmpl-id').value = id;
+        document.getElementById('edit-tmpl-name').value = tmpl.name;
+        document.getElementById('edit-tmpl-desc').value = tmpl.description || '';
+        document.getElementById('edit-tmpl-shared').checked = tmpl.shared;
+        _editTemplateIcon = tmpl.icon || '📋';
+        document.querySelectorAll('.edit-tmpl-icon-opt').forEach(function(e) {
+            e.style.borderColor = e.getAttribute('data-icon') === _editTemplateIcon ? 'var(--accent)' : 'transparent';
+        });
+        document.getElementById('editTemplateModal').style.display = 'flex';
+        document.getElementById('edit-tmpl-name').focus();
+    }
+
+    function closeEditTemplateModal() {
+        document.getElementById('editTemplateModal').style.display = 'none';
+    }
+
+    function submitEditTemplate() {
+        var id = document.getElementById('edit-tmpl-id').value;
+        var name = document.getElementById('edit-tmpl-name').value.trim();
+        if (!name) { alert('Name is required'); return; }
+        var btn = document.getElementById('edit-tmpl-save-btn');
+        btn.disabled = true;
+        btn.textContent = 'Saving...';
+        fetch('/api/templates/' + id, {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                name: name,
+                description: document.getElementById('edit-tmpl-desc').value.trim(),
+                icon: _editTemplateIcon,
+                shared: document.getElementById('edit-tmpl-shared').checked
+            })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.error) { alert('Error: ' + data.error); }
+            else { closeEditTemplateModal(); location.reload(); }
+        })
+        .catch(function(err) { alert('Save failed: ' + err); })
+        .finally(function() { btn.disabled = false; btn.textContent = '💾 Save Changes'; });
+    }
+
     function deleteTemplate(id, name) {
+        document.querySelectorAll('.tmpl-menu').forEach(function(m) { m.style.display = 'none'; });
         if (!confirm('Delete template "' + name + '"?')) return;
         fetch('/api/templates/' + id, {method: 'DELETE'})
         .then(function(r) { return r.json(); })
@@ -2337,19 +2472,21 @@
                 var sel = scenario
                     ? '[name="cnv_var_' + varName + '"][data-scenario="' + scenario + '"]'
                     : '[name="cnv_var_' + varName + '"]';
-                var field = form.querySelector(sel);
-                if (!field) return;
-                if (field.tagName === 'SELECT') {
-                    for (var i = 0; i < field.options.length; i++) {
-                        if (field.options[i].value === val) { field.selectedIndex = i; break; }
+                var fields = form.querySelectorAll(sel);
+                if (!fields.length) return;
+                fields.forEach(function(field) {
+                    if (field.tagName === 'SELECT') {
+                        for (var i = 0; i < field.options.length; i++) {
+                            if (field.options[i].value === val) { field.selectedIndex = i; break; }
+                        }
+                    } else if (field.type === 'checkbox') {
+                        field.checked = (val === 'true');
+                    } else if (field.type === 'hidden') {
+                        field.value = val;
+                    } else {
+                        field.value = val;
                     }
-                } else if (field.type === 'checkbox') {
-                    field.checked = (val === 'true');
-                    var hidden = field.previousElementSibling;
-                    if (hidden && hidden.type === 'hidden') hidden.value = val;
-                } else {
-                    field.value = val;
-                }
+                });
             });
         }
 
@@ -2368,6 +2505,19 @@
             var rl = form.querySelector('[name="rca_level"]');
             if (rl) rl.value = config.rca_level;
         }
+
+        // Sync restored values back up to the top-card global inputs
+        document.querySelectorAll('.full-cnv-global-input').forEach(function(topInput) {
+            var varName = topInput.getAttribute('data-global-var');
+            var isBool = topInput.getAttribute('data-is-bool') === 'true';
+            var savedVal = config.env_vars ? config.env_vars[varName] : undefined;
+            if (savedVal === undefined) return;
+            if (isBool) {
+                topInput.checked = (savedVal === 'true');
+            } else {
+                topInput.value = savedVal;
+            }
+        });
 
         // Refresh UI
         if (typeof updateScenarioVarGroups === 'function') updateScenarioVarGroups();
@@ -2527,6 +2677,8 @@
 </div>
 
 <style>
+    .tmpl-menu-trigger { opacity: 0.7 !important; font-weight: bold; }
+    .tmpl-row:hover .tmpl-menu-trigger { opacity: 1 !important; }
     .priority-badge {
         display: inline-block;
         padding: 4px 10px;
