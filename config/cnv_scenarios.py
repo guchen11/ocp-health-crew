@@ -45,6 +45,12 @@ CNV_GLOBAL_VARIABLES = {
         "default": {"sanity": True, "full": True},
         "placeholder": {"sanity": "", "full": ""},
     },
+    "esServer": {
+        "type": "str", "label": "Elasticsearch Server",
+        "icon": "🔍",
+        "default": {"sanity": "http://f01-h08-000-1029u.rdu2.scalelab.redhat.com:9200", "full": "http://f01-h08-000-1029u.rdu2.scalelab.redhat.com:9200"},
+        "placeholder": {"sanity": "ES URL (enables metadata/validation indexing)", "full": "ES URL (enables metadata/validation indexing)"},
+    },
 }
 
 
@@ -194,9 +200,9 @@ CNV_SCENARIOS = {
         "remote_name": "per-host-density",
         "default": False,
         "variables": {
-            "vmsPerNamespace": {"type": "int", "default": 30, "label": "VMs per Namespace", "min": 1, "max": 10000},
-            "namespaceCount": {"type": "int", "default": 15, "label": "Namespace Count", "min": 1, "max": 100},
-            "scaleMode": {"type": "choice", "default": "single-node", "label": "Scale Mode", "choices": ["single-node", "multi-node"]},
+            "vmsPerNamespace": {"type": "int", "default": 15, "label": "VMs per Namespace", "min": 1, "max": 10000},
+            "namespaceCount": {"type": "int", "default": 10, "label": "Namespace Count", "min": 1, "max": 100},
+            "scaleMode": {"type": "choice", "default": "multi-node", "label": "Scale Mode", "choices": ["single-node", "multi-node"]},
             "targetNode": {"type": "str", "default": "", "label": "Target Node", "placeholder": "auto-select if empty (single-node only)"},
             "percentage_of_vms_to_validate": {"type": "int", "default": 50, "label": "VM Validation % (SSH)", "min": 0, "max": 100},
             "max_ssh_retries": {"type": "int", "default": 240, "label": "Max SSH Retries", "min": 1, "max": 1000},

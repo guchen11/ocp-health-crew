@@ -670,6 +670,18 @@
                             </div>
                         </div>
 
+                        {% if cnv_config.grafana_url %}
+                        <div style="margin-top:14px;">
+                            <a href="{{ cnv_config.grafana_url }}" target="_blank" rel="noopener"
+                                style="display:inline-flex;align-items:center;gap:8px;padding:8px 16px;border:1px solid var(--border);border-radius:8px;background:var(--bg-secondary);color:var(--text);text-decoration:none;font-size:13px;transition:all 0.2s;"
+                                onmouseover="this.style.borderColor='var(--accent)';this.style.background='var(--accent-light)'"
+                                onmouseout="this.style.borderColor='var(--border)';this.style.background='var(--bg-secondary)'">
+                                📊 Open Grafana CNV Dashboards
+                                <span style="font-size:11px;color:var(--text-secondary);">↗</span>
+                            </a>
+                        </div>
+                        {% endif %}
+
                         <!-- Email Report -->
                         <div style="margin-top:20px;padding:16px;border:1px solid var(--border);border-radius:8px;background:var(--bg-secondary);">
                             <div style="display:flex;align-items:flex-start;gap:12px;">
@@ -724,9 +736,12 @@
                                     {% set ph_sanity = var_info.placeholder.sanity if var_info.placeholder is mapping else (var_info.placeholder or '') %}
                                     {% set ph_full = var_info.placeholder.full if var_info.placeholder is mapping else (var_info.placeholder or '') %}
                                     {% set cur_ph = ph_full if cnv_config.mode == 'full' else ph_sanity %}
+                                    {% set def_sanity_val = var_info.default.sanity if var_info.default is mapping else (var_info.default or '') %}
+                                    {% set def_full_val = var_info.default.full if var_info.default is mapping else (var_info.default or '') %}
+                                    {% set cur_def = def_full_val if cnv_config.mode == 'full' else def_sanity_val %}
                                     <input type="text" name="cnv_var_{{ var_name }}"
                                         class="cnv-global-var-input"
-                                        value="{{ cnv_config.global_vars[var_name] if cnv_config.global_vars is defined and var_name in cnv_config.global_vars and cnv_config.global_vars[var_name] else '' }}"
+                                        value="{{ cnv_config.global_vars[var_name] if cnv_config.global_vars is defined and var_name in cnv_config.global_vars and cnv_config.global_vars[var_name] else cur_def }}"
                                         placeholder="{{ cur_ph }}"
                                         data-placeholder-sanity="{{ ph_sanity }}"
                                         data-placeholder-full="{{ ph_full }}"

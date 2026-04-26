@@ -104,6 +104,7 @@ _DEFAULT_CNV_SETTINGS = {
     'parallel': False,
     'kb_log_level': '',
     'kb_timeout': '',
+    'grafana_url': 'http://rhev-gw.rdu2.scalelab.redhat.com:3002/dashboards/f/d86573a6-d3fa-44ee-a217-550851f3e818/cnv',
     'global_vars': {},
     'scenario_vars': {},
 }
@@ -1076,10 +1077,20 @@ def build_detail(build_num):
             'description': sc.get('description', ''),
         }
 
+    cnv_config = settings.get('cnv', _DEFAULT_CNV_SETTINGS)
+    grafana_url = cnv_config.get('grafana_url', '')
+    grafana_base = ''
+    if grafana_url:
+        from urllib.parse import urlparse
+        parsed = urlparse(grafana_url)
+        grafana_base = f"{parsed.scheme}://{parsed.netloc}"
+
     return render_template('build_detail.html',
                            build=build,
                            checks=AVAILABLE_CHECKS,
                            cnv_meta=cnv_meta,
+                           grafana_url=grafana_url,
+                           grafana_base=grafana_base,
                            user_templates=[],
                            active_page='history')
 
@@ -2797,11 +2808,13 @@ def settings_page():
                 'parallel': 'cnv_parallel' in request.form,
                 'kb_log_level': request.form.get('cnv_kb_log_level', '').strip(),
                 'kb_timeout': request.form.get('cnv_kb_timeout', '').strip(),
+                'grafana_url': request.form.get('cnv_grafana_url', '').strip(),
                 'global_vars': {
                     'storageClassName': request.form.get('cnv_default_storageClassName', '').strip(),
                     'nodeSelector': request.form.get('cnv_default_nodeSelector', '').strip(),
                     'maxWaitTimeout': request.form.get('cnv_default_maxWaitTimeout', '').strip(),
                     'jobPause': request.form.get('cnv_default_jobPause', '').strip(),
+                    'esServer': request.form.get('cnv_default_esServer', '').strip(),
                 },
                 'scenario_vars': _collect_scenario_var_defaults(request.form),
             }

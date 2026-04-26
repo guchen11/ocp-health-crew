@@ -34,6 +34,37 @@
             </a>
             {% endif %}
         </div>
+        {% if grafana_base and build.options.task_type in ['cnv_scenarios', 'cnv_combined'] %}
+        <div class="sidebar-section">
+            <div class="sidebar-title">📊 Grafana Reports</div>
+            <a href="{{ grafana_base }}/d/cnv-run-detail-v2/cnv-run-detail-v2?orgId=1" class="sidebar-item" target="_blank" rel="noopener">
+                <span class="sidebar-icon">🔍</span>
+                Run Detail
+            </a>
+            <a href="{{ grafana_base }}/d/cnv-run-explorer-v2/cnv-run-explorer-v2?orgId=1" class="sidebar-item" target="_blank" rel="noopener">
+                <span class="sidebar-icon">🗂️</span>
+                Run Explorer
+            </a>
+            <a href="{{ grafana_base }}/d/cnv-run-comparison-v3/cnv-run-comparison-v3?orgId=1" class="sidebar-item" target="_blank" rel="noopener">
+                <span class="sidebar-icon">⚖️</span>
+                Run Comparison
+            </a>
+            <a href="{{ grafana_base }}/d/cnv-fleet-overview-v2/cnv-fleet-overview-v2?orgId=1" class="sidebar-item" target="_blank" rel="noopener">
+                <span class="sidebar-icon">🌐</span>
+                Fleet Overview
+            </a>
+            <a href="{{ grafana_base }}/d/cnv-vm-startup-performance/cnv-vm-startup-performance?orgId=1" class="sidebar-item" target="_blank" rel="noopener">
+                <span class="sidebar-icon">⚡</span>
+                VM Startup Perf
+            </a>
+            {% if grafana_url %}
+            <a href="{{ grafana_url }}" class="sidebar-item" target="_blank" rel="noopener">
+                <span class="sidebar-icon">📂</span>
+                All CNV Dashboards
+            </a>
+            {% endif %}
+        </div>
+        {% endif %}
         <div class="sidebar-section">
             <div class="sidebar-title">Actions</div>
             <a href="/job/rebuild/{{ build.number }}" class="sidebar-item">

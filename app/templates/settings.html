@@ -342,6 +342,18 @@
                                     placeholder="e.g. 4h, 8h (empty = default)"
                                     style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:13px;">
                             </div>
+                            <div class="setting-group">
+                                <label style="display:block;font-weight:600;margin-bottom:8px;color:var(--text);">
+                                    📊 Grafana Dashboard URL
+                                </label>
+                                <input type="text" name="cnv_grafana_url" id="cnv_grafana_url"
+                                    value="{{ cnv_config.grafana_url | default('', true) }}"
+                                    placeholder="http://rhev-gw.rdu2.scalelab.redhat.com:3002/..."
+                                    style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:monospace;">
+                                <span style="font-size:11px;color:var(--text-secondary);display:block;margin-top:6px;">
+                                    Grafana CNV dashboards URL (shown as quick-link on configure page)
+                                </span>
+                            </div>
                         </div>
                     </div>
 
@@ -866,6 +878,7 @@ function resetDefaults() {
     document.getElementById('cnv_parallel_label').textContent = 'Disabled';
     document.getElementById('cnv_kb_log_level').value = '';
     document.getElementById('cnv_kb_timeout').value = '';
+    document.getElementById('cnv_grafana_url').value = 'http://rhev-gw.rdu2.scalelab.redhat.com:3002/dashboards/f/d86573a6-d3fa-44ee-a217-550851f3e818/cnv';
     var gvDefaults = {{ cnv_global_vars | tojson }};
     for (var k in gvDefaults) {
         var el = document.getElementById('cnv_default_' + k);
