@@ -717,6 +717,45 @@
                             </p>
                             <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;">
                                 {% for var_name, var_info in cnv_global_vars.items() %}
+                                {% if var_name == 'esServer' %}
+                                {% set es_val = cnv_config.global_vars[var_name] if cnv_config.global_vars is defined and var_name in cnv_config.global_vars and cnv_config.global_vars[var_name] else '' %}
+                                {% set es_def = var_info.default.full if var_info.default is mapping else (var_info.default or '') %}
+                                {% set es_enabled = es_val | length > 0 %}
+                                <div style="grid-column: span 2;">
+                                    <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-secondary);margin-bottom:4px;">
+                                        {{ var_info.icon }} <strong>{{ var_info.label }}</strong>
+                                        <span id="es-status" style="margin-left:auto;font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;{{ 'background:#23863620;color:#238636;' if es_enabled else 'background:#da363320;color:#da3633;' }}">
+                                            {{ 'ON' if es_enabled else 'OFF' }}
+                                        </span>
+                                        <button type="button" id="es-toggle-btn" onclick="toggleEs()"
+                                            style="padding:4px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg-secondary);color:var(--text);font-size:11px;cursor:pointer;">
+                                            {{ 'Disable' if es_enabled else 'Enable' }}
+                                        </button>
+                                    </div>
+                                    <input type="text" name="cnv_var_{{ var_name }}" id="es-url-input"
+                                        class="cnv-global-var-input"
+                                        value="{{ es_val or (es_def if es_enabled else '') }}"
+                                        data-default="{{ es_def }}"
+                                        placeholder="ES URL (enables metadata/validation indexing)"
+                                        {{ 'disabled' if not es_enabled }}
+                                        style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;background:var(--bg-secondary);font-family:monospace;{{ 'opacity:0.4;' if not es_enabled }}">
+                                    <script>
+                                    function toggleEs() {
+                                        var inp = document.getElementById('es-url-input');
+                                        var btn = document.getElementById('es-toggle-btn');
+                                        var status = document.getElementById('es-status');
+                                        var enabling = inp.disabled;
+                                        inp.disabled = !enabling;
+                                        inp.style.opacity = enabling ? '1' : '0.4';
+                                        if (enabling && !inp.value) inp.value = inp.getAttribute('data-default');
+                                        btn.textContent = enabling ? 'Disable' : 'Enable';
+                                        status.textContent = enabling ? 'ON' : 'OFF';
+                                        status.style.background = enabling ? '#23863620' : '#da363320';
+                                        status.style.color = enabling ? '#238636' : '#da3633';
+                                    }
+                                    </script>
+                                </div>
+                                {% else %}
                                 <div>
                                     <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:4px;">
                                         {{ var_info.icon }} <strong>{{ var_info.label }}</strong>
@@ -748,6 +787,7 @@
                                         style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;background:var(--bg-secondary);">
                                     {% endif %}
                                 </div>
+                                {% endif %}
                                 {% endfor %}
                             </div>
                         </div>
@@ -771,30 +811,40 @@
                             </div>
                             <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">
                                 {% for var_name, var_info in sc.variables.items() %}
+                                {% set def_s = var_info.default.sanity if var_info.default is mapping else var_info.default %}
+                                {% set def_f = var_info.default.full if var_info.default is mapping else var_info.default %}
                                 <div>
                                     <label style="display:block;font-size:11px;color:var(--text-secondary);margin-bottom:3px;">
                                         <strong>{{ var_info.label }}</strong>
                                     </label>
                                     {% if var_info.type == 'bool' %}
-                                    <select name="cnv_var_{{ var_name }}" class="cnv-var-input" data-scenario="{{ sid }}" style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;background:var(--bg-secondary);">
-                                        <option value="">Default ({{ 'true' if var_info.default else 'false' }})</option>
+                                    <select name="cnv_var_{{ var_name }}" class="cnv-var-input cnv-mode-aware" data-scenario="{{ sid }}"
+                                        data-default-sanity="{{ 'true' if def_s else 'false' }}" data-default-full="{{ 'true' if def_f else 'false' }}"
+                                        style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;background:var(--bg-secondary);">
+                                        <option value="">Default ({{ 'true' if def_s else 'false' }})</option>
                                         <option value="true">true</option>
                                         <option value="false">false</option>
                                     </select>
                                     {% elif var_info.type == 'choice' %}
-                                    <select name="cnv_var_{{ var_name }}" class="cnv-var-input" data-scenario="{{ sid }}" style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;background:var(--bg-secondary);">
-                                        <option value="">Default ({{ var_info.default }})</option>
+                                    <select name="cnv_var_{{ var_name }}" class="cnv-var-input cnv-mode-aware" data-scenario="{{ sid }}"
+                                        data-default-sanity="{{ def_s }}" data-default-full="{{ def_f }}"
+                                        style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;background:var(--bg-secondary);">
+                                        <option value="">Default ({{ def_s }})</option>
                                         {% for choice in var_info.choices %}
                                         <option value="{{ choice }}">{{ choice }}</option>
                                         {% endfor %}
                                     </select>
                                     {% elif var_info.type == 'int' %}
-                                    <input type="number" name="cnv_var_{{ var_name }}" class="cnv-var-input" data-scenario="{{ sid }}" placeholder="Default: {{ var_info.default }}"
+                                    <input type="number" name="cnv_var_{{ var_name }}" class="cnv-var-input cnv-mode-aware" data-scenario="{{ sid }}"
+                                        placeholder="Default: {{ def_s }}"
+                                        data-default-sanity="{{ def_s }}" data-default-full="{{ def_f }}"
                                         {% if var_info.min is defined %}min="{{ var_info.min }}"{% endif %}
                                         {% if var_info.max is defined %}max="{{ var_info.max }}"{% endif %}
                                         style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;background:var(--bg-secondary);">
                                     {% else %}
-                                    <input type="text" name="cnv_var_{{ var_name }}" class="cnv-var-input" data-scenario="{{ sid }}" placeholder="{{ var_info.placeholder or ('Default: ' + (var_info.default|string)) }}"
+                                    <input type="text" name="cnv_var_{{ var_name }}" class="cnv-var-input cnv-mode-aware" data-scenario="{{ sid }}"
+                                        placeholder="{{ var_info.placeholder or ('Default: ' + (def_s|string)) }}"
+                                        data-default-sanity="{{ def_s }}" data-default-full="{{ def_f }}"
                                         style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;background:var(--bg-secondary);">
                                     {% endif %}
                                 </div>
@@ -1569,6 +1619,19 @@
             var ph = inp.getAttribute('data-placeholder-' + modeVal);
             if (ph !== null) {
                 inp.placeholder = ph;
+            }
+        });
+        // Update per-scenario variable placeholders and default labels based on mode
+        document.querySelectorAll('.cnv-mode-aware').forEach(function(el) {
+            var def = el.getAttribute('data-default-' + modeVal);
+            if (def === null) return;
+            if (el.tagName === 'SELECT') {
+                var firstOpt = el.options[0];
+                if (firstOpt && firstOpt.value === '') {
+                    firstOpt.textContent = 'Default (' + def + ')';
+                }
+            } else {
+                el.placeholder = 'Default: ' + def;
             }
         });
     }

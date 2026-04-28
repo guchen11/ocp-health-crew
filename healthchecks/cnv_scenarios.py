@@ -249,6 +249,81 @@ def fetch_results_summary(client, cnv_path, tests, mode):
     return summaries
 
 
+def collect_cluster_info(client, kubeconfig):
+    """Collect OCP/CNV/ODF versions, network type, and node counts via SSH.
+
+    Returns a dict with cluster metadata, or an empty dict on failure.
+    """
+    log(f"{CYAN}Collecting cluster environment info...{RESET}")
+    script = (
+        f"export KUBECONFIG={kubeconfig}; "
+        "echo '@@OCP_VER@@'; oc get clusterversion version -o jsonpath='{.status.desired.version}' 2>/dev/null || echo N/A; "
+        "echo; echo '@@CNV_VER@@'; oc get csv -n openshift-cnv -o jsonpath='{.items[0].spec.version}' 2>/dev/null || echo N/A; "
+        "echo; echo '@@ODF_VER@@'; oc get csv -n openshift-storage -o jsonpath='{.items[0].spec.version}' 2>/dev/null || echo N/A; "
+        "echo; echo '@@NET_TYPE@@'; oc get network.config/cluster -o jsonpath='{.spec.networkType}' 2>/dev/null || echo N/A; "
+        "echo; echo '@@NODES@@'; oc get nodes --no-headers 2>/dev/null | awk '{print $3}' || echo N/A; "
+        "echo; echo '@@CEPH@@'; "
+        "TOOLS=$(oc get pod -n openshift-storage -l app=rook-ceph-tools -o name 2>/dev/null | head -1); "
+        "if [ -n \"$TOOLS\" ]; then oc exec -n openshift-storage $TOOLS -- ceph df --format json 2>/dev/null || echo N/A; "
+        "else "
+        "oc patch OCSInitialization ocsinit -n openshift-storage --type json "
+        "--patch '[{\"op\":\"replace\",\"path\":\"/spec/enableCephTools\",\"value\":true}]' >/dev/null 2>&1; "
+        "oc get cephcluster -n openshift-storage -o jsonpath='{.items[0].status.ceph.capacity}' 2>/dev/null || echo N/A; fi"
+    )
+    try:
+        stdin, stdout, stderr = client.exec_command(script, timeout=30)
+        raw = stdout.read().decode("utf-8", errors="replace")
+    except Exception as e:
+        log(f"{YELLOW}Cluster info collection failed: {e}{RESET}")
+        return {}
+
+    sections = {}
+    current_key = None
+    for line in raw.split("\n"):
+        stripped = line.strip()
+        if stripped.startswith("@@") and stripped.endswith("@@"):
+            current_key = stripped.strip("@")
+            sections[current_key] = []
+        elif current_key is not None:
+            sections[current_key].append(stripped)
+
+    info = {
+        "ocp_version": " ".join(sections.get("OCP_VER", [])).strip() or "N/A",
+        "cnv_version": " ".join(sections.get("CNV_VER", [])).strip() or "N/A",
+        "odf_version": " ".join(sections.get("ODF_VER", [])).strip() or "N/A",
+        "network_type": " ".join(sections.get("NET_TYPE", [])).strip() or "N/A",
+    }
+
+    # Parse node roles
+    node_lines = [l for l in sections.get("NODES", []) if l]
+    total_nodes = len(node_lines)
+    workers = sum(1 for l in node_lines if "worker" in l)
+    masters = sum(1 for l in node_lines if "control-plane" in l or "master" in l)
+    info["nodes_total"] = total_nodes
+    info["nodes_workers"] = workers
+    info["nodes_masters"] = masters
+
+    # Parse Ceph storage (supports `ceph df` output or CephCluster CR capacity)
+    ceph_raw = "\n".join(sections.get("CEPH", []))
+    if ceph_raw and ceph_raw.strip() != "N/A":
+        try:
+            ceph = json.loads(ceph_raw)
+            if "stats" in ceph:
+                total_bytes = ceph["stats"].get("total_bytes", 0)
+                used_bytes = ceph["stats"].get("total_used_raw_bytes", 0)
+            else:
+                total_bytes = ceph.get("bytesTotal", 0)
+                used_bytes = ceph.get("bytesUsed", 0)
+            info["storage_total_tib"] = round(total_bytes / (1024**4), 1) if total_bytes else 0
+            info["storage_used_tib"] = round(used_bytes / (1024**4), 1) if used_bytes else 0
+        except (json.JSONDecodeError, KeyError):
+            pass
+
+    log(f"{GREEN}Cluster info collected: OCP {info['ocp_version']}, "
+        f"CNV {info['cnv_version']}, {total_nodes} nodes{RESET}")
+    return info
+
+
 def main():
     args = parse_args()
 
@@ -347,6 +422,9 @@ def main():
         ]
 
     summaries = fetch_results_summary(client, args.cnv_path, test_list, args.mode)
+
+    # ── Collect cluster environment info for the report ──────────────
+    cluster_info = collect_cluster_info(client, args.kubeconfig)
     client.close()
 
     # ── Final status ─────────────────────────────────────────────────────
@@ -367,11 +445,17 @@ def main():
 
     # Emit iteration data as a tagged JSON block for the report generator
     if summaries:
-        print(f"__CNV_ITERATION_DATA_START__", flush=True)
+        print("__CNV_ITERATION_DATA_START__", flush=True)
         print(json.dumps(summaries, default=str), flush=True)
-        print(f"__CNV_ITERATION_DATA_END__", flush=True)
+        print("__CNV_ITERATION_DATA_END__", flush=True)
 
-    log(f"CNV Scenarios finished")
+    # Emit cluster info as a tagged JSON block for the report generator
+    if cluster_info:
+        print("__CNV_CLUSTER_INFO_START__", flush=True)
+        print(json.dumps(cluster_info, default=str), flush=True)
+        print("__CNV_CLUSTER_INFO_END__", flush=True)
+
+    log("CNV Scenarios finished")
 
     sys.exit(exit_code)
 

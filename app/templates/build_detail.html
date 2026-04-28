@@ -32,6 +32,10 @@
                 <span class="sidebar-icon">📄</span>
                 View Report
             </a>
+            <a href="#" class="sidebar-item" onclick="copyPublicLink('{{ build.report_file }}'); return false;">
+                <span class="sidebar-icon">🔗</span>
+                Copy Public Link
+            </a>
             {% endif %}
         </div>
         {% if grafana_base and build.options.task_type in ['cnv_scenarios', 'cnv_combined'] %}
@@ -436,6 +440,16 @@ function saveBuildTemplate() {
     .finally(function() {
         btn.disabled = false;
         btn.textContent = '💾 Save';
+    });
+}
+
+function copyPublicLink(filename) {
+    var url = location.origin + '/public/report/' + encodeURIComponent(filename);
+    navigator.clipboard.writeText(url).then(function() {
+        var el = event.currentTarget;
+        var orig = el.innerHTML;
+        el.innerHTML = '<span class="sidebar-icon">✅</span> Copied!';
+        setTimeout(function() { el.innerHTML = orig; }, 1500);
     });
 }
 </script>

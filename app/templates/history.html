@@ -151,6 +151,7 @@
                             <td>
                                 {% if build.report_file %}
                                 <a href="/report/{{ build.report_file }}" class="btn" target="_blank">📄</a>
+                                <a href="#" class="btn" onclick="copyPublicLink('{{ build.report_file }}'); return false;" title="Copy public link">🔗</a>
                                 {% endif %}
                                 <a href="/job/{{ build.number }}/console" class="btn">📝</a>
                                 <a href="/job/rebuild/{{ build.number }}" class="btn">🔄</a>
@@ -251,6 +252,16 @@
                 }
             });
         }
+    }
+
+    function copyPublicLink(filename) {
+        var url = location.origin + '/public/report/' + encodeURIComponent(filename);
+        navigator.clipboard.writeText(url).then(function() {
+            var el = event.currentTarget;
+            var orig = el.innerHTML;
+            el.innerHTML = '✅';
+            setTimeout(function() { el.innerHTML = '🔗'; }, 1500);
+        });
     }
 </script>
 {% endblock %}

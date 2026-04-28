@@ -54,6 +54,10 @@
                 <span class="sidebar-icon">📄</span>
                 View Report
             </a>
+            <a href="#" class="sidebar-item" onclick="copyPublicLink('{{ build.report_file }}'); return false;">
+                <span class="sidebar-icon">🔗</span>
+                Copy Public Link
+            </a>
             {% endif %}
         </div>
     </aside>
@@ -99,4 +103,15 @@
     }, 2000);
 </script>
 {% endif %}
+<script>
+function copyPublicLink(filename) {
+    var url = location.origin + '/public/report/' + encodeURIComponent(filename);
+    navigator.clipboard.writeText(url).then(function() {
+        var el = event.currentTarget;
+        var orig = el.innerHTML;
+        el.innerHTML = '<span class="sidebar-icon">✅</span> Copied!';
+        setTimeout(function() { el.innerHTML = orig; }, 1500);
+    });
+}
+</script>
 {% endblock %}

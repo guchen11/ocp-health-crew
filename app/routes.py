@@ -22,7 +22,7 @@ from app.models import db, Host, Template
 # Import configuration
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from config.settings import Config, AVAILABLE_CHECKS, CATEGORY_ICONS, CNV_SCENARIOS, CNV_SCENARIO_CATEGORIES, CNV_CATEGORY_ORDER, CNV_GLOBAL_VARIABLES
-from healthchecks.cnv_report import parse_cnv_results, generate_cnv_report_html, generate_cnv_email_html
+from healthchecks.cnv_report import parse_cnv_results, parse_cluster_info, generate_cnv_report_html, generate_cnv_email_html
 
 # Create Blueprint
 dashboard_bp = Blueprint('dashboard', __name__)
@@ -213,7 +213,8 @@ def _collect_scenario_var_defaults(form):
 
 
 def _send_cnv_email_report(recipient, build_num, build_name, status, status_text,
-                            duration, checks, options, output, cnv_results=None):
+                            duration, checks, options, output, cnv_results=None,
+                            cluster_info=None):
     """Send a CNV scenario results email with per-test pass/fail details."""
     import smtplib
     from email.mime.multipart import MIMEMultipart
@@ -229,7 +230,8 @@ def _send_cnv_email_report(recipient, build_num, build_name, status, status_text
     if cnv_results is None:
         cnv_results = parse_cnv_results(output)
 
-    # Use the rich email generator
+    dashboard_base_url = os.getenv('DASHBOARD_BASE_URL', Config.DASHBOARD_BASE_URL)
+
     subject, html = generate_cnv_email_html(
         results=cnv_results,
         build_num=build_num,
@@ -240,6 +242,8 @@ def _send_cnv_email_report(recipient, build_num, build_name, status, status_text
         mode=mode,
         checks=checks,
         output=output,
+        cluster_info=cluster_info,
+        dashboard_base_url=dashboard_base_url,
     )
 
     # Plain text fallback
@@ -252,7 +256,9 @@ def _send_cnv_email_report(recipient, build_num, build_name, status, status_text
     for t in tests:
         test_lines.append(f"  {'PASS' if t['status'] == 'PASS' else 'FAIL'}  {t['name']:<25}  {t.get('duration_str', 'N/A')}")
 
-    plain = f"""CNV Scenarios Report — Build #{build_num}
+    report_link = f"{dashboard_base_url}/job/{build_num}" if dashboard_base_url else ""
+
+    plain = f"""CNV Scenarios Report - Build #{build_num}
 Status: {status_text}
 Duration: {duration}
 Mode: {mode}
@@ -260,6 +266,7 @@ Passed: {passed} | Failed: {failed} | Total: {len(tests)}
 
 --- Scenario Results ---
 {chr(10).join(test_lines)}
+{f'{chr(10)}Full report: {report_link}' if report_link else ''}
 """
 
     msg = MIMEMultipart('alternative')
@@ -1077,6 +1084,7 @@ def build_detail(build_num):
             'description': sc.get('description', ''),
         }
 
+    settings = load_settings()
     cnv_config = settings.get('cnv', _DEFAULT_CNV_SETTINGS)
     grafana_url = cnv_config.get('grafana_url', '')
     grafana_base = ''
@@ -1133,9 +1141,14 @@ def rebuild(build_num):
 
 
 @dashboard_bp.route('/report/<filename>')
-@login_required
 def serve_report(filename):
-    """Serve report files"""
+    """Serve report files (public, no login required)."""
+    return send_from_directory(REPORTS_DIR, filename)
+
+
+@dashboard_bp.route('/public/report/<filename>')
+def serve_report_public(filename):
+    """Serve report files without authentication for sharing."""
     return send_from_directory(REPORTS_DIR, filename)
 
 
@@ -2507,6 +2520,7 @@ def _execute_build(job_id, checks, options, user_id=None):
                     duration_secs = int(time.time() - job['start_time'])
                     duration = f"{duration_secs // 60}m {duration_secs % 60}s"
 
+                    combined_cluster_info = parse_cluster_info(scenario_output)
                     report_html = generate_combined_report_html(
                         cnv_results=cnv_results,
                         health_output=health_output,
@@ -2523,6 +2537,8 @@ def _execute_build(job_id, checks, options, user_id=None):
                         scenario_output=scenario_output,
                         health_check_output=health_output,
                         cleanup_output=cleanup_output,
+                        cluster_info=combined_cluster_info,
+                        run_config=options,
                     )
                     os.makedirs(REPORTS_DIR, exist_ok=True)
                     report_path = os.path.join(REPORTS_DIR, report_filename)
@@ -2567,6 +2583,8 @@ def _execute_build(job_id, checks, options, user_id=None):
                 full_output = ''.join(stdout_lines)
 
             cnv_results_final = None
+            cnv_cluster_info = None
+            combined_cluster_info = None
 
             if is_cnv:
                 # CNV scenario status detection — use the results summary line,
@@ -2598,6 +2616,7 @@ def _execute_build(job_id, checks, options, user_id=None):
                 # Parse structured per-test results and generate HTML report
                 try:
                     cnv_results_final = parse_cnv_results(full_output)
+                    cnv_cluster_info = parse_cluster_info(full_output)
                     ts_str = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
                     report_filename = f'cnv_report_{ts_str}.html'
                     report_html = generate_cnv_report_html(
@@ -2611,6 +2630,8 @@ def _execute_build(job_id, checks, options, user_id=None):
                         server=options.get('server_host', ''),
                         checks=checks,
                         output=full_output,
+                        cluster_info=cnv_cluster_info,
+                        run_config=options,
                     )
                     os.makedirs(REPORTS_DIR, exist_ok=True)
                     report_path = os.path.join(REPORTS_DIR, report_filename)
@@ -2698,6 +2719,7 @@ def _execute_build(job_id, checks, options, user_id=None):
                     if email_phase_idx is not None and email_phase_idx >= 0:
                         set_phase(job, email_phase_idx, 'running', 'Sending email report...')
                     try:
+                        _email_cluster_info = cnv_cluster_info if is_cnv else (combined_cluster_info if is_combined else None)
                         _send_cnv_email_report(
                             recipient=options['email_to'],
                             build_num=build_num,
@@ -2709,6 +2731,7 @@ def _execute_build(job_id, checks, options, user_id=None):
                             options=options,
                             output=full_output,
                             cnv_results=cnv_results_final if is_cnv else (cnv_results if is_combined else None),
+                            cluster_info=_email_cluster_info,
                         )
                         job['output'] += f'[{datetime.now().strftime("%H:%M:%S")}] Email sent to {options["email_to"]}\n'
                         if email_phase_idx is not None and email_phase_idx >= 0:

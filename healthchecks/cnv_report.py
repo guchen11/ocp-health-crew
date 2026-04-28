@@ -189,6 +189,25 @@ def parse_cnv_results(raw_output):
     }
 
 
+def parse_cluster_info(raw_output):
+    """Extract __CNV_CLUSTER_INFO__ JSON block from raw console output.
+
+    Returns a dict with cluster metadata, or empty dict if not found.
+    """
+    import json as _json
+    start_marker = "__CNV_CLUSTER_INFO_START__"
+    end_marker = "__CNV_CLUSTER_INFO_END__"
+    start_idx = raw_output.find(start_marker)
+    end_idx = raw_output.find(end_marker)
+    if start_idx == -1 or end_idx == -1:
+        return {}
+    json_block = raw_output[start_idx + len(start_marker):end_idx].strip()
+    try:
+        return _json.loads(json_block)
+    except _json.JSONDecodeError:
+        return {}
+
+
 # ── Iteration data renderers ─────────────────────────────────────────────────
 
 # Logical boot-stage ordering for VMI latency
@@ -392,12 +411,260 @@ def _render_validation_html(data):
     </div>'''
 
 
+# ── Executive Summary renderer ────────────────────────────────────────────────
+
+def _render_executive_summary(tests, meta, cluster_info=None):
+    """Build executive summary HTML: test scope table + cluster environment grid."""
+
+    # ── Test Scope Table ──────────────────────────────────────────────────
+    rows = ""
+    for t in tests:
+        m = meta.get(t["name"], {})
+        icon = m.get("icon", "🔥")
+        display_name = m.get("name", t["name"])
+        description = m.get("description", "")
+        is_pass = t["status"] == "PASS"
+        s_color = "#73BF69" if is_pass else "#F2495C"
+        s_label = "PASSED" if is_pass else "FAILED"
+        s_icon = "✅" if is_pass else "❌"
+        dur = t.get("duration_str", "N/A")
+        rows += f'''
+        <tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:10px 14px;font-size:13px;white-space:nowrap;">{icon} {display_name}</td>
+            <td style="padding:10px 14px;font-size:12px;color:var(--text-secondary);max-width:400px;">{description}</td>
+            <td style="padding:10px 14px;text-align:center;">
+                <span style="display:inline-block;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700;background:{s_color}22;color:{s_color};">{s_icon} {s_label}</span>
+            </td>
+            <td style="padding:10px 14px;text-align:right;font-size:12px;color:var(--text-secondary);">{dur}</td>
+        </tr>'''
+
+    scope_html = f'''
+    <div class="panel" style="margin-bottom:16px;">
+        <div class="panel-title">📋 Test Scope</div>
+        <div style="overflow-x:auto;">
+        <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+            <tr style="border-bottom:1px solid var(--border);">
+                <th style="padding:10px 14px;text-align:left;font-size:10px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;">Scenario</th>
+                <th style="padding:10px 14px;text-align:left;font-size:10px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;">Objective</th>
+                <th style="padding:10px 14px;text-align:center;font-size:10px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;">Status</th>
+                <th style="padding:10px 14px;text-align:right;font-size:10px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;">Duration</th>
+            </tr>
+            {rows}
+        </table>
+        </div>
+    </div>'''
+
+    # ── Cluster Environment Grid ──────────────────────────────────────────
+    env_html = ""
+    if cluster_info:
+        def _env_card(label, value, icon):
+            return f'''
+            <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:8px;padding:14px 16px;">
+                <div style="font-size:10px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">{icon} {label}</div>
+                <div style="font-size:16px;font-weight:600;color:var(--text-primary);">{value}</div>
+            </div>'''
+
+        cards = ""
+        cards += _env_card("OCP Version", cluster_info.get("ocp_version", "N/A"), "🔴")
+        cards += _env_card("CNV Version", cluster_info.get("cnv_version", "N/A"), "🖥️")
+        odf = cluster_info.get("odf_version", "N/A")
+        if odf and odf != "N/A":
+            cards += _env_card("ODF Version", odf, "💿")
+        cards += _env_card("Network", cluster_info.get("network_type", "N/A"), "🌐")
+
+        workers = cluster_info.get("nodes_workers", 0)
+        masters = cluster_info.get("nodes_masters", 0)
+        total = cluster_info.get("nodes_total", 0)
+        node_val = f"{total} ({workers}w / {masters}m)" if total else "N/A"
+        cards += _env_card("Nodes", node_val, "🖧")
+
+        storage_total = cluster_info.get("storage_total_tib", 0)
+        storage_used = cluster_info.get("storage_used_tib", 0)
+        if storage_total:
+            pct = int(storage_used / storage_total * 100) if storage_total else 0
+            storage_val = f"{storage_used} / {storage_total} TiB ({pct}%)"
+        else:
+            storage_val = "N/A"
+        cards += _env_card("Storage (Ceph)", storage_val, "💾")
+
+        env_html = f'''
+    <div class="panel" style="margin-bottom:16px;">
+        <div class="panel-title">🏗️ Cluster Environment</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;padding:16px;">
+            {cards}
+        </div>
+    </div>'''
+
+    return scope_html + env_html
+
+
+# ── Configuration parameters section ─────────────────────────────────────────
+
+def _resolve_default(var_info, mode):
+    """Return the default value string for a variable given the run mode."""
+    d = var_info.get("default", "")
+    if isinstance(d, dict):
+        d = d.get(mode, d.get("sanity", ""))
+    if isinstance(d, bool):
+        return "true" if d else "false"
+    return str(d) if d is not None else ""
+
+
+def _config_card(label, value, icon, is_override=False):
+    """Single config-parameter card for the grid."""
+    color = "var(--blue)" if is_override else "var(--text-primary)"
+    badge = '<span style="font-size:9px;color:var(--blue);margin-left:6px;">CUSTOM</span>' if is_override else ''
+    return f'''
+            <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:8px;padding:12px 14px;">
+                <div style="font-size:10px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:5px;">{icon} {label}{badge}</div>
+                <div style="font-size:13px;font-weight:600;color:{color};word-break:break-all;">{value}</div>
+            </div>'''
+
+
+def _render_config_params_html(run_config, checks=None, mode="sanity"):
+    """Build a collapsible panel showing all configuration parameters for the run."""
+    if not run_config:
+        return ""
+
+    try:
+        from config.cnv_scenarios import CNV_GLOBAL_VARIABLES, CNV_SCENARIOS
+    except ImportError:
+        return ""
+
+    checks = checks or []
+    mode = run_config.get("scenario_mode", mode)
+
+    # Parse env_vars overrides into a lookup dict
+    overrides = {}
+    env_vars_str = run_config.get("env_vars", "")
+    if env_vars_str:
+        for pair in env_vars_str.split(","):
+            pair = pair.strip()
+            if "=" in pair:
+                k, v = pair.split("=", 1)
+                overrides[k] = v
+
+    # ── Run Settings cards ────────────────────────────────────────────────
+    run_params = [
+        ("Mode", mode.upper(), "🎯"),
+        ("Parallel", "Yes" if run_config.get("scenario_parallel") else "No", "⚡"),
+        ("CNV Path", run_config.get("cnv_path", ""), "📂"),
+    ]
+    if run_config.get("kb_log_level"):
+        run_params.append(("Log Level", run_config["kb_log_level"], "📝"))
+    if run_config.get("kb_timeout"):
+        run_params.append(("Timeout", run_config["kb_timeout"], "⏱️"))
+    if run_config.get("server_host"):
+        run_params.append(("Server", run_config["server_host"], "🖥️"))
+
+    run_cards = ""
+    for label, value, icon in run_params:
+        if value:
+            run_cards += _config_card(label, value, icon)
+
+    run_grid = f'''
+        <div style="padding:16px 16px 8px;">
+            <div style="font-size:10px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;">🔧 Run Settings</div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;">
+                {run_cards}
+            </div>
+        </div>''' if run_cards else ""
+
+    # ── Global Parameters cards ───────────────────────────────────────────
+    global_cards = ""
+    for var_name, var_info in CNV_GLOBAL_VARIABLES.items():
+        label = var_info.get("label", var_name)
+        icon = var_info.get("icon", "⚙️")
+        default_val = _resolve_default(var_info, mode)
+        actual = overrides.get(var_name, default_val)
+        is_override = var_name in overrides
+        if var_info.get("type") == "bool":
+            display = "Enabled" if actual in ("true", "True", "1") else "Disabled"
+        elif actual:
+            display = actual
+        else:
+            ph = var_info.get("placeholder", "")
+            if isinstance(ph, dict):
+                ph = ph.get(mode, ph.get("sanity", ""))
+            display = ph.replace("default: ", "") if ph else "(not set)"
+        global_cards += _config_card(label, display, icon, is_override)
+
+    global_html = f'''
+        <div style="padding:12px 16px 8px;">
+            <div style="font-size:10px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;">⚙️ Global Parameters</div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;">
+                {global_cards}
+            </div>
+        </div>'''
+
+    # ── Per-scenario parameters ───────────────────────────────────────────
+    # Build remote_name -> scenario config lookup
+    by_remote = {sc["remote_name"]: (sid, sc) for sid, sc in CNV_SCENARIOS.items()}
+
+    scenario_sections = ""
+    for remote_name in checks:
+        if remote_name not in by_remote:
+            continue
+        sid, sc = by_remote[remote_name]
+        svars = sc.get("variables", {})
+        if not svars:
+            continue
+
+        s_cards = ""
+        for var_name, var_info in svars.items():
+            label = var_info.get("label", var_name)
+            default_val = _resolve_default(var_info, mode)
+            actual = overrides.get(var_name, default_val)
+            is_override = var_name in overrides
+            if var_info.get("type") == "bool":
+                display = "Enabled" if actual in ("true", "True", "1") else "Disabled"
+            elif actual:
+                display = actual
+            else:
+                ph = var_info.get("placeholder", "")
+                display = ph.replace("default: ", "").replace("Default: ", "") if ph else "(not set)"
+            s_cards += f'''
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);">
+                    <span style="font-size:12px;color:var(--text-secondary);">{label}</span>
+                    <span style="font-size:12px;font-weight:600;font-family:monospace;color:{"var(--blue)" if is_override else "var(--text-primary)"};">{display}{"" if not is_override else ' <span style="font-size:9px;color:var(--blue);">●</span>'}</span>
+                </div>'''
+
+        scenario_sections += f'''
+            <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:8px;overflow:hidden;">
+                <div style="padding:10px 14px;border-bottom:1px solid var(--border);font-size:12px;font-weight:600;color:var(--text-primary);">{sc.get("icon", "🔥")} {sc["name"]}</div>
+                <div style="padding:8px 14px;">{s_cards}</div>
+            </div>'''
+
+    scenario_html = ""
+    if scenario_sections:
+        scenario_html = f'''
+        <div style="padding:12px 16px 16px;">
+            <div style="font-size:10px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;">🧪 Test-Specific Parameters</div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;">
+                {scenario_sections}
+            </div>
+        </div>'''
+
+    return f'''
+    <div class="panel" style="margin-bottom:16px;">
+        <div class="panel-title collapsible-toggle" onclick="this.nextElementSibling.classList.toggle('show'); this.querySelector('.arrow').textContent = this.nextElementSibling.classList.contains('show') ? '▲' : '▼'">
+            ⚙️ Configuration Parameters <span class="arrow" style="margin-left:auto;font-size:10px;">▼</span>
+        </div>
+        <div class="collapsible-content">
+            {run_grid}
+            {global_html}
+            {scenario_html}
+        </div>
+    </div>'''
+
+
 # ── Report HTML generator ────────────────────────────────────────────────────
 
 def generate_cnv_report_html(results, build_num=0, build_name="",
                               status="success", status_text="All Passed",
                               duration="", mode="sanity", server="",
-                              checks=None, output=""):
+                              checks=None, output="", cluster_info=None,
+                              run_config=None):
     """Generate a Grafana-style dark HTML report for CNV scenario results.
 
     Parameters
@@ -413,6 +680,7 @@ def generate_cnv_report_html(results, build_num=0, build_name="",
     server : str
     checks : list  -- scenario names that were requested
     output : str  -- raw console output for the collapsible section
+    run_config : dict  -- full options dict for the configuration section
     """
     checks = checks or []
     meta = _get_scenario_meta()
@@ -559,28 +827,6 @@ def generate_cnv_report_html(results, build_num=0, build_name="",
                     <div style="padding:8px 0;">{val_html}</div>
                 </div>'''
 
-            # Job Summary
-            job_sum = idata.get("job_summary")
-            if job_sum:
-                # job_summary can be a dict or list
-                jobs = job_sum if isinstance(job_sum, list) else [job_sum]
-                job_cards = ""
-                for jj in jobs:
-                    jname = jj.get("jobName", "unknown")
-                    jtype = jj.get("jobType", "")
-                    objs = jj.get("objects", 0)
-                    uuids = jj.get("uuid", "")[:8]
-                    passed_j = jj.get("passed", "?")
-                    job_cards += f'''
-                    <span style="display:inline-block;padding:4px 12px;background:var(--bg-canvas);border:1px solid var(--border);border-radius:6px;font-size:11px;margin:2px;">
-                        <b>{jname}</b> • {jtype} • {objs} objects • passed: {passed_j}
-                    </span>'''
-                section_content += f'''
-                <div style="margin-bottom:16px;">
-                    <div style="font-size:11px;font-weight:600;color:var(--orange);text-transform:uppercase;letter-spacing:1px;padding:8px 0 8px;border-bottom:1px solid var(--border);">📋 Job Summary</div>
-                    <div style="padding:8px 0;display:flex;flex-wrap:wrap;gap:4px;">{job_cards}</div>
-                </div>'''
-
             if section_content:
                 detail_sections_html += f'''
     <div class="panel" style="margin-bottom:16px;">
@@ -612,10 +858,10 @@ def generate_cnv_report_html(results, build_num=0, build_name="",
     clean_excerpt = []
     in_data_block = False
     for l in excerpt_lines:
-        if '__CNV_ITERATION_DATA_START__' in l:
+        if '__CNV_ITERATION_DATA_START__' in l or '__CNV_CLUSTER_INFO_START__' in l:
             in_data_block = True
             continue
-        if '__CNV_ITERATION_DATA_END__' in l:
+        if '__CNV_ITERATION_DATA_END__' in l or '__CNV_CLUSTER_INFO_END__' in l:
             in_data_block = False
             continue
         if not in_data_block:
@@ -628,6 +874,12 @@ def generate_cnv_report_html(results, build_num=0, build_name="",
 
     # Timestamp
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    # Executive summary (test scope + cluster environment)
+    exec_summary_html = _render_executive_summary(tests, meta, cluster_info)
+
+    # Configuration parameters section
+    config_section_html = _render_config_params_html(run_config, checks, mode)
 
     html = f'''<!DOCTYPE html>
 <html>
@@ -793,6 +1045,12 @@ body {{ font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Robot
         </div>
     </div>
 
+    <!-- Executive Summary -->
+    {exec_summary_html}
+
+    <!-- Configuration Parameters -->
+    {config_section_html}
+
     <!-- Scenario Results -->
     <div class="panel" style="margin-bottom:16px;">
         <div class="panel-title">🔥 Scenario Results</div>
@@ -850,7 +1108,8 @@ def generate_combined_report_html(cnv_results=None, health_output="",
                                    duration="", mode="sanity", server="",
                                    checks=None,
                                    scenario_output="", health_check_output="",
-                                   cleanup_output=""):
+                                   cleanup_output="",
+                                   cluster_info=None, run_config=None):
     """Generate a Grafana-style dark HTML report for a combined run.
 
     Includes: scenario results + health check results + cleanup status.
@@ -1025,10 +1284,10 @@ def generate_combined_report_html(cnv_results=None, health_output="",
         clean = []
         in_data = False
         for l in lines:
-            if '__CNV_ITERATION_DATA_START__' in l:
+            if '__CNV_ITERATION_DATA_START__' in l or '__CNV_CLUSTER_INFO_START__' in l:
                 in_data = True
                 continue
-            if '__CNV_ITERATION_DATA_END__' in l:
+            if '__CNV_ITERATION_DATA_END__' in l or '__CNV_CLUSTER_INFO_END__' in l:
                 in_data = False
                 continue
             if not in_data:
@@ -1040,6 +1299,12 @@ def generate_combined_report_html(cnv_results=None, health_output="",
     cleanup_output_html = _clean_output(cleanup_output) if cleanup_output else ""
 
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    # Executive summary (test scope + cluster environment)
+    exec_summary_html = _render_executive_summary(tests, meta, cluster_info)
+
+    # Configuration parameters section
+    config_section_html = _render_config_params_html(run_config, checks, mode)
 
     html = f'''<!DOCTYPE html>
 <html>
@@ -1175,6 +1440,12 @@ body {{ font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Robot
             <div class="stat-subtitle">Resource Cleanup</div>
         </div>
     </div>
+
+    <!-- Executive Summary -->
+    {exec_summary_html}
+
+    <!-- Configuration Parameters -->
+    {config_section_html}
 
     <!-- Phase 1: Scenario Results -->
     <div class="panel" style="margin-bottom:16px;">
@@ -1344,12 +1615,44 @@ def _build_email_detail_sections(results, meta):
     return sections
 
 
+def _build_email_env_row(cluster_info):
+    """Build an inline-styled cluster environment row for the email report."""
+    if not cluster_info:
+        return ""
+
+    def _cell(label, value):
+        return (
+            f'<td style="padding:8px;background:#0d111788;border-radius:6px;text-align:center;border:1px solid #30363d;">'
+            f'<div style="font-size:10px;color:#8b949e;text-transform:uppercase;margin-bottom:2px;">{label}</div>'
+            f'<div style="font-size:14px;font-weight:600;color:#e6edf3;">{value}</div>'
+            f'</td><td width="4"></td>'
+        )
+
+    ocp = cluster_info.get("ocp_version", "N/A")
+    cnv = cluster_info.get("cnv_version", "N/A")
+    net = cluster_info.get("network_type", "N/A")
+    nodes = cluster_info.get("nodes_total", 0)
+    workers = cluster_info.get("nodes_workers", 0)
+    node_str = f"{nodes} ({workers}w)" if nodes else "N/A"
+
+    cells = _cell("OCP", ocp) + _cell("CNV", cnv) + _cell("Network", net) + _cell("Nodes", node_str)
+
+    return (
+        '<!-- Cluster Environment -->\n'
+        '<tr><td style="padding:0 32px 16px;">\n'
+        '<div style="font-size:13px;font-weight:600;color:#8b949e;margin-bottom:8px;">CLUSTER ENVIRONMENT</div>\n'
+        f'<table width="100%" cellpadding="0" cellspacing="0"><tr>{cells}</tr></table>\n'
+        '</td></tr>'
+    )
+
+
 # ── Email-friendly report snippet ────────────────────────────────────────────
 
 def generate_cnv_email_html(results, build_num=0, build_name="",
                              status="success", status_text="All Passed",
                              duration="", mode="sanity", checks=None,
-                             output=""):
+                             output="", cluster_info=None,
+                             dashboard_base_url=""):
     """Generate an email-safe HTML body for CNV scenario results.
 
     Uses inline styles and table layout for maximum email client compatibility.
@@ -1404,14 +1707,13 @@ def generate_cnv_email_html(results, build_num=0, build_name="",
     else:
         excerpt_lines = output_lines[-30:]
 
-    # Filter out __CNV_ITERATION_DATA__ block
     clean_excerpt = []
     in_data_block = False
     for l in excerpt_lines:
-        if '__CNV_ITERATION_DATA_START__' in l:
+        if '__CNV_ITERATION_DATA_START__' in l or '__CNV_CLUSTER_INFO_START__' in l:
             in_data_block = True
             continue
-        if '__CNV_ITERATION_DATA_END__' in l:
+        if '__CNV_ITERATION_DATA_END__' in l or '__CNV_CLUSTER_INFO_END__' in l:
             in_data_block = False
             continue
         if not in_data_block:
@@ -1477,6 +1779,8 @@ def generate_cnv_email_html(results, build_num=0, build_name="",
 </table>
 </td></tr>
 
+{_build_email_env_row(cluster_info)}
+
 <!-- Per-Test Results Table -->
 <tr><td style="padding:0 32px 20px;">
 <div style="font-size:13px;font-weight:600;color:#8b949e;margin-bottom:10px;">SCENARIO RESULTS</div>
@@ -1500,6 +1804,11 @@ def generate_cnv_email_html(results, build_num=0, build_name="",
 {html_summary}
 </div>
 </td></tr>
+
+<!-- CTA Button -->
+{f"""<tr><td style="padding:0 32px 24px;text-align:center;">
+<a href="{dashboard_base_url}/job/{build_num}" style="display:inline-block;padding:14px 32px;background:linear-gradient(135deg,#73BF69 0%,#5ba350 100%);border-radius:8px;color:#ffffff;font-weight:600;font-size:14px;text-decoration:none;">📊 View Full Report on Dashboard</a>
+</td></tr>""" if dashboard_base_url and build_num else ""}
 
 <!-- Footer -->
 <tr><td style="padding:20px 32px;background:#0d111788;border-top:1px solid #30363d;text-align:center;">

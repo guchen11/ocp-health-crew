@@ -387,13 +387,7 @@ def send_email_report(html_path, recipient=None, subject=None, cluster_name=None
                             <table width="100%" cellpadding="0" cellspacing="0">
                                 <tr>
                                     <td align="center">
-                                        <table cellpadding="0" cellspacing="0" style="background:linear-gradient(135deg,#73BF69 0%,#5ba350 100%);border-radius:8px;">
-                                            <tr>
-                                                <td style="padding:14px 32px;color:#ffffff;font-weight:600;font-size:14px;">
-                                                    📎 Full Interactive Report Attached — Open in Browser
-                                                </td>
-                                            </tr>
-                                        </table>
+                                        <a href="{report_url}" style="display:inline-block;padding:14px 32px;background:linear-gradient(135deg,#73BF69 0%,#5ba350 100%);border-radius:8px;color:#ffffff;font-weight:600;font-size:14px;text-decoration:none;">📊 View Full Report on Dashboard</a>
                                     </td>
                                 </tr>
                             </table>
