@@ -21,51 +21,7 @@ def load_user(user_id):
     return db.session.get(User, int(user_id))
 
 
-BUILTIN_TEMPLATES = [
-    {
-        'name': 'Create 10K VMs',
-        'description': 'Per-Host Density: 10,000 VMs in 1 namespace, create-only, multi-node, 48h timeout.',
-        'icon': '🚀',
-        'config': {
-            'task_type': 'cnv_scenarios',
-            'scenario_mode': 'full',
-            'scenario_tests': ['per-host-density'],
-            'scenario_parallel': False,
-            'kb_timeout': '48h',
-            'kb_log_level': '',
-            'email': True,
-            'env_vars': {
-                'per_host_density.vmsPerNamespace': '10000',
-                'per_host_density.namespaceCount': '1',
-                'per_host_density.scaleMode': 'multi-node',
-                'per_host_density.targetNode': '',
-                'per_host_density.cleanup': 'false',
-                'per_host_density.percentage_of_vms_to_validate': '0',
-                'per_host_density.max_ssh_retries': '240',
-                'per_host_density.vmMemory': '256Mi',
-                'per_host_density.vmCpuCores': '100',
-                'per_host_density.vmCpuRequest': '100m',
-                'per_host_density.vmCpuLimit': '1000m',
-                'per_host_density.sourceStorageSize': '256',
-                'per_host_density.vmStorageSize': '256',
-                'per_host_density.imageUrl': '',
-                'per_host_density.shutdownBatchSize': '50',
-                'per_host_density.sleepBetweenPhases': '2m',
-                'per_host_density.skipVmShutdown': 'true',
-                'per_host_density.skipVmRestart': 'true',
-                'per_host_density.qpsCreate': '20',
-                'per_host_density.burstCreate': '40',
-                'per_host_density.qpsShutdown': '10',
-                'per_host_density.burstShutdown': '20',
-                'per_host_density.qpsStartup': '30',
-                'per_host_density.burstStartup': '60',
-                'maxWaitTimeout': '48h',
-                'jobPause': '2m',
-                'cleanup': 'false',
-            },
-        },
-    },
-]
+from config.builtin_templates import BUILTIN_TEMPLATES  # noqa: F401
 
 
 def _seed_builtin_templates():
