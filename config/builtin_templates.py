@@ -16,6 +16,7 @@ def _tpl(name, description, icon, mode, tests, env_vars,
         'icon': icon,
         'config': {
             'task_type': 'cnv_scenarios',
+            'run_name': name,
             'scenario_mode': mode,
             'scenario_tests': tests,
             'scenario_parallel': parallel,
@@ -28,10 +29,10 @@ def _tpl(name, description, icon, mode, tests, env_vars,
 
 
 BUILTIN_TEMPLATES = [
-    # ─── CPU Limits ───────────────────────────────────────────────────────
+    # ─── Maximum virtual CPUs per VM ──────────────────────────────────────
     _tpl(
-        name='CNV Sanity - CPU Limits',
-        description='CPU Limits sanity: 1 vCPU socket with nproc + stress-ng verification.',
+        name='Sanity - Max vCPUs per VM',
+        description='1 vCPU socket with nproc + stress-ng verification.',
         icon='🔥', mode='sanity', tests=['cpu-limits'], timeout='30m',
         env_vars={
             'cpu_limits.cpuCores': '1',
@@ -43,8 +44,8 @@ BUILTIN_TEMPLATES = [
         },
     ),
     _tpl(
-        name='CNV Full - CPU Limits',
-        description='CPU Limits full: 512 vCPUs per VM with nproc + stress-ng verification.',
+        name='Full - Max vCPUs per VM',
+        description='512 vCPUs per VM with nproc + stress-ng verification.',
         icon='🔥', mode='full', tests=['cpu-limits'], timeout='2h',
         env_vars={
             'cpu_limits.cpuCores': '1',
@@ -56,10 +57,10 @@ BUILTIN_TEMPLATES = [
         },
     ),
 
-    # ─── Memory Limits ────────────────────────────────────────────────────
+    # ─── Maximum memory per VM ────────────────────────────────────────────
     _tpl(
-        name='CNV Sanity - Memory Limits',
-        description='Memory Limits sanity: 2 GiB per VM with free + stress-ng verification.',
+        name='Sanity - Max Memory per VM',
+        description='2 GiB per VM with free + stress-ng verification.',
         icon='💾', mode='sanity', tests=['memory-limits'], timeout='30m',
         env_vars={
             'memory_limits.memorySize': '2Gi',
@@ -68,8 +69,8 @@ BUILTIN_TEMPLATES = [
         },
     ),
     _tpl(
-        name='CNV Full - Memory Limits',
-        description='Memory Limits full: 350 GiB per VM with free + stress-ng + memtester.',
+        name='Full - Max Memory per VM',
+        description='350 GiB per VM with free + stress-ng + memtester.',
         icon='💾', mode='full', tests=['memory-limits'], timeout='4h',
         env_vars={
             'memory_limits.memorySize': '350Gi',
@@ -78,10 +79,10 @@ BUILTIN_TEMPLATES = [
         },
     ),
 
-    # ─── Disk Limits ──────────────────────────────────────────────────────
+    # ─── Disk count and size limits ───────────────────────────────────────
     _tpl(
-        name='CNV Sanity - Disk Limits',
-        description='Disk Limits sanity: 1x 10 GiB disk per VM with lsblk verification.',
+        name='Sanity - Disk Count and Size',
+        description='1x 10 GiB disk per VM with lsblk verification.',
         icon='💿', mode='sanity', tests=['disk-limits'], timeout='30m',
         env_vars={
             'disk_limits.diskCount': '1',
@@ -91,8 +92,8 @@ BUILTIN_TEMPLATES = [
         },
     ),
     _tpl(
-        name='CNV Full - Disk Limits',
-        description='Disk Limits full: 100 TiB single disk with fio + hdparm benchmarks.',
+        name='Full - Disk Count and Size',
+        description='100 TiB single disk with lsblk verification.',
         icon='💿', mode='full', tests=['disk-limits'], timeout='4h',
         env_vars={
             'disk_limits.diskCount': '1',
@@ -102,10 +103,10 @@ BUILTIN_TEMPLATES = [
         },
     ),
 
-    # ─── Disk Hot-plug ────────────────────────────────────────────────────
+    # ─── Maximum hot-pluggable disks per VM ───────────────────────────────
     _tpl(
-        name='CNV Sanity - Disk Hot-plug',
-        description='Disk Hot-plug sanity: 15 disks with OS validation and persistence.',
+        name='Sanity - Max Hot-plug Disks per VM',
+        description='15 hot-pluggable disks with OS validation and persistence.',
         icon='🔌', mode='sanity', tests=['disk-hotplug'], timeout='30m',
         env_vars={
             'disk_hotplug.diskCount': '15',
@@ -116,8 +117,8 @@ BUILTIN_TEMPLATES = [
         },
     ),
     _tpl(
-        name='CNV Full - Disk Hot-plug',
-        description='Disk Hot-plug full: 255 disks (SCSI) with OS validation and persistence.',
+        name='Full - Max Hot-plug Disks per VM',
+        description='255 hot-pluggable disks (SCSI) with OS validation and persistence.',
         icon='🔌', mode='full', tests=['disk-hotplug'], timeout='4h',
         env_vars={
             'disk_hotplug.diskCount': '255',
@@ -128,10 +129,10 @@ BUILTIN_TEMPLATES = [
         },
     ),
 
-    # ─── NIC Hot-plug ─────────────────────────────────────────────────────
+    # ─── Add vNICs to a VM ────────────────────────────────────────────────
     _tpl(
-        name='CNV Sanity - NIC Hot-plug',
-        description='NIC Hot-plug sanity: 5 NICs with bridge + VLAN attachment.',
+        name='Sanity - Add vNICs to a VM',
+        description='5 NICs with bridge + VLAN attachment.',
         icon='🌐', mode='sanity', tests=['nic-hotplug'], timeout='30m',
         env_vars={
             'nic_hotplug.nicCount': '5',
@@ -140,8 +141,8 @@ BUILTIN_TEMPLATES = [
         },
     ),
     _tpl(
-        name='CNV Full - NIC Hot-plug',
-        description='NIC Hot-plug full: 28 NICs with NNCP, NAD, and IP verification.',
+        name='Full - Add 28 vNICs to a VM',
+        description='28 NICs with NNCP, NAD, and IP verification.',
         icon='🌐', mode='full', tests=['nic-hotplug'], timeout='2h',
         env_vars={
             'nic_hotplug.nicCount': '28',
@@ -150,10 +151,10 @@ BUILTIN_TEMPLATES = [
         },
     ),
 
-    # ─── High Memory ──────────────────────────────────────────────────────
+    # ─── High memory performance ──────────────────────────────────────────
     _tpl(
-        name='CNV Sanity - High Memory',
-        description='High Memory sanity: 64 GiB VM with guest OS memory validation.',
+        name='Sanity - High Memory per VM',
+        description='64 GiB VM with guest OS memory validation.',
         icon='📈', mode='sanity', tests=['high-memory'], timeout='30m',
         env_vars={
             'high_memory.highMemory': '64Gi',
@@ -162,8 +163,8 @@ BUILTIN_TEMPLATES = [
         },
     ),
     _tpl(
-        name='CNV Full - High Memory',
-        description='High Memory full: 350 GiB VM with stress-ng + memtester verification.',
+        name='Full - High Memory per VM',
+        description='350 GiB VM with stress-ng + memtester verification.',
         icon='📈', mode='full', tests=['high-memory'], timeout='4h',
         env_vars={
             'high_memory.highMemory': '350Gi',
@@ -172,10 +173,10 @@ BUILTIN_TEMPLATES = [
         },
     ),
 
-    # ─── Large Disk ───────────────────────────────────────────────────────
+    # ─── Maximum single disk size per VM ──────────────────────────────────
     _tpl(
-        name='CNV Sanity - Large Disk',
-        description='Large Disk sanity: 100 GiB attached disk with size validation.',
+        name='Sanity - Max Single Disk Size',
+        description='100 GiB attached disk with size validation.',
         icon='🗄️', mode='sanity', tests=['large-disk'], timeout='30m',
         env_vars={
             'large_disk.largeDiskSize': '100Gi',
@@ -185,8 +186,8 @@ BUILTIN_TEMPLATES = [
         },
     ),
     _tpl(
-        name='CNV Full - Large Disk',
-        description='Large Disk full: 100 TiB attached disk with fio + hdparm benchmarks.',
+        name='Full - Max Single Disk Size',
+        description='100 TiB attached disk with fio + hdparm benchmarks.',
         icon='🗄️', mode='full', tests=['large-disk'], timeout='4h',
         env_vars={
             'large_disk.largeDiskSize': '100Ti',
@@ -196,10 +197,10 @@ BUILTIN_TEMPLATES = [
         },
     ),
 
-    # ─── Minimal Resources ────────────────────────────────────────────────
+    # ─── Minimum CPU/Memory/Disk per VM ───────────────────────────────────
     _tpl(
-        name='CNV Sanity - Minimal Resources',
-        description='Minimal Resources sanity: 500m CPU, 512 MiB memory, 1 GiB disk.',
+        name='Sanity - Min CPU/Memory/Disk per VM',
+        description='500m CPU, 512 MiB memory, 1 GiB disk.',
         icon='🪶', mode='sanity', tests=['minimal-resources'], timeout='30m',
         env_vars={
             'minimal_resources.minCpu': '500m',
@@ -208,8 +209,8 @@ BUILTIN_TEMPLATES = [
         },
     ),
     _tpl(
-        name='CNV Full - Minimal Resources',
-        description='Minimal Resources full: 100m CPU, 256 MiB memory, 256 MiB disk (CirrOS).',
+        name='Full - Min CPU/Memory/Disk per VM',
+        description='100m CPU, 256 MiB memory, 256 MiB disk (CirrOS).',
         icon='🪶', mode='full', tests=['minimal-resources'], timeout='1h',
         env_vars={
             'minimal_resources.minCpu': '100m',
@@ -218,10 +219,10 @@ BUILTIN_TEMPLATES = [
         },
     ),
 
-    # ─── Per-Host Density ─────────────────────────────────────────────────
+    # ─── Maximum number of defined VMs ────────────────────────────────────
     _tpl(
-        name='CNV Sanity - Per-Host Density',
-        description='Per-Host Density sanity: 30 VMs across 2 namespaces, multi-node.',
+        name='Sanity - Max Defined VMs',
+        description='30 VMs across 2 namespaces, multi-node.',
         icon='📊', mode='sanity', tests=['per-host-density'], timeout='1h',
         env_vars={
             'per_host_density.vmsPerNamespace': '15',
@@ -236,8 +237,8 @@ BUILTIN_TEMPLATES = [
         },
     ),
     _tpl(
-        name='CNV Full - Per-Host Density',
-        description='Per-Host Density full: 10,000 VMs across 20 namespaces, multi-node.',
+        name='Full - Max Defined VMs (10K)',
+        description='10,000 VMs across 20 namespaces, multi-node.',
         icon='📊', mode='full', tests=['per-host-density'], timeout='48h',
         env_vars={
             'per_host_density.vmsPerNamespace': '500',
@@ -253,10 +254,10 @@ BUILTIN_TEMPLATES = [
         },
     ),
 
-    # ─── Per-Host Density (single-node: max VMs per host) ────────────────
+    # ─── Maximum number of VMs per host ───────────────────────────────────
     _tpl(
-        name='CNV Full - Max VMs Per Host',
-        description='Per-Host Density full: 460 VMs on a single node, cordon remaining workers.',
+        name='Full - Max VMs per Host (460)',
+        description='460 VMs on a single node, cordon remaining workers.',
         icon='📊', mode='full', tests=['per-host-density'], timeout='12h',
         env_vars={
             'per_host_density.vmsPerNamespace': '460',
@@ -272,10 +273,10 @@ BUILTIN_TEMPLATES = [
         },
     ),
 
-    # ─── Per-Host Density (500 Namespaces) ────────────────────────────────
+    # ─── Scale out with 500 Namespaces ────────────────────────────────────
     _tpl(
-        name='CNV Full - 500 Namespaces',
-        description='Per-Host Density full: 500 namespaces with 1 VM each, multi-node.',
+        name='Full - Scale 500 Namespaces',
+        description='500 namespaces with 1 VM each, multi-node.',
         icon='📊', mode='full', tests=['per-host-density'], timeout='12h',
         env_vars={
             'per_host_density.vmsPerNamespace': '1',
@@ -291,8 +292,8 @@ BUILTIN_TEMPLATES = [
 
     # ─── Virt Capacity Benchmark ──────────────────────────────────────────
     _tpl(
-        name='CNV Sanity - Virt Capacity Benchmark',
-        description='Capacity Benchmark sanity: 5 VMs, skip resize and migration.',
+        name='Sanity - Virt Capacity Benchmark',
+        description='5 VMs, skip resize and migration.',
         icon='🏋️', mode='sanity', tests=['virt-capacity-benchmark'], timeout='1h',
         env_vars={
             'virt_capacity_benchmark.vmCount': '5',
@@ -302,8 +303,8 @@ BUILTIN_TEMPLATES = [
         },
     ),
     _tpl(
-        name='CNV Full - Virt Capacity Benchmark',
-        description='Capacity Benchmark full: 20 VMs with resize, restart, snapshot, migration.',
+        name='Full - Virt Capacity Benchmark',
+        description='20 VMs with resize, restart, snapshot, migration.',
         icon='🏋️', mode='full', tests=['virt-capacity-benchmark'], timeout='6h',
         env_vars={
             'virt_capacity_benchmark.vmCount': '20',

@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CSI clone chain RCA – working vs broken</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600&family=DM+Serif+Display&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <style>
+    :root {
+      --bg: #0c0e12;
+      --card: #141a22;
+      --border: #2a3441;
+      --text: #e6edf3;
+      --muted: #8b9aaf;
+      --ok: #3ecf8e;
+      --bad: #f87171;
+      --accent: #58a6ff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "DM Sans", system-ui, sans-serif;
+      font-size: 1rem;
+      line-height: 1.6;
+      color: var(--text);
+      background: radial-gradient(ellipse 120% 80% at 50% -10%, rgba(88, 166, 255, 0.08), transparent 50%), var(--bg);
+      padding: 2rem 1.25rem 3rem;
+    }
+    .wrap { max-width: 880px; margin: 0 auto; }
+    h1 {
+      font-family: "DM Serif Display", Georgia, serif;
+      font-weight: 400;
+      font-size: clamp(1.5rem, 3vw, 2rem);
+      margin: 0 0 0.5rem;
+      letter-spacing: -0.02em;
+    }
+    .eyebrow {
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 0.75rem;
+    }
+    .lede {
+      color: var(--muted);
+      max-width: 62ch;
+      margin: 0 0 2rem;
+    }
+    h2 {
+      font-family: "DM Serif Display", Georgia, serif;
+      font-weight: 400;
+      font-size: 1.25rem;
+      margin: 2rem 0 0.75rem;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.35rem;
+    }
+    h3 {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--muted);
+      margin: 1.25rem 0 0.5rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.25rem 1rem;
+      margin: 1rem 0;
+      overflow-x: auto;
+    }
+    .card.ok { border-left: 4px solid var(--ok); }
+    .card.bad { border-left: 4px solid var(--bad); }
+    .card.neutral { border-left: 4px solid var(--accent); }
+    .mermaid { display: flex; justify-content: center; }
+    ul.facts {
+      margin: 0.5rem 0 0;
+      padding-left: 1.2rem;
+      color: var(--muted);
+    }
+    ul.facts li { margin-bottom: 0.5rem; }
+    ul.facts strong { color: var(--text); }
+    .stat {
+      display: inline-block;
+      font-variant-numeric: tabular-nums;
+      padding: 0.15rem 0.45rem;
+      border-radius: 6px;
+      background: rgba(88, 166, 255, 0.12);
+      color: var(--accent);
+      font-size: 0.9rem;
+      font-weight: 600;
+    }
+    footer {
+      margin-top: 2.5rem;
+      padding-top: 1rem;
+      border-top: 1px solid var(--border);
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <p class="eyebrow">Root cause analysis</p>
+    <h1>CSI clone chain: working vs broken</h1>
+    <p class="lede">
+      The snapshot clone strategy builds a <strong>4-level chain</strong> per VM disk from one source image. When the <strong>temp snapshot on the source</strong> is removed while Kubernetes still believes provisioning succeeded, Ceph cannot resolve parent references. <span class="stat">11 / 10,038</span> clones (0.1%) showed this under extreme single-image contention.
+    </p>
+
+    <h2>Chain structure (all successful steps)</h2>
+    <p style="color: var(--muted); margin-top: 0;">Each level depends on the one above. Names follow the <code>csi-vol-*</code> pattern from the investigation.</p>
+    <div class="card ok">
+      <pre class="mermaid">
+flowchart TB
+    subgraph src["Source image"]
+        S["source-image<br/>csi-vol-7a46b7db"]
+    end
+    subgraph w["Working clone chain – all links exist"]
+        direction TB
+        A["Step 1: temp snapshot on source<br/>@csi-vol-XXXX-temp<br/>EXISTS"]
+        B["Step 2: temp clone image<br/>csi-vol-XXXX-temp<br/>EXISTS"]
+        C["Step 3: snapshot on temp image<br/>@csi-vol-XXXX<br/>EXISTS"]
+        D["Step 4: final image VM disk<br/>csi-vol-XXXX<br/>EXISTS"]
+    end
+    S --> A
+    A --> B
+    B --> C
+    C --> D
+      </pre>
+    </div>
+    <p style="color: var(--muted); font-size: 0.95rem;">
+      <strong style="color: var(--ok);">Intact chain</strong> – Ceph can walk parent refs from the final image up to the source. VM boots normally.
+    </p>
+
+    <h2>Broken chain (RCA)</h2>
+    <p style="color: var(--muted); margin-top: 0;">The <strong>foundation</strong> (temp snapshot on source) was deleted. Downstream objects may still exist in the pool but are <strong>not openable</strong>.</p>
+    <div class="card bad">
+      <pre class="mermaid">
+flowchart TB
+    subgraph src2["Source image"]
+        S2["source-image<br/>csi-vol-7a46b7db"]
+    end
+    subgraph b["Broken clone – foundation missing"]
+        direction TB
+        X["Step 1: temp snapshot on source<br/>@csi-vol-XXXX-temp<br/>DELETED not in source snapshot list"]
+        Y["Step 2: temp image<br/>csi-vol-XXXX-temp<br/>EXISTS BROKEN parent gone"]
+        Z["Step 3: snapshot on temp<br/>@csi-vol-XXXX<br/>EXISTS BROKEN"]
+        F["Step 4: final image<br/>csi-vol-XXXX<br/>EXISTS BROKEN"]
+    end
+    S2 -.->|missing link| X
+    X -.-> Y
+    Y -.-> Z
+    Z -.-> F
+      </pre>
+    </div>
+    <p style="color: var(--muted); font-size: 0.95rem;">
+      <strong style="color: var(--bad);">Parent snapshot removed</strong> – the chain has no valid root. Attach fails with errors such as <code>image not found</code> / parent resolution failure.
+    </p>
+
+    <h2>Race condition mechanism</h2>
+    <p style="color: var(--muted); margin-top: 0;">Heavy contention on <strong>one source image</strong> with ~10K concurrent clones serializes work per image. GRPC / provisioner time bounds interact with slow Ceph completion.</p>
+    <div class="card neutral">
+      <pre class="mermaid">
+sequenceDiagram
+    autonumber
+    participant P as CSI provisioner
+    participant C as ceph-csi
+    participant R as Ceph single source image
+
+    P->>C: Start clone CreateVolume
+    C->>R: Create temp snapshot on source begin clone chain
+    Note over R: Heavy queue clones take minutes to hours
+    P-->>C: Timeout or slow return e.g. 1800s boundary
+    Note over P: Assumes failure triggers cleanup
+    C->>R: Delete temp snapshot on source
+    Note over R: Temp snap removed foundation gone
+    R-->>C: Clone objects may already exist async
+    Note over P: PVC Bound DV Succeeded K8s thinks OK
+    Note over R: Chain exists but root snapshot missing Ceph cannot open images
+      </pre>
+    </div>
+    <p style="color: var(--muted); font-size: 0.95rem;">
+      Under normal load the window is small (clones finish in seconds). Under 10K single-image contention the window grows enough for a small fraction of operations to hit the race.
+    </p>
+
+    <h2>Evidence (summary)</h2>
+    <ul class="facts">
+      <li><strong>Source snapshot count:</strong> ~285 active temp snapshots on the source for successful clone batches; <strong>none</strong> remaining for the 11 broken cases.</li>
+      <li><strong>Broken <code>-temp</code> images:</strong> still listed in Ceph but fail with <strong>parent not found</strong> when opened.</li>
+      <li><strong>Working clones:</strong> final image to temp image to temp snapshot on source forms a valid parent walk.</li>
+      <li><strong>Kubernetes state:</strong> PVC <code>Bound</code>, DataVolume <code>Succeeded</code> – control plane does not reflect Ceph chain health.</li>
+      <li><strong>VMs:</strong> 11 VMs stuck <strong>7–34 hours</strong> with the same attach error – consistent with <strong>permanent</strong> chain corruption, not a transient retry issue.</li>
+    </ul>
+
+    <footer>
+      Diagrams use <a href="https://mermaid.js.org/" style="color: var(--accent);">Mermaid</a>. Replace <code>XXXX</code> with volume id from investigation. Open this file in a browser to render.
+    </footer>
+  </div>
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: "dark",
+      themeVariables: {
+        darkMode: true,
+        background: "#141a22",
+        primaryColor: "#1a2332",
+        primaryTextColor: "#e6edf3",
+        primaryBorderColor: "#58a6ff",
+        lineColor: "#8b9aaf",
+        secondaryColor: "#2a3441",
+        tertiaryColor: "#141a22",
+        fontFamily: "DM Sans, system-ui, sans-serif"
+      },
+      flowchart: { curve: "basis", padding: 16 },
+      sequence: { actorMargin: 36, messageMargin: 22 }
+    });
+  </script>
+</body>
+</html>

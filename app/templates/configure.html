@@ -1938,7 +1938,9 @@
 
     {% if load_template %}
     (function() {
-        loadTemplateConfig({{ load_template.config | tojson }});
+        var tplConfig = {{ load_template.config | tojson }};
+        if (!tplConfig.run_name) tplConfig.run_name = {{ load_template.name | tojson }};
+        loadTemplateConfig(tplConfig);
     })();
     {% endif %}
 

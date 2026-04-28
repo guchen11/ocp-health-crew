@@ -25,7 +25,7 @@ class RemoteOCPTool(BaseTool):
 
         # 3. Connect via Paramiko
         client = paramiko.SSHClient()
-        client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        client.set_missing_host_key_policy(paramiko.WarningPolicy())
 
         try:
             # Use the specific key path from .env

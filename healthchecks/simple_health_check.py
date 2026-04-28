@@ -16,13 +16,17 @@ HOST = os.getenv("RH_LAB_HOST")
 USER = os.getenv("RH_LAB_USER", "root")
 KEY_PATH = os.getenv("SSH_KEY_PATH")
 
+KUBECONFIG = "/home/kni/clusterconfigs/auth/kubeconfig"
+
+
 def ssh_command(command):
     """Execute command on remote host via SSH"""
-    # Set kubeconfig before running oc commands
-    full_cmd = f"export KUBECONFIG=/home/kni/clusterconfigs/auth/kubeconfig && {command}"
+    import shlex
+    full_cmd = f"export KUBECONFIG={shlex.quote(KUBECONFIG)} && {command}"
     try:
         client = paramiko.SSHClient()
-        client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        client.load_system_host_keys()
+        client.set_missing_host_key_policy(paramiko.WarningPolicy())
         client.connect(HOST, username=USER, key_filename=KEY_PATH)
         stdin, stdout, stderr = client.exec_command(full_cmd)
         output = stdout.read().decode()

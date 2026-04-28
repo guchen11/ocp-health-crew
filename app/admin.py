@@ -4,11 +4,10 @@ CNV Health Dashboard - Admin Blueprint
 User management, audit log viewing, and knowledge base CRUD for admin users.
 """
 
-from functools import wraps
 from flask import Blueprint, render_template, redirect, url_for, request, jsonify, flash
 from flask_login import login_required, current_user
 from app.models import db, User, AuditLog
-from app.auth import log_audit
+from app.decorators import admin_required, log_audit
 from healthchecks.knowledge_base import (
     load_known_issues, load_known_bugs, save_known_issue, save_known_bug,
     delete_known_issue, delete_known_bug, get_stats,
@@ -16,17 +15,6 @@ from healthchecks.knowledge_base import (
 )
 
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
-
-
-def admin_required(f):
-    """Decorator to restrict access to admin users only."""
-    @wraps(f)
-    @login_required
-    def decorated(*args, **kwargs):
-        if not current_user.is_admin:
-            return "Access denied. Admin role required.", 403
-        return f(*args, **kwargs)
-    return decorated
 
 
 @admin_bp.route('/users')
@@ -101,8 +89,8 @@ def reset_user_password(user_id):
         return jsonify({'success': False, 'error': 'User not found.'})
 
     new_password = request.form.get('password', '')
-    if len(new_password) < 6:
-        return jsonify({'success': False, 'error': 'Password must be at least 6 characters.'})
+    if len(new_password) < 12:
+        return jsonify({'success': False, 'error': 'Password must be at least 12 characters.'})
 
     user.set_password(new_password)
     db.session.commit()

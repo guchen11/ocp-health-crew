@@ -8,23 +8,10 @@ First registered user becomes admin automatically.
 from datetime import datetime, timezone
 from flask import Blueprint, render_template, redirect, url_for, request, flash
 from flask_login import login_user, logout_user, login_required, current_user
-from app.models import db, User, AuditLog
+from app.models import db, User
+from app.decorators import log_audit
 
 auth_bp = Blueprint('auth', __name__)
-
-
-def log_audit(action, target=None, details=None):
-    """Record an audit log entry."""
-    entry = AuditLog(
-        user_id=current_user.id if current_user.is_authenticated else None,
-        username=current_user.username if current_user.is_authenticated else 'anonymous',
-        action=action,
-        target=target,
-        details=details,
-        ip_address=request.remote_addr,
-    )
-    db.session.add(entry)
-    db.session.commit()
 
 
 @auth_bp.route('/login', methods=['GET', 'POST'])
@@ -54,6 +41,8 @@ def login():
             log_audit('login', target=f'User {user.username}')
 
             next_page = request.args.get('next')
+            if next_page and (not next_page.startswith('/') or next_page.startswith('//')):
+                next_page = None
             return redirect(next_page or url_for('dashboard.dashboard'))
         else:
             error = 'Invalid username or password.'
@@ -104,8 +93,8 @@ def register():
             error = 'All fields are required.'
         elif len(username) < 3:
             error = 'Username must be at least 3 characters.'
-        elif len(password) < 6:
-            error = 'Password must be at least 6 characters.'
+        elif len(password) < 12:
+            error = 'Password must be at least 12 characters.'
         elif password != confirm_password:
             error = 'Passwords do not match.'
         elif User.query.filter_by(username=username).first():
@@ -159,8 +148,8 @@ def profile():
 
         if not current_user.check_password(current_password):
             error = 'Current password is incorrect.'
-        elif len(new_password) < 6:
-            error = 'New password must be at least 6 characters.'
+        elif len(new_password) < 12:
+            error = 'New password must be at least 12 characters.'
         elif new_password != confirm_password:
             error = 'New passwords do not match.'
         else:

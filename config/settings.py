@@ -54,10 +54,10 @@ class Config:
     MAX_CONCURRENT_BUILDS = int(os.getenv('MAX_CONCURRENT_BUILDS', '3'))
     
     # Secret key for sessions
-    SECRET_KEY = os.getenv('SECRET_KEY', 'dev-key-change-in-production')
+    SECRET_KEY = os.getenv('SECRET_KEY') or os.urandom(32).hex()
     
     # Open registration: allow new users to self-register (default: True)
-    OPEN_REGISTRATION = os.getenv('OPEN_REGISTRATION', 'true').lower() in ('true', '1', 'yes')
+    OPEN_REGISTRATION = os.getenv('OPEN_REGISTRATION', 'false').lower() in ('true', '1', 'yes')
     
     TEMPLATES_DIR = os.path.join(BASE_DIR, "app", "templates")
     STATIC_DIR = os.path.join(BASE_DIR, "app", "static")

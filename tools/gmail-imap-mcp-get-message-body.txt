@@ -1,0 +1,19 @@
+gmail-imap-mcp local extension (get-message-body)
+===============================================
+
+Added to your venv install:
+  ~/.local/share/gmail-imap-mcp-venv/lib64/python3.13/site-packages/gmail_imap_mcp/server.py
+
+New MCP tool: get-message-body
+  account     (required) e.g. guchen@redhat.com
+  email_id    (required) IMAP uid "479240" OR composite "user@host_INBOX_479240" from search-emails
+  mailbox     (optional) default INBOX; ignored when email_id is composite
+
+Also fixed mark-as-unread to parse composite email_id like mark-as-read already did.
+
+Cursor descriptor added:
+  .cursor/projects/.../mcps/user-gmail/tools/get-message-body.json
+
+After `pip install --upgrade gmail-imap-mcp`, re-apply the same edits to server.py or keep a backup diff.
+
+Restart Cursor (or reload MCP servers) so the new tool is listed.

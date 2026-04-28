@@ -3,8 +3,17 @@
 {% block title %}CNV HealthCrew AI{% endblock %}
 
 {% block content %}
+<style>
+.build-table th { position:relative; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; border-right:1px solid var(--border); }
+.build-table th:last-child { border-right:none; }
+.build-table td { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; border-right:1px solid var(--border); }
+.build-table td:last-child { border-right:none; }
+.col-resize-handle { position:absolute; top:0; right:-3px; width:6px; height:100%; cursor:col-resize; z-index:5; background:transparent; }
+.col-resize-handle:hover, .col-resize-handle.active { background:var(--accent); opacity:0.4; border-radius:2px; }
+</style>
 <div class="container">
-    <aside class="sidebar">
+    <aside class="sidebar" id="dashSidebar">
+        <div class="sidebar-resize-handle" id="sidebarResizeHandle"></div>
         <div class="sidebar-section">
             <div class="sidebar-title" onclick="toggleSidebarSection(this)" style="cursor:pointer;display:flex;align-items:center;">
                 Quick Actions
@@ -145,21 +154,21 @@
                 </button>
             </div>
             <div class="card-body" style="padding:0;">
-                {% if builds %}
-                <table class="build-table">
+                {% if builds or running_build %}
+                <table class="build-table" id="buildHistoryTable" style="table-layout:fixed;width:100%;">
                     <thead>
                         <tr>
-                            <th style="width:40px;"><input type="checkbox" id="selectAll" onchange="toggleSelectAll()"></th>
+                            <th style="width:40px;" data-no-resize><input type="checkbox" id="selectAll" onchange="toggleSelectAll()"></th>
                             <th style="width:60px;">Run</th>
-                            <th>Type</th>
-                            <th>Status</th>
-                            <th>Lab</th>
-                            <th>Jump Host</th>
-                            <th>Triggered By</th>
-                            <th>Checks Run</th>
-                            <th>Started</th>
-                            <th>Duration</th>
-                            <th>Actions</th>
+                            <th style="width:180px;">Name</th>
+                            <th style="width:65px;">Type</th>
+                            <th style="width:85px;">Status</th>
+                            <th style="width:140px;">Jump Host</th>
+                            <th style="width:120px;">Triggered By</th>
+                            <th style="width:80px;">Checks Run</th>
+                            <th style="width:110px;">Started</th>
+                            <th style="width:75px;">Duration</th>
+                            <th data-no-resize>Actions</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -171,6 +180,9 @@
                                     <span class="status-icon running"></span>
                                     #{{ running_build.number }}
                                 </a>
+                            </td>
+                            <td style="font-size:12px;font-weight:600;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{{ running_build.name or '' }}">
+                                {{ running_build.name or '—' }}
                             </td>
                             <td>
                                 {% if running_build.options and running_build.options.task_type == 'cnv_combined' %}
@@ -185,9 +197,6 @@
                                 <span class="status-badge status-running" style="animation:pulse 1.5s infinite;">
                                     🔄 Running
                                 </span>
-                            </td>
-                            <td style="font-size:11px;color:var(--text);font-weight:600;">
-                                {{ running_build.name or '—' }}
                             </td>
                             <td style="font-size:11px;color:var(--text);font-weight:600;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
                                 {{ running_build.options.server_host.split('.')[0] if running_build.options and running_build.options.server_host else '—' }}
@@ -219,6 +228,9 @@
                                     #{{ build.number }}
                                 </a>
                             </td>
+                            <td style="font-size:12px;font-weight:600;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{{ build.name or '' }}">
+                                {{ build.name or '—' }}
+                            </td>
                             <td>
                                 {% if build.options.task_type == 'cnv_combined' %}
                                 <span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;background:linear-gradient(135deg,#8b5cf6,#6366f1);color:white;">🧬 Combined</span>
@@ -232,9 +244,6 @@
                                 <span class="status-badge status-{{ build.status }}">
                                     {{ build.status_text }}
                                 </span>
-                            </td>
-                            <td style="font-size:11px;color:var(--text);font-weight:600;">
-                                {{ build.name or '—' }}
                             </td>
                             <td style="font-size:11px;color:var(--text);font-weight:600;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{{ build.options.server_host or '' }}">
                                 {{ build.options.server_host.split('.')[0] if build.options.server_host else '—' }}
@@ -541,5 +550,91 @@ function copyPublicLink(filename) {
         setTimeout(function() { el.innerHTML = '🔗'; }, 1500);
     });
 }
+
+(function() {
+    var handle = document.getElementById('sidebarResizeHandle');
+    var sidebar = document.getElementById('dashSidebar');
+    if (!handle || !sidebar) return;
+    var dragging = false;
+    handle.addEventListener('mousedown', function(e) {
+        e.preventDefault();
+        dragging = true;
+        handle.classList.add('dragging');
+        document.body.style.cursor = 'col-resize';
+        document.body.style.userSelect = 'none';
+    });
+    document.addEventListener('mousemove', function(e) {
+        if (!dragging) return;
+        var rect = sidebar.parentElement.getBoundingClientRect();
+        var newWidth = e.clientX - rect.left;
+        if (newWidth < 160) newWidth = 160;
+        if (newWidth > 500) newWidth = 500;
+        sidebar.style.width = newWidth + 'px';
+        try { localStorage.setItem('hc_sidebar_w', newWidth); } catch(ex) {}
+    });
+    document.addEventListener('mouseup', function() {
+        if (!dragging) return;
+        dragging = false;
+        handle.classList.remove('dragging');
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+    });
+    try {
+        var saved = localStorage.getItem('hc_sidebar_w');
+        if (saved) sidebar.style.width = saved + 'px';
+    } catch(ex) {}
+})();
+
+(function() {
+    var table = document.getElementById('buildHistoryTable');
+    if (!table) return;
+    var ths = table.querySelectorAll('thead th');
+    var dragging = null, startX = 0, startW = 0;
+
+    ths.forEach(function(th, idx) {
+        if (th.hasAttribute('data-no-resize')) return;
+        var grip = document.createElement('div');
+        grip.className = 'col-resize-handle';
+        th.appendChild(grip);
+        grip.addEventListener('mousedown', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            dragging = th;
+            startX = e.pageX;
+            startW = th.offsetWidth;
+            grip.classList.add('active');
+            document.body.style.cursor = 'col-resize';
+            document.body.style.userSelect = 'none';
+        });
+    });
+
+    document.addEventListener('mousemove', function(e) {
+        if (!dragging) return;
+        var w = Math.max(40, startW + (e.pageX - startX));
+        dragging.style.width = w + 'px';
+    });
+
+    document.addEventListener('mouseup', function() {
+        if (!dragging) return;
+        var grip = dragging.querySelector('.col-resize-handle');
+        if (grip) grip.classList.remove('active');
+        dragging = null;
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+        try {
+            var widths = [];
+            ths.forEach(function(th) { widths.push(th.style.width || ''); });
+            localStorage.setItem('hc_col_widths', JSON.stringify(widths));
+        } catch(ex) {}
+    });
+
+    try {
+        var saved = localStorage.getItem('hc_col_widths');
+        if (saved) {
+            var widths = JSON.parse(saved);
+            ths.forEach(function(th, i) { if (widths[i]) th.style.width = widths[i]; });
+        }
+    } catch(ex) {}
+})();
 </script>
 {% endblock %}

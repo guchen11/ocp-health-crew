@@ -33,7 +33,7 @@ def load_learning_data():
             with open(LEARNING_FILE, 'r') as f:
                 data = json.load(f)
                 return data
-        except:
+        except (json.JSONDecodeError, OSError, ValueError):
             pass
     
     # Return default structure

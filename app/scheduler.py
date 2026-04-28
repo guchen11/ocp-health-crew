@@ -29,7 +29,7 @@ def load_schedules():
         try:
             with open(SCHEDULES_FILE, 'r') as f:
                 return json.load(f)
-        except:
+        except (json.JSONDecodeError, OSError, ValueError):
             return []
     return []
 
@@ -130,7 +130,7 @@ def scheduler_loop(app):
                             last_run_dt = datetime.strptime(last_run, '%Y-%m-%d %H:%M')
                             if (datetime.now() - last_run_dt).total_seconds() < check_interval:
                                 continue
-                        except:
+                        except (ValueError, TypeError):
                             pass
 
                     run_schedule(schedule, app)

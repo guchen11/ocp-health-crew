@@ -12,6 +12,7 @@ Usage:
 
 import os
 import sys
+import re
 import json
 import argparse
 import time
@@ -67,7 +68,8 @@ def connect_ssh(host, user, key_path):
     """Create and return an SSH client connected to the host."""
     log(f"Connecting to {user}@{host} ...")
     client = paramiko.SSHClient()
-    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    client.load_system_host_keys()
+    client.set_missing_host_key_policy(paramiko.WarningPolicy())
 
     connect_kwargs = {"hostname": host, "username": user, "timeout": 30}
     if key_path and os.path.exists(key_path):
@@ -83,8 +85,9 @@ def build_remote_command(args):
     """Build the shell command to run on the remote host."""
     parts = []
 
+    import shlex
     # Environment setup
-    parts.append(f"export KUBECONFIG={args.kubeconfig}")
+    parts.append(f"export KUBECONFIG={shlex.quote(args.kubeconfig)}")
 
     # Auto-login to refresh the token (kubeadmin password file next to kubeconfig)
     kubeconfig_dir = args.kubeconfig.rsplit('/', 1)[0] if '/' in args.kubeconfig else '.'
@@ -99,18 +102,20 @@ def build_remote_command(args):
         for pair in args.env_vars.split(","):
             pair = pair.strip()
             if "=" in pair:
-                # In cleanup-only mode, skip the original cleanup setting —
-                # we force cleanup=true below.
                 if args.cleanup_only and pair.startswith("cleanup="):
                     continue
-                parts.append(f"export {pair}")
+                key, _, val = pair.partition("=")
+                if not re.match(r'^[A-Za-z_][A-Za-z0-9_]*$', key):
+                    log(f"  ⚠ Skipping invalid env var key: {key}")
+                    continue
+                parts.append(f"export {key}={shlex.quote(val)}")
 
     # In cleanup-only mode force cleanup=true so kube-burner tears down resources
     if args.cleanup_only:
         parts.append("export cleanup=true")
 
     # cd into the cnv-scenarios directory
-    parts.append(f"cd {args.cnv_path}")
+    parts.append(f"cd {shlex.quote(args.cnv_path)}")
 
     # Build run-workloads.sh command
     runner = "./run-workloads.sh"
