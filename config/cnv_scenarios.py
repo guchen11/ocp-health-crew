@@ -217,6 +217,7 @@ CNV_SCENARIOS = {
             "vmStorageSize": {"type": "int", "default": {"sanity": 256, "full": 256}, "label": "VM Disk Size (MiB)", "min": 64, "max": 10240},
             "imageUrl": {"type": "str", "default": {"sanity": "", "full": ""}, "label": "VM Image URL", "placeholder": "default: Alpine 3.22 cloud image"},
             "shutdownBatchSize": {"type": "int", "default": {"sanity": 50, "full": 50}, "label": "Shutdown Batch Size", "min": 1, "max": 500},
+            "jobIterationDelay": {"type": "str", "default": {"sanity": "2s", "full": "2s"}, "label": "Iteration Delay", "placeholder": "e.g. 2s, 5s (delay between namespaces)"},
             "sleepBetweenPhases": {"type": "str", "default": {"sanity": "1m", "full": "2m"}, "label": "Sleep Between Phases", "placeholder": "e.g. 2m, 5m"},
             "skipVmShutdown": {"type": "bool", "default": {"sanity": False, "full": False}, "label": "Skip VM Shutdown phase"},
             "skipVmRestart": {"type": "bool", "default": {"sanity": False, "full": False}, "label": "Skip VM Restart phase"},

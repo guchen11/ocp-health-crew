@@ -42,12 +42,72 @@
         </div>
         <div class="sidebar-section">
             <div class="sidebar-title" onclick="toggleSidebarSection(this)" style="cursor:pointer;display:flex;align-items:center;">
+                ⚡ Sanity
+                <span class="collapse-icon" style="margin-left:auto;font-size:10px;">▼</span>
+            </div>
+            <div class="sidebar-content">
+                {% set sanity_templates = [] %}
+                {% for t in user_templates if t.name.startswith('Sanity') %}{% if sanity_templates.append(t) %}{% endif %}{% endfor %}
+                {% if sanity_templates %}
+                {% for t in sanity_templates %}
+                <div style="display:flex;align-items:center;position:relative;" class="tmpl-row">
+                    <a href="/job/configure?template={{ t.id }}" class="sidebar-item" style="display:flex;align-items:center;gap:6px;flex:1;overflow:hidden;" title="{{ t.description }}">
+                        <span class="sidebar-icon">{{ t.icon }}</span>
+                        <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ t.name | replace('Sanity - ', '') }}</span>
+                    </a>
+                    {% if t.created_by_id == current_user.id %}
+                    <span class="tmpl-menu-trigger" onclick="event.preventDefault();event.stopPropagation();toggleTmplMenu(this);" title="Actions" style="padding:2px 8px;cursor:pointer;opacity:0.7;font-size:15px;flex-shrink:0;">⋮</span>
+                    <div class="tmpl-menu" style="display:none;position:absolute;right:0;top:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.15);z-index:100;min-width:140px;overflow:hidden;">
+                        <div onclick="event.stopPropagation();openEditTemplateModal({{ t.id }});" style="padding:8px 14px;font-size:12px;cursor:pointer;display:flex;align-items:center;gap:8px;color:var(--text);" onmouseenter="this.style.background='var(--bg-secondary)'" onmouseleave="this.style.background=''">✏️ Rename</div>
+                        <div onclick="event.stopPropagation();deleteTemplate({{ t.id }}, '{{ t.name|e }}');" style="padding:8px 14px;font-size:12px;cursor:pointer;display:flex;align-items:center;gap:8px;color:var(--danger);" onmouseenter="this.style.background='var(--bg-secondary)'" onmouseleave="this.style.background=''">🗑️ Delete</div>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+                {% else %}
+                <div style="padding:8px 12px;font-size:12px;color:var(--text-muted);">No sanity templates</div>
+                {% endif %}
+            </div>
+        </div>
+        <div class="sidebar-section">
+            <div class="sidebar-title" onclick="toggleSidebarSection(this)" style="cursor:pointer;display:flex;align-items:center;">
+                🚀 Full Run
+                <span class="collapse-icon" style="margin-left:auto;font-size:10px;">▼</span>
+            </div>
+            <div class="sidebar-content">
+                {% set full_templates = [] %}
+                {% for t in user_templates if t.name.startswith('Full') %}{% if full_templates.append(t) %}{% endif %}{% endfor %}
+                {% if full_templates %}
+                {% for t in full_templates %}
+                <div style="display:flex;align-items:center;position:relative;" class="tmpl-row">
+                    <a href="/job/configure?template={{ t.id }}" class="sidebar-item" style="display:flex;align-items:center;gap:6px;flex:1;overflow:hidden;" title="{{ t.description }}">
+                        <span class="sidebar-icon">{{ t.icon }}</span>
+                        <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ t.name | replace('Full - ', '') }}</span>
+                    </a>
+                    {% if t.created_by_id == current_user.id %}
+                    <span class="tmpl-menu-trigger" onclick="event.preventDefault();event.stopPropagation();toggleTmplMenu(this);" title="Actions" style="padding:2px 8px;cursor:pointer;opacity:0.7;font-size:15px;flex-shrink:0;">⋮</span>
+                    <div class="tmpl-menu" style="display:none;position:absolute;right:0;top:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.15);z-index:100;min-width:140px;overflow:hidden;">
+                        <div onclick="event.stopPropagation();openEditTemplateModal({{ t.id }});" style="padding:8px 14px;font-size:12px;cursor:pointer;display:flex;align-items:center;gap:8px;color:var(--text);" onmouseenter="this.style.background='var(--bg-secondary)'" onmouseleave="this.style.background=''">✏️ Rename</div>
+                        <div onclick="event.stopPropagation();deleteTemplate({{ t.id }}, '{{ t.name|e }}');" style="padding:8px 14px;font-size:12px;cursor:pointer;display:flex;align-items:center;gap:8px;color:var(--danger);" onmouseenter="this.style.background='var(--bg-secondary)'" onmouseleave="this.style.background=''">🗑️ Delete</div>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+                {% else %}
+                <div style="padding:8px 12px;font-size:12px;color:var(--text-muted);">No full run templates</div>
+                {% endif %}
+            </div>
+        </div>
+        <div class="sidebar-section">
+            <div class="sidebar-title" onclick="toggleSidebarSection(this)" style="cursor:pointer;display:flex;align-items:center;">
                 My Templates
                 <span class="collapse-icon" style="margin-left:auto;font-size:10px;">▼</span>
             </div>
             <div class="sidebar-content">
-                {% if user_templates %}
-                {% for t in user_templates %}
+                {% set other_templates = [] %}
+                {% for t in user_templates if not t.name.startswith('Sanity') and not t.name.startswith('Full') %}{% if other_templates.append(t) %}{% endif %}{% endfor %}
+                {% if other_templates %}
+                {% for t in other_templates %}
                 <div style="display:flex;align-items:center;position:relative;" class="tmpl-row">
                     <a href="/job/configure?template={{ t.id }}" class="sidebar-item" style="display:flex;align-items:center;gap:6px;flex:1;overflow:hidden;" title="{{ t.description }}">
                         <span class="sidebar-icon">{{ t.icon }}</span>
