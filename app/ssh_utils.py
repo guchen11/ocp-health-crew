@@ -63,6 +63,8 @@ def ssh_exec(client, command, kubeconfig=None, timeout=30):
         full_cmd = command
 
     _stdin, stdout, stderr = client.exec_command(full_cmd, timeout=timeout)
+    stdout.channel.settimeout(timeout)
+    stderr.channel.settimeout(timeout)
     return stdout.read().decode().strip(), stderr.read().decode().strip()
 
 

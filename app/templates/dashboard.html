@@ -15,11 +15,11 @@
     <aside class="sidebar" id="dashSidebar">
         <div class="sidebar-resize-handle" id="sidebarResizeHandle"></div>
         <div class="sidebar-section">
-            <div class="sidebar-title" onclick="toggleSidebarSection(this)" style="cursor:pointer;display:flex;align-items:center;">
+            <div class="sidebar-title collapsed" onclick="toggleSidebarSection(this)" style="cursor:pointer;display:flex;align-items:center;">
                 Quick Actions
                 <span class="collapse-icon" style="margin-left:auto;font-size:10px;">▼</span>
             </div>
-            <div class="sidebar-content">
+            <div class="sidebar-content collapsed">
                 <a href="/job/configure" class="sidebar-item">
                     <span class="sidebar-icon">▶️</span>
                     Run with Parameters
@@ -42,20 +42,68 @@
                 </a>
             </div>
         </div>
-        {% if user_templates %}
+        {% if current_user.is_operator %}
         <div class="sidebar-section">
-            <div class="sidebar-title" onclick="toggleSidebarSection(this)" style="cursor:pointer;display:flex;align-items:center;">
+            <div class="sidebar-title collapsed" onclick="toggleSidebarSection(this)" style="cursor:pointer;display:flex;align-items:center;">
+                📦 Test Suites
+                <span class="collapse-icon" style="margin-left:auto;font-size:10px;">▼</span>
+            </div>
+            <div class="sidebar-content collapsed">
+                {% if user_suites %}
+                {% for s in user_suites %}
+                <div style="display:flex;align-items:center;position:relative;" class="tmpl-row">
+                    <a href="/suites" class="sidebar-item" style="display:flex;align-items:center;gap:6px;flex:1;overflow:hidden;" title="{{ s.description or s.name }} ({{ s.item_count }} items)">
+                        <span class="sidebar-icon">{{ s.icon }}</span>
+                        <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ s.name }}</span>
+                        <span style="font-size:10px;color:var(--text-secondary);flex-shrink:0;">{{ s.item_count }}</span>
+                    </a>
+                    <span onclick="event.preventDefault();event.stopPropagation();runSuiteFromDashboard({{ s.id }}, '{{ s.name|e }}', {{ s.item_count }});" title="Run now" style="padding:2px 6px;cursor:pointer;opacity:0.6;font-size:13px;flex-shrink:0;border-radius:4px;" onmouseenter="this.style.opacity='1';this.style.background='rgba(40,167,69,0.15)'" onmouseleave="this.style.opacity='0.6';this.style.background=''">▶</span>
+                </div>
+                {% endfor %}
+                {% endif %}
+                <a href="/suites" class="sidebar-item" style="border-top:1px solid var(--border);margin-top:4px;padding-top:10px;">
+                    <span class="sidebar-icon">⚙️</span>
+                    Manage Suites
+                </a>
+            </div>
+        </div>
+        {% endif %}
+        {% if current_user.is_operator %}
+        <div class="sidebar-section">
+            <div class="sidebar-title collapsed" onclick="toggleSidebarSection(this)" style="cursor:pointer;display:flex;align-items:center;">
+                🔄 Upgrades
+                <span class="collapse-icon" style="margin-left:auto;font-size:10px;">▼</span>
+            </div>
+            <div class="sidebar-content collapsed">
+                <a href="/upgrades" class="sidebar-item">
+                    <span class="sidebar-icon">🔍</span>
+                    Scan &amp; Manage
+                </a>
+                <a href="#" onclick="event.preventDefault();fetch('/api/upgrades/scan').then(r=>r.json()).then(d=>{var n=(d.cvo&&d.cvo.available_updates?d.cvo.available_updates.length:0)+(d.olm?d.olm.length:0);alert(n?n+' upgrade(s) available. Go to Upgrades page for details.':'No upgrades available.')});" class="sidebar-item">
+                    <span class="sidebar-icon">⚡</span>
+                    Quick Scan
+                </a>
+            </div>
+        </div>
+        {% endif %}
+        <div class="sidebar-section">
+            <div class="sidebar-title collapsed" onclick="toggleSidebarSection(this)" style="cursor:pointer;display:flex;align-items:center;">
                 ⚡ Sanity
                 <span class="collapse-icon" style="margin-left:auto;font-size:10px;">▼</span>
             </div>
-            <div class="sidebar-content">
-                {% for t in user_templates if t.name.startswith('Sanity') %}
-                <div style="display:flex;align-items:center;position:relative;" class="tmpl-row">
-                    <a href="/job/configure?template={{ t.id }}" class="sidebar-item" style="display:flex;align-items:center;gap:6px;flex:1;overflow:hidden;" title="{{ t.description }}">
+            <div class="sidebar-content collapsed">
+                {% set sanity_found = [] %}
+                {% for t in user_templates if t.name.startswith('Sanity') %}{% if sanity_found.append(1) %}{% endif %}
+                {% set disabled = 'HCP & ACM' in t.name %}
+                <div style="display:flex;align-items:center;position:relative;{{ 'opacity:0.4;pointer-events:none;' if disabled }}" class="tmpl-row">
+                    <a href="/job/configure?template={{ t.id }}" class="sidebar-item" style="display:flex;align-items:center;gap:6px;flex:1;overflow:hidden;" title="{{ t.description }}{{ ' (coming soon)' if disabled }}">
                         <span class="sidebar-icon">{{ t.icon }}</span>
-                        <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ t.name.replace('Sanity - ', '') }}</span>
+                        <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ t.name.replace('Sanity - ', '') }}{{ ' (coming soon)' if disabled }}</span>
                     </a>
-                    {% if t.created_by_id == current_user.id %}
+                    {% if not disabled %}
+                    <span onclick="event.preventDefault();event.stopPropagation();runTemplate({{ t.id }}, '{{ t.name|e }}');" title="Run now" style="padding:2px 6px;cursor:pointer;opacity:0.6;font-size:13px;flex-shrink:0;border-radius:4px;" onmouseenter="this.style.opacity='1';this.style.background='rgba(40,167,69,0.15)'" onmouseleave="this.style.opacity='0.6';this.style.background=''">▶</span>
+                    {% endif %}
+                    {% if t.created_by_id == current_user.id and not disabled %}
                     <span class="tmpl-menu-trigger" onclick="event.preventDefault();event.stopPropagation();toggleTmplMenu(this);" title="Actions" style="padding:2px 8px;cursor:pointer;opacity:0.7;font-size:15px;flex-shrink:0;">⋮</span>
                     <div class="tmpl-menu" style="display:none;position:absolute;right:0;top:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.15);z-index:100;min-width:140px;overflow:hidden;">
                         <div onclick="event.stopPropagation();openEditTemplateModal({{ t.id }});" style="padding:8px 14px;font-size:12px;cursor:pointer;display:flex;align-items:center;gap:8px;color:var(--text);" onmouseenter="this.style.background='var(--bg-secondary)'" onmouseleave="this.style.background=''">✏️ Rename</div>
@@ -64,21 +112,29 @@
                     {% endif %}
                 </div>
                 {% endfor %}
+                {% if not sanity_found %}
+                <div style="padding:8px 12px;font-size:12px;color:var(--text-secondary);">No sanity templates</div>
+                {% endif %}
             </div>
         </div>
         <div class="sidebar-section">
-            <div class="sidebar-title" onclick="toggleSidebarSection(this)" style="cursor:pointer;display:flex;align-items:center;">
+            <div class="sidebar-title collapsed" onclick="toggleSidebarSection(this)" style="cursor:pointer;display:flex;align-items:center;">
                 🚀 Full Run
                 <span class="collapse-icon" style="margin-left:auto;font-size:10px;">▼</span>
             </div>
-            <div class="sidebar-content">
-                {% for t in user_templates if t.name.startswith('Full') %}
-                <div style="display:flex;align-items:center;position:relative;" class="tmpl-row">
-                    <a href="/job/configure?template={{ t.id }}" class="sidebar-item" style="display:flex;align-items:center;gap:6px;flex:1;overflow:hidden;" title="{{ t.description }}">
+            <div class="sidebar-content collapsed">
+                {% set full_found = [] %}
+                {% for t in user_templates if t.name.startswith('Full') %}{% if full_found.append(1) %}{% endif %}
+                {% set disabled = 'HCP & ACM' in t.name %}
+                <div style="display:flex;align-items:center;position:relative;{{ 'opacity:0.4;pointer-events:none;' if disabled }}" class="tmpl-row">
+                    <a href="/job/configure?template={{ t.id }}" class="sidebar-item" style="display:flex;align-items:center;gap:6px;flex:1;overflow:hidden;" title="{{ t.description }}{{ ' (coming soon)' if disabled }}">
                         <span class="sidebar-icon">{{ t.icon }}</span>
-                        <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ t.name.replace('Full - ', '') }}</span>
+                        <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ t.name.replace('Full - ', '') }}{{ ' (coming soon)' if disabled }}</span>
                     </a>
-                    {% if t.created_by_id == current_user.id %}
+                    {% if not disabled %}
+                    <span onclick="event.preventDefault();event.stopPropagation();runTemplate({{ t.id }}, '{{ t.name|e }}');" title="Run now" style="padding:2px 6px;cursor:pointer;opacity:0.6;font-size:13px;flex-shrink:0;border-radius:4px;" onmouseenter="this.style.opacity='1';this.style.background='rgba(40,167,69,0.15)'" onmouseleave="this.style.opacity='0.6';this.style.background=''">▶</span>
+                    {% endif %}
+                    {% if t.created_by_id == current_user.id and not disabled %}
                     <span class="tmpl-menu-trigger" onclick="event.preventDefault();event.stopPropagation();toggleTmplMenu(this);" title="Actions" style="padding:2px 8px;cursor:pointer;opacity:0.7;font-size:15px;flex-shrink:0;">⋮</span>
                     <div class="tmpl-menu" style="display:none;position:absolute;right:0;top:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.15);z-index:100;min-width:140px;overflow:hidden;">
                         <div onclick="event.stopPropagation();openEditTemplateModal({{ t.id }});" style="padding:8px 14px;font-size:12px;cursor:pointer;display:flex;align-items:center;gap:8px;color:var(--text);" onmouseenter="this.style.background='var(--bg-secondary)'" onmouseleave="this.style.background=''">✏️ Rename</div>
@@ -87,17 +143,20 @@
                     {% endif %}
                 </div>
                 {% endfor %}
+                {% if not full_found %}
+                <div style="padding:8px 12px;font-size:12px;color:var(--text-secondary);">No full run templates</div>
+                {% endif %}
             </div>
         </div>
         {% set has_other = [] %}
         {% for t in user_templates if not t.name.startswith('Sanity') and not t.name.startswith('Full') %}{% if has_other.append(t) %}{% endif %}{% endfor %}
         {% if has_other %}
         <div class="sidebar-section">
-            <div class="sidebar-title" onclick="toggleSidebarSection(this)" style="cursor:pointer;display:flex;align-items:center;">
+            <div class="sidebar-title collapsed" onclick="toggleSidebarSection(this)" style="cursor:pointer;display:flex;align-items:center;">
                 My Templates
                 <span class="collapse-icon" style="margin-left:auto;font-size:10px;">▼</span>
             </div>
-            <div class="sidebar-content">
+            <div class="sidebar-content collapsed">
                 {% for t in user_templates if not t.name.startswith('Sanity') and not t.name.startswith('Full') %}
                 <div style="display:flex;align-items:center;position:relative;" class="tmpl-row">
                     <a href="/job/configure?template={{ t.id }}" class="sidebar-item" style="display:flex;align-items:center;gap:6px;flex:1;overflow:hidden;" title="{{ t.description }}">
@@ -116,14 +175,13 @@
             </div>
         </div>
         {% endif %}
-        {% endif %}
         {% if current_user.is_admin %}
         <div class="sidebar-section">
-            <div class="sidebar-title" onclick="toggleSidebarSection(this)" style="cursor:pointer;display:flex;align-items:center;">
+            <div class="sidebar-title collapsed" onclick="toggleSidebarSection(this)" style="cursor:pointer;display:flex;align-items:center;">
                 Cleanup
                 <span class="collapse-icon" style="margin-left:auto;font-size:10px;">▼</span>
             </div>
-            <div class="sidebar-content">
+            <div class="sidebar-content collapsed">
                 <a href="#" onclick="deleteBulk('stopped'); return false;" class="sidebar-item" style="color:var(--warning);">
                     <span class="sidebar-icon">⏹️</span>
                     Delete All Stopped
@@ -140,11 +198,11 @@
         </div>
         {% endif %}
         <div class="sidebar-section">
-            <div class="sidebar-title" onclick="toggleSidebarSection(this)" style="cursor:pointer;display:flex;align-items:center;">
+            <div class="sidebar-title collapsed" onclick="toggleSidebarSection(this)" style="cursor:pointer;display:flex;align-items:center;">
                 Recent Runs
                 <span class="collapse-icon" style="margin-left:auto;font-size:10px;">▼</span>
             </div>
-            <div class="sidebar-content">
+            <div class="sidebar-content collapsed">
                 {% for build in recent_builds[:5] %}
                 <a href="/job/{{ build.number }}" class="sidebar-item">
                     <span class="status-icon {{ build.status }}"></span>
@@ -235,7 +293,9 @@
                                 {{ running_build.name or '—' }}
                             </td>
                             <td>
-                                {% if running_build.options and running_build.options.task_type == 'cnv_combined' %}
+                                {% if running_build.options and running_build.options.task_type == 'upgrade' %}
+                                <span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;background:linear-gradient(135deg,#f59e0b,#d97706);color:white;">🔄 Upgrade</span>
+                                {% elif running_build.options and running_build.options.task_type == 'cnv_combined' %}
                                 <span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;background:linear-gradient(135deg,#8b5cf6,#6366f1);color:white;">🧬 Combined</span>
                                 {% elif running_build.options and running_build.options.task_type == 'cnv_scenarios' %}
                                 <span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;background:linear-gradient(135deg,#f97316,#ea580c);color:white;">🔥 CNV</span>
@@ -282,7 +342,9 @@
                                 {{ build.name or '—' }}
                             </td>
                             <td>
-                                {% if build.options.task_type == 'cnv_combined' %}
+                                {% if build.options.task_type == 'upgrade' %}
+                                <span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;background:linear-gradient(135deg,#f59e0b,#d97706);color:white;">🔄 Upgrade</span>
+                                {% elif build.options.task_type == 'cnv_combined' %}
                                 <span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;background:linear-gradient(135deg,#8b5cf6,#6366f1);color:white;">🧬 Combined</span>
                                 {% elif build.options.task_type == 'cnv_scenarios' %}
                                 <span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;background:linear-gradient(135deg,#f97316,#ea580c);color:white;">🔥 CNV</span>
@@ -336,6 +398,98 @@
                 {% endif %}
             </div>
         </div>
+
+        {% if recent_upgrades %}
+        <div class="card" style="margin-top:16px;">
+            <div class="card-header" onclick="toggleCard(this)">
+                🔄 Recent Upgrade Pipelines
+                <div style="margin-left:auto;display:flex;align-items:center;gap:8px;">
+                    <a href="/upgrades" class="btn" style="padding:4px 12px;font-size:11px;">View All</a>
+                    <span class="collapse-icon" style="margin-left:8px;">▼</span>
+                </div>
+            </div>
+            <div class="card-body" style="padding:0;">
+                <table class="build-table" style="table-layout:fixed;width:100%;">
+                    <thead>
+                        <tr>
+                            <th style="width:50px;">Run</th>
+                            <th style="width:170px;">Pipeline</th>
+                            <th style="width:180px;">Operator</th>
+                            <th style="width:70px;">Type</th>
+                            <th style="width:85px;">Status</th>
+                            <th style="width:85px;">Test</th>
+                            <th style="width:100px;">Report</th>
+                            <th style="width:110px;">Started</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for u in recent_upgrades %}
+                        {% set rd = u.report_data or {} %}
+                        {% set upgrades_list = rd.get('upgrades', []) if rd is mapping else [] %}
+                        {% set actual_op = upgrades_list[0].get('operator', '') if upgrades_list else '' %}
+                        <tr>
+                            <td>
+                                <a href="/upgrade-run/{{ u.id }}" style="font-weight:700;color:var(--accent);text-decoration:none;">#{{ u.id }}</a>
+                            </td>
+                            <td style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{{ u.operator_name }}">
+                                {{ u.operator_name }}
+                            </td>
+                            <td style="font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{{ actual_op }}{% if u.from_version and u.to_version %}: {{ u.from_version }} -> {{ u.to_version }}{% endif %}">
+                                {% if actual_op %}
+                                <strong>{{ actual_op }}</strong>
+                                {% elif u.from_version and u.to_version %}
+                                <span style="font-family:monospace;">{{ u.from_version.split('.')[-1] }} -> {{ u.to_version.split('.')[-1] }}</span>
+                                {% else %}
+                                -
+                                {% endif %}
+                            </td>
+                            <td>
+                                <span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;background:linear-gradient(135deg,#f59e0b,#d97706);color:white;">{{ u.upgrade_type|upper }}</span>
+                            </td>
+                            <td>
+                                {% if u.status == 'completed' %}
+                                <span class="status-badge status-success">All Passed</span>
+                                {% elif u.status == 'failed' %}
+                                <span class="status-badge status-failed">Failed</span>
+                                {% elif u.status == 'aborted' %}
+                                <span class="status-badge" style="background:#fef3c7;color:#92400e;">Aborted</span>
+                                {% elif u.status in ('pending', 'upgrading', 'waiting', 'testing') %}
+                                <span class="status-badge status-running" style="animation:pulse 1.5s infinite;">Running</span>
+                                {% elif u.status == 'blocked' %}
+                                <span class="status-badge" style="background:#fef3c7;color:#92400e;">Blocked</span>
+                                {% else %}
+                                <span class="status-badge">{{ u.status }}</span>
+                                {% endif %}
+                            </td>
+                            <td style="font-size:12px;">
+                                {% if u.test_suite_run_id %}
+                                <a href="/suite-run/{{ u.test_suite_run_id }}" style="color:var(--accent);">Suite #{{ u.test_suite_run_id }}</a>
+                                {% elif u.test_build_number %}
+                                <a href="/job/{{ u.test_build_number }}" style="color:var(--accent);">Build #{{ u.test_build_number }}</a>
+                                {% elif u.test_status == 'running' %}
+                                <span style="color:var(--accent);">running</span>
+                                {% else %}
+                                -
+                                {% endif %}
+                            </td>
+                            <td style="font-size:12px;">
+                                {% if u.report_file %}
+                                <a href="/report/{{ u.report_file }}" style="color:var(--accent);">📊 Report</a>
+                                {% else %}
+                                -
+                                {% endif %}
+                            </td>
+                            <td style="font-size:11px;color:var(--text-muted);">
+                                {{ u.created_at }}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+
     <!-- Edit Template Modal -->
     <div id="editTemplateModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center;" onclick="if(event.target===this)closeEditTemplateModal()">
         <div style="background:var(--bg);border-radius:12px;padding:24px;max-width:480px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
@@ -379,169 +533,10 @@
 
 {% block scripts %}
 <script>
-    function toggleCard(header) {
-        header.classList.toggle('collapsed');
-        var body = header.nextElementSibling;
-        if (body && body.classList.contains('card-body')) {
-            body.classList.toggle('collapsed');
-        }
-    }
-    
-    function toggleSidebarSection(title) {
-        title.classList.toggle('collapsed');
-        var content = title.nextElementSibling;
-        if (content && content.classList.contains('sidebar-content')) {
-            content.classList.toggle('collapsed');
-        }
-    }
-    
-    function toggleSelectAll() {
-        var selectAll = document.getElementById('selectAll').checked;
-        document.querySelectorAll('.build-checkbox').forEach(function(cb) {
-            cb.checked = selectAll;
-        });
-        updateSelectedCount();
-    }
-    
-    function updateSelectedCount() {
-        var count = document.querySelectorAll('.build-checkbox:checked').length;
-        document.getElementById('selectedCount').textContent = count;
-        document.getElementById('deleteSelectedBtn').style.display = count > 0 ? 'inline-flex' : 'none';
-    }
-    
-    function deleteSelected() {
-        var selected = [];
-        document.querySelectorAll('.build-checkbox:checked').forEach(function(cb) {
-            selected.push(cb.value);
-        });
-        
-        if (selected.length === 0) return;
-        
-        if (confirm('Are you sure you want to delete ' + selected.length + ' build(s) and their reports?')) {
-            Promise.all(selected.map(function(buildNum) {
-                return fetch('/api/delete/' + buildNum, { method: 'POST' });
-            })).then(function() {
-                location.reload();
-            });
-        }
-    }
-    
-    function deleteBuild(buildNum) {
-        if (confirm('Are you sure you want to delete Run #' + buildNum + ' and its report?')) {
-            fetch('/api/delete/' + buildNum, { method: 'POST' })
-                .then(r => r.json())
-                .then(data => {
-                    if (data.success) {
-                        location.reload();
-                    } else {
-                        alert('Failed to delete: ' + data.error);
-                    }
-                });
-        }
-    }
-    
-    function deleteBulk(filterType) {
-        var messages = {
-            'stopped': 'Are you sure you want to delete ALL STOPPED builds?',
-            'failed': 'Are you sure you want to delete ALL FAILED builds?',
-            'all': '⚠️ WARNING: This will delete ALL builds and their reports!\n\nAre you absolutely sure?'
-        };
-        
-        if (confirm(messages[filterType])) {
-            fetch('/api/delete-bulk', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({filter: filterType})
-            })
-            .then(r => r.json())
-            .then(data => {
-                if (data.success) {
-                    alert('Deleted ' + data.deleted + ' build(s)');
-                    location.reload();
-                } else {
-                    alert('Failed to delete: ' + data.error);
-                }
-            });
-        }
-    }
-
-    function toggleTmplMenu(trigger) {
-        var menu = trigger.nextElementSibling;
-        var isOpen = menu.style.display === 'block';
-        document.querySelectorAll('.tmpl-menu').forEach(function(m) { m.style.display = 'none'; });
-        if (!isOpen) menu.style.display = 'block';
-    }
-
-    document.addEventListener('click', function() {
-        document.querySelectorAll('.tmpl-menu').forEach(function(m) { m.style.display = 'none'; });
-    });
-
-    var _editTemplateIcon = '📋';
-    var _templateData = {{ user_templates | tojson }};
-
-    function pickEditTemplateIcon(el) {
-        document.querySelectorAll('.edit-tmpl-icon-opt').forEach(function(e) {
-            e.style.borderColor = 'transparent';
-        });
-        el.style.borderColor = 'var(--accent)';
-        _editTemplateIcon = el.getAttribute('data-icon');
-    }
-
-    function openEditTemplateModal(id) {
-        document.querySelectorAll('.tmpl-menu').forEach(function(m) { m.style.display = 'none'; });
-        var tmpl = _templateData.find(function(t) { return t.id === id; });
-        if (!tmpl) return;
-        document.getElementById('edit-tmpl-id').value = id;
-        document.getElementById('edit-tmpl-name').value = tmpl.name;
-        document.getElementById('edit-tmpl-desc').value = tmpl.description || '';
-        document.getElementById('edit-tmpl-shared').checked = tmpl.shared;
-        _editTemplateIcon = tmpl.icon || '📋';
-        document.querySelectorAll('.edit-tmpl-icon-opt').forEach(function(e) {
-            e.style.borderColor = e.getAttribute('data-icon') === _editTemplateIcon ? 'var(--accent)' : 'transparent';
-        });
-        document.getElementById('editTemplateModal').style.display = 'flex';
-        document.getElementById('edit-tmpl-name').focus();
-    }
-
-    function closeEditTemplateModal() {
-        document.getElementById('editTemplateModal').style.display = 'none';
-    }
-
-    function submitEditTemplate() {
-        var id = document.getElementById('edit-tmpl-id').value;
-        var name = document.getElementById('edit-tmpl-name').value.trim();
-        if (!name) { alert('Name is required'); return; }
-        var btn = document.getElementById('edit-tmpl-save-btn');
-        btn.disabled = true;
-        btn.textContent = 'Saving...';
-        fetch('/api/templates/' + id, {
-            method: 'PUT',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                name: name,
-                description: document.getElementById('edit-tmpl-desc').value.trim(),
-                icon: _editTemplateIcon,
-                shared: document.getElementById('edit-tmpl-shared').checked
-            })
-        })
-        .then(function(r) { return r.json(); })
-        .then(function(data) {
-            if (data.error) { alert('Error: ' + data.error); }
-            else { closeEditTemplateModal(); location.reload(); }
-        })
-        .catch(function(err) { alert('Save failed: ' + err); })
-        .finally(function() { btn.disabled = false; btn.textContent = '💾 Save Changes'; });
-    }
-
-    function deleteTemplate(id, name) {
-        document.querySelectorAll('.tmpl-menu').forEach(function(m) { m.style.display = 'none'; });
-        if (!confirm('Delete template "' + name + '"?')) return;
-        fetch('/api/templates/' + id, {method: 'DELETE'})
-        .then(function(r) { return r.json(); })
-        .then(function() { location.reload(); })
-        .catch(function(err) { alert('Failed: ' + err); });
-    }
+    window._editTemplateIcon = '📋';
+    window._templateData = {{ user_templates | tojson }};
 </script>
+<script src="/static/js/dashboard.js"></script>
 
 <style>
     .tmpl-menu-trigger { opacity: 0.7 !important; font-weight: bold; }
@@ -590,101 +585,5 @@
     }, 2000);
 </script>
 {% endif %}
-<script>
-function copyPublicLink(filename) {
-    var url = location.origin + '/public/report/' + encodeURIComponent(filename);
-    navigator.clipboard.writeText(url).then(function() {
-        var el = event.currentTarget;
-        var orig = el.innerHTML;
-        el.innerHTML = '✅';
-        setTimeout(function() { el.innerHTML = '🔗'; }, 1500);
-    });
-}
-
-(function() {
-    var handle = document.getElementById('sidebarResizeHandle');
-    var sidebar = document.getElementById('dashSidebar');
-    if (!handle || !sidebar) return;
-    var dragging = false;
-    handle.addEventListener('mousedown', function(e) {
-        e.preventDefault();
-        dragging = true;
-        handle.classList.add('dragging');
-        document.body.style.cursor = 'col-resize';
-        document.body.style.userSelect = 'none';
-    });
-    document.addEventListener('mousemove', function(e) {
-        if (!dragging) return;
-        var rect = sidebar.parentElement.getBoundingClientRect();
-        var newWidth = e.clientX - rect.left;
-        if (newWidth < 160) newWidth = 160;
-        if (newWidth > 500) newWidth = 500;
-        sidebar.style.width = newWidth + 'px';
-        try { localStorage.setItem('hc_sidebar_w', newWidth); } catch(ex) {}
-    });
-    document.addEventListener('mouseup', function() {
-        if (!dragging) return;
-        dragging = false;
-        handle.classList.remove('dragging');
-        document.body.style.cursor = '';
-        document.body.style.userSelect = '';
-    });
-    try {
-        var saved = localStorage.getItem('hc_sidebar_w');
-        if (saved) sidebar.style.width = saved + 'px';
-    } catch(ex) {}
-})();
-
-(function() {
-    var table = document.getElementById('buildHistoryTable');
-    if (!table) return;
-    var ths = table.querySelectorAll('thead th');
-    var dragging = null, startX = 0, startW = 0;
-
-    ths.forEach(function(th, idx) {
-        if (th.hasAttribute('data-no-resize')) return;
-        var grip = document.createElement('div');
-        grip.className = 'col-resize-handle';
-        th.appendChild(grip);
-        grip.addEventListener('mousedown', function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            dragging = th;
-            startX = e.pageX;
-            startW = th.offsetWidth;
-            grip.classList.add('active');
-            document.body.style.cursor = 'col-resize';
-            document.body.style.userSelect = 'none';
-        });
-    });
-
-    document.addEventListener('mousemove', function(e) {
-        if (!dragging) return;
-        var w = Math.max(40, startW + (e.pageX - startX));
-        dragging.style.width = w + 'px';
-    });
-
-    document.addEventListener('mouseup', function() {
-        if (!dragging) return;
-        var grip = dragging.querySelector('.col-resize-handle');
-        if (grip) grip.classList.remove('active');
-        dragging = null;
-        document.body.style.cursor = '';
-        document.body.style.userSelect = '';
-        try {
-            var widths = [];
-            ths.forEach(function(th) { widths.push(th.style.width || ''); });
-            localStorage.setItem('hc_col_widths', JSON.stringify(widths));
-        } catch(ex) {}
-    });
-
-    try {
-        var saved = localStorage.getItem('hc_col_widths');
-        if (saved) {
-            var widths = JSON.parse(saved);
-            ths.forEach(function(th, i) { if (widths[i]) th.style.width = widths[i]; });
-        }
-    } catch(ex) {}
-})();
-</script>
+<script>initColumnResize('buildHistoryTable');</script>
 {% endblock %}

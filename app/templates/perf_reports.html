@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Performance Reports</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',Roboto,sans-serif;background:#f5f5f5;color:#1a1a2e;padding:20px}
+.container{max-width:900px;margin:0 auto;background:#fff;padding:30px;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.1)}
+h1{color:#0d47a1;border-bottom:3px solid #1565c0;padding-bottom:10px;margin-bottom:20px}
+.toolbar{display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap}
+.btn{padding:8px 16px;border:none;border-radius:4px;cursor:pointer;font-size:14px;font-weight:600;transition:background .2s}
+.btn-primary{background:#1565c0;color:#fff}
+.btn-primary:hover{background:#0d47a1}
+.btn-danger{background:#c62828;color:#fff}
+.btn-danger:hover{background:#b71c1c}
+.btn-warning{background:#e65100;color:#fff}
+.btn-warning:hover{background:#bf360c}
+.btn-success{background:#2e7d32;color:#fff}
+.btn-success:hover{background:#1b5e20}
+.btn-sm{padding:5px 10px;font-size:12px}
+.btn-outline{background:transparent;border:2px solid #1565c0;color:#1565c0}
+.btn-outline:hover{background:#e3f2fd}
+.breadcrumbs{margin-bottom:16px;font-size:14px;display:flex;align-items:center;gap:4px;flex-wrap:wrap}
+.breadcrumbs a{color:#1565c0;text-decoration:none;font-weight:600}
+.breadcrumbs a:hover{text-decoration:underline}
+.breadcrumbs span{color:#78909c}
+table{border-collapse:collapse;width:100%;margin-top:10px}
+th{background:#1565c0;color:#fff;padding:10px 14px;text-align:left}
+td{padding:10px 14px;border-bottom:1px solid #e0e0e0}
+tr:hover{background:#e3f2fd}
+.icon{margin-right:6px}
+a.file-link{color:#1565c0;text-decoration:none;font-weight:600}
+a.file-link:hover{text-decoration:underline}
+a.folder-link{color:#e65100;text-decoration:none;font-weight:700}
+a.folder-link:hover{text-decoration:underline}
+.empty{color:#78909c;font-style:italic;padding:20px;text-align:center}
+.modal-bg{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.4);z-index:1000;align-items:center;justify-content:center}
+.modal-bg.active{display:flex}
+.modal{background:#fff;padding:24px;border-radius:8px;min-width:360px;max-width:500px;box-shadow:0 4px 20px rgba(0,0,0,0.2)}
+.modal h2{margin-bottom:16px;color:#0d47a1;font-size:18px}
+.modal label{display:block;margin-bottom:6px;font-weight:600;font-size:14px}
+.modal input,.modal select{width:100%;padding:8px 12px;border:1px solid #ccc;border-radius:4px;font-size:14px;margin-bottom:14px}
+.modal .actions{display:flex;gap:10px;justify-content:flex-end}
+.modal p{margin-bottom:16px;font-size:14px;line-height:1.5}
+.modal .warn-text{color:#c62828;font-weight:600}
+.status-msg{padding:10px;border-radius:4px;margin-bottom:14px;font-size:14px;display:none}
+.status-msg.error{display:block;background:#ffebee;color:#c62828;border:1px solid #ef9a9a}
+.status-msg.success{display:block;background:#e8f5e9;color:#2e7d32;border:1px solid #a5d6a7}
+.bin-section{margin-top:30px;border-top:2px solid #e0e0e0;padding-top:20px}
+.bin-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.bin-header h2{color:#78909c;font-size:16px;display:flex;align-items:center;gap:8px}
+.bin-toggle{cursor:pointer;color:#1565c0;font-size:13px;font-weight:600;border:none;background:none}
+.bin-contents{display:none}
+.bin-contents.open{display:block}
+.bin-table td{color:#78909c}
+.bin-table .btn-success{font-size:11px;padding:4px 8px}
+.bin-badge{background:#ef5350;color:#fff;border-radius:10px;padding:2px 7px;font-size:12px;font-weight:700}
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Performance Reports</h1>
+
+  <div class="breadcrumbs">
+    <a href="/perf-reports/">Root</a>
+    {% for bc in breadcrumbs %}
+    <span>/</span>
+    <a href="/perf-reports/{{ bc.path }}/">{{ bc.name }}</a>
+    {% endfor %}
+  </div>
+
+  <div class="toolbar">
+    <button class="btn btn-primary" onclick="showCreateFolder()">+ New Folder</button>
+    <button class="btn btn-primary" id="moveBtn" onclick="showMoveModal()" disabled>Move Selected</button>
+  </div>
+
+  <div id="statusMsg" class="status-msg"></div>
+
+  <table>
+    <thead>
+      <tr>
+        <th style="width:30px"><input type="checkbox" id="selectAll" onchange="toggleAll(this)"></th>
+        <th>Name</th>
+        <th style="width:80px">Size</th>
+        <th style="width:80px">Actions</th>
+      </tr>
+    </thead>
+    <tbody id="listing">
+      {% for folder in folders %}
+      <tr data-path="{{ folder.path }}" data-type="folder">
+        <td><input type="checkbox" class="item-cb" value="{{ folder.path }}" onchange="updateToolbar()"></td>
+        <td><span class="icon">📁</span><a class="folder-link" href="/perf-reports/{{ folder.path }}/">{{ folder.name }}</a></td>
+        <td>-</td>
+        <td><button class="btn btn-danger btn-sm" onclick="confirmDelete('{{ folder.path }}')">Del</button></td>
+      </tr>
+      {% endfor %}
+      {% for file in files %}
+      <tr data-path="{{ file.path }}" data-type="file">
+        <td><input type="checkbox" class="item-cb" value="{{ file.path }}" onchange="updateToolbar()"></td>
+        <td><span class="icon">📄</span><a class="file-link" href="/perf-reports/{{ file.path }}" target="_blank">{{ file.name }}</a></td>
+        <td>{{ file.size_kb }} KB</td>
+        <td><button class="btn btn-danger btn-sm" onclick="confirmDelete('{{ file.path }}')">Del</button></td>
+      </tr>
+      {% endfor %}
+      {% if not folders and not files %}
+      <tr><td colspan="4" class="empty">This folder is empty.</td></tr>
+      {% endif %}
+    </tbody>
+  </table>
+
+  <!-- Recycle Bin Section -->
+  <div class="bin-section">
+    <div class="bin-header">
+      <h2>
+        🗑️ Recycle Bin
+        {% if bin_items %}<span class="bin-badge">{{ bin_items|length }}</span>{% endif %}
+      </h2>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="bin-toggle" onclick="toggleBin()">Show/Hide</button>
+        {% if bin_items %}
+        <button class="btn btn-danger btn-sm" onclick="confirmEmptyBin()">Empty Bin</button>
+        {% endif %}
+      </div>
+    </div>
+    <div class="bin-contents" id="binContents">
+      {% if bin_items %}
+      <table class="bin-table">
+        <tr><th>Name</th><th>Size</th><th>Actions</th></tr>
+        {% for item in bin_items %}
+        <tr>
+          <td><span class="icon">{{ '📁' if item.is_dir else '📄' }}</span>{{ item.name }}</td>
+          <td>{{ '-' if item.is_dir else (item.size_kb ~ ' KB') }}</td>
+          <td><button class="btn btn-success btn-sm" onclick="restoreItem('{{ item.name }}')">Restore</button></td>
+        </tr>
+        {% endfor %}
+      </table>
+      {% else %}
+      <p class="empty">Recycle bin is empty.</p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- Create Folder Modal -->
+<div class="modal-bg" id="createFolderModal">
+  <div class="modal">
+    <h2>Create New Folder</h2>
+    <label for="folderName">Folder name</label>
+    <input type="text" id="folderName" placeholder="e.g. 10k-tests">
+    <div class="actions">
+      <button class="btn" onclick="closeModals()">Cancel</button>
+      <button class="btn btn-primary" onclick="createFolder()">Create</button>
+    </div>
+  </div>
+</div>
+
+<!-- Move Modal -->
+<div class="modal-bg" id="moveModal">
+  <div class="modal">
+    <h2>Move to Folder</h2>
+    <label for="moveTarget">Destination folder</label>
+    <select id="moveTarget">
+      <option value="">/ (root)</option>
+      {% for f in all_folders %}
+      <option value="{{ f }}">{{ f }}</option>
+      {% endfor %}
+    </select>
+    <div class="actions">
+      <button class="btn" onclick="closeModals()">Cancel</button>
+      <button class="btn btn-primary" onclick="doMove()">Move</button>
+    </div>
+  </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal-bg" id="deleteModal">
+  <div class="modal">
+    <h2>🗑️ Move to Recycle Bin</h2>
+    <p>Are you sure you want to delete <strong id="deleteItemName"></strong>?</p>
+    <p style="font-size:13px;color:#546e7a">The item will be moved to the Recycle Bin. You can restore it later.</p>
+    <div class="actions">
+      <button class="btn" onclick="closeModals()">Cancel</button>
+      <button class="btn btn-danger" onclick="doDelete()">Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- Empty Bin Confirmation Modal -->
+<div class="modal-bg" id="emptyBinModal">
+  <div class="modal">
+    <h2>⚠️ Empty Recycle Bin</h2>
+    <p class="warn-text">This will permanently delete all items in the Recycle Bin. This cannot be undone.</p>
+    <p>Are you sure?</p>
+    <div class="actions">
+      <button class="btn" onclick="closeModals()">Cancel</button>
+      <button class="btn btn-danger" onclick="doEmptyBin()">Permanently Delete All</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const currentPath = "{{ current_path }}";
+let pendingDeletePath = '';
+
+function showStatus(msg, type) {
+  const el = document.getElementById('statusMsg');
+  el.textContent = msg;
+  el.className = 'status-msg ' + type;
+  setTimeout(() => { el.className = 'status-msg'; }, 4000);
+}
+
+function getSelected() {
+  return Array.from(document.querySelectorAll('.item-cb:checked')).map(cb => cb.value);
+}
+
+function updateToolbar() {
+  document.getElementById('moveBtn').disabled = getSelected().length === 0;
+}
+
+function toggleAll(master) {
+  document.querySelectorAll('.item-cb').forEach(cb => { cb.checked = master.checked; });
+  updateToolbar();
+}
+
+function showCreateFolder() {
+  document.getElementById('createFolderModal').classList.add('active');
+  document.getElementById('folderName').focus();
+}
+
+function showMoveModal() {
+  document.getElementById('moveModal').classList.add('active');
+}
+
+function closeModals() {
+  document.querySelectorAll('.modal-bg').forEach(m => m.classList.remove('active'));
+  pendingDeletePath = '';
+}
+
+function toggleBin() {
+  document.getElementById('binContents').classList.toggle('open');
+}
+
+function confirmDelete(path) {
+  pendingDeletePath = path;
+  document.getElementById('deleteItemName').textContent = path.split('/').pop();
+  document.getElementById('deleteModal').classList.add('active');
+}
+
+function confirmEmptyBin() {
+  document.getElementById('emptyBinModal').classList.add('active');
+}
+
+async function createFolder() {
+  const name = document.getElementById('folderName').value.trim();
+  if (!name) return;
+  const resp = await fetch('/perf-reports/api/create-folder', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({parent: currentPath, name: name})
+  });
+  const data = await resp.json();
+  if (resp.ok) {
+    showStatus('Folder created: ' + name, 'success');
+    closeModals();
+    setTimeout(() => location.reload(), 500);
+  } else {
+    showStatus(data.error || 'Failed to create folder', 'error');
+  }
+}
+
+async function doMove() {
+  const selected = getSelected();
+  const dest = document.getElementById('moveTarget').value;
+  let errors = [];
+  for (const src of selected) {
+    const resp = await fetch('/perf-reports/api/move', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({source: src, destination: dest})
+    });
+    if (!resp.ok) {
+      const d = await resp.json();
+      errors.push(src + ': ' + (d.error || 'failed'));
+    }
+  }
+  closeModals();
+  if (errors.length) {
+    showStatus(errors.join('; '), 'error');
+  } else {
+    showStatus('Moved ' + selected.length + ' item(s)', 'success');
+    setTimeout(() => location.reload(), 500);
+  }
+}
+
+async function doDelete() {
+  if (!pendingDeletePath) return;
+  const resp = await fetch('/perf-reports/api/delete', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({path: pendingDeletePath})
+  });
+  const data = await resp.json();
+  closeModals();
+  if (resp.ok) {
+    showStatus('Moved to Recycle Bin', 'success');
+    setTimeout(() => location.reload(), 500);
+  } else {
+    showStatus(data.error || 'Failed to delete', 'error');
+  }
+}
+
+async function restoreItem(filename) {
+  const resp = await fetch('/perf-reports/api/restore', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({filename: filename, destination: currentPath})
+  });
+  const data = await resp.json();
+  if (resp.ok) {
+    showStatus('Restored: ' + filename, 'success');
+    setTimeout(() => location.reload(), 500);
+  } else {
+    showStatus(data.error || 'Failed to restore', 'error');
+  }
+}
+
+async function doEmptyBin() {
+  const resp = await fetch('/perf-reports/api/empty-bin', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'}
+  });
+  const data = await resp.json();
+  closeModals();
+  if (resp.ok) {
+    showStatus('Recycle bin emptied (' + data.deleted + ' items removed)', 'success');
+    setTimeout(() => location.reload(), 500);
+  } else {
+    showStatus(data.error || 'Failed to empty bin', 'error');
+  }
+}
+
+document.getElementById('folderName').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') createFolder();
+});
+</script>
+</body>
+</html>

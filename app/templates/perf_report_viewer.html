@@ -1,0 +1,917 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>{{ report_name }} - Performance Report</title>
+<div id="reportStyles"></div>
+<style>
+/* Viewer UI only - all rules scoped to avoid conflicting with report CSS */
+.viewer-toolbar{position:fixed;top:0;left:0;right:0;z-index:9000;background:#1565c0;color:#fff;padding:10px 20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-family:'Segoe UI',Roboto,sans-serif;box-sizing:border-box}
+.viewer-toolbar a,.viewer-toolbar button{color:#fff;text-decoration:none;border:none;border-radius:4px;padding:6px 14px;font-size:13px;font-weight:600;cursor:pointer;transition:background .2s;font-family:inherit;box-sizing:border-box;line-height:normal}
+.viewer-toolbar a.vt-back{background:rgba(255,255,255,0.15)}
+.viewer-toolbar a.vt-back:hover{background:rgba(255,255,255,0.3)}
+.viewer-toolbar .vt-title{flex:1;font-size:15px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.viewer-toolbar .vt-sep{width:1px;height:24px;background:rgba(255,255,255,0.3)}
+.vt-btn{background:rgba(255,255,255,0.15)}
+.vt-btn:hover{background:rgba(255,255,255,0.3)}
+.vt-btn.active{background:#fff;color:#1565c0}
+.vt-btn-save{background:#2e7d32!important}
+.vt-btn-save:hover{background:#1b5e20!important}
+.vt-btn-cancel{background:#c62828!important}
+.vt-btn-cancel:hover{background:#b71c1c!important}
+
+.viewer-edit-toolbar{position:fixed;top:46px;left:0;right:0;z-index:8999;background:#e3f2fd;padding:6px 16px;display:none;gap:6px;flex-wrap:wrap;align-items:center;border-bottom:1px solid #90caf9;font-family:'Segoe UI',Roboto,sans-serif;box-sizing:border-box}
+.viewer-edit-toolbar.visible{display:flex}
+.viewer-edit-toolbar button{background:#fff;border:1px solid #90caf9;border-radius:3px;padding:4px 10px;font-size:13px;cursor:pointer;font-weight:600;color:#1565c0;min-width:32px;font-family:inherit;box-sizing:border-box}
+.viewer-edit-toolbar button:hover{background:#bbdefb}
+.viewer-edit-toolbar .vet-sep{width:1px;height:22px;background:#90caf9;margin:0 4px}
+
+.viewer-report-wrapper{padding-top:50px}
+.viewer-report-wrapper.has-edit-toolbar{padding-top:84px}
+.viewer-report-content.vrc-editing{outline:2px dashed #1565c0;outline-offset:4px;min-height:200px}
+.vrc-editing [draggable="true"]{position:relative;cursor:move}
+.vrc-editing [draggable="true"]::before{content:"\2630";position:absolute;left:-24px;top:4px;font-size:16px;color:#90caf9;cursor:grab;opacity:0;transition:opacity .15s}
+.vrc-editing [draggable="true"]:hover::before{opacity:1}
+.vrc-editing [draggable="true"]:hover{outline:1px dashed #90caf9;outline-offset:2px}
+.vrc-editing .drag-over{border-top:3px solid #1565c0!important}
+.vrc-editing .drag-over-below{border-bottom:3px solid #1565c0!important}
+.vrc-inserter{height:20px;position:relative;margin:0 -4px;opacity:0;transition:opacity .15s;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.vrc-inserter:hover{opacity:1}
+.vrc-inserter::before{content:"";position:absolute;left:0;right:0;top:50%;border-top:2px dashed #90caf9}
+.vrc-inserter .ins-btn{position:relative;z-index:1;background:#1565c0;color:#fff;border:none;border-radius:50%;width:22px;height:22px;font-size:16px;line-height:20px;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,0.2)}
+.vrc-inserter .ins-btn:hover{background:#0d47a1;transform:scale(1.15)}
+.float-box{position:absolute!important;min-width:80px;min-height:40px;padding:10px 14px;border:2px solid #1565c0;border-radius:6px;background:rgba(255,255,255,0.95);cursor:move;z-index:101!important;box-shadow:0 2px 12px rgba(0,0,0,0.15);font-size:14px;line-height:1.4;display:block!important;pointer-events:auto!important}
+.float-box:focus-within{border-color:#0d47a1;box-shadow:0 2px 16px rgba(21,101,192,0.3)}
+.float-box .fb-content{outline:none;min-height:20px}
+.float-box .fb-resize{position:absolute;right:0;bottom:0;width:14px;height:14px;cursor:nwse-resize;background:linear-gradient(135deg,transparent 50%,#1565c0 50%);border-radius:0 0 4px 0;opacity:0.5}
+.float-box .fb-resize:hover{opacity:1}
+.float-box .fb-close{position:absolute;top:-8px;right:-8px;width:18px;height:18px;background:#c62828;color:#fff;border:none;border-radius:50%;font-size:11px;cursor:pointer;display:none;align-items:center;justify-content:center;line-height:18px;text-align:center}
+.float-box:hover .fb-close{display:flex}
+.float-box .fb-color-bar{position:absolute;top:0;left:0;right:0;height:4px;border-radius:4px 4px 0 0}
+
+/* Comment highlights inside report content */
+mark.comment-highlight{background:#fff9c4!important;border-bottom:2px solid #f9a825!important;cursor:pointer;padding:0 1px}
+mark.comment-highlight:hover{background:#fff176!important}
+mark.comment-highlight.active{background:#fff176!important;border-bottom-color:#f57f17!important}
+
+/* Sidebar - overlays, does not push content */
+.viewer-sidebar{position:fixed;top:50px;right:0;bottom:0;width:0;overflow:hidden;background:#fafafa;border-left:1px solid #e0e0e0;transition:width .2s;z-index:8998;display:flex;flex-direction:column;font-family:'Segoe UI',Roboto,sans-serif;box-sizing:border-box}
+.viewer-sidebar.open{width:340px}
+.viewer-sidebar .vs-header{padding:12px 16px;background:#f5f5f5;border-bottom:1px solid #e0e0e0;font-weight:700;font-size:14px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;box-sizing:border-box}
+.viewer-sidebar .vs-header button{background:none;border:none;font-size:18px;cursor:pointer;color:#78909c;padding:4px}
+.viewer-sidebar .vs-list{flex:1;overflow-y:auto;padding:8px}
+.viewer-sidebar .vs-card{background:#fff;border:1px solid #e0e0e0;border-radius:6px;padding:12px;margin-bottom:8px;font-size:13px;cursor:pointer;transition:border-color .15s;box-sizing:border-box}
+.viewer-sidebar .vs-card:hover{border-color:#1565c0}
+.viewer-sidebar .vs-card.active{border-color:#1565c0;box-shadow:0 0 0 2px rgba(21,101,192,0.15)}
+.viewer-sidebar .vs-meta{color:#78909c;font-size:11px;margin-bottom:4px}
+.viewer-sidebar .vs-anchor{background:#fff9c4;padding:2px 6px;border-radius:3px;font-size:12px;font-style:italic;margin-bottom:6px;display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;box-sizing:border-box}
+.viewer-sidebar .vs-body{color:#1a1a2e;line-height:1.4}
+.viewer-sidebar .vs-delete{float:right;background:none;border:none;color:#c62828;cursor:pointer;font-size:12px;font-weight:600;padding:2px 6px;border-radius:3px}
+.viewer-sidebar .vs-delete:hover{background:#ffebee}
+.viewer-sidebar .vs-card.resolved{opacity:0.5;border-left:3px solid #2e7d32}
+.viewer-sidebar .vs-card.resolved .vs-body{text-decoration:line-through}
+.viewer-sidebar .vs-actions{display:flex;gap:6px;margin-top:6px;font-size:11px}
+.viewer-sidebar .vs-actions button{background:none;border:1px solid #ccc;border-radius:3px;padding:2px 8px;cursor:pointer;font-size:11px;color:#555}
+.viewer-sidebar .vs-actions button:hover{background:#e3f2fd;border-color:#1565c0;color:#1565c0}
+.viewer-sidebar .vs-actions button.resolve-btn{color:#2e7d32;border-color:#a5d6a7}
+.viewer-sidebar .vs-actions button.resolve-btn:hover{background:#e8f5e9}
+.viewer-sidebar .vs-replies{margin-top:8px;padding-left:10px;border-left:2px solid #e0e0e0}
+.viewer-sidebar .vs-reply{margin-top:6px;font-size:12px}
+.viewer-sidebar .vs-reply .vs-meta{font-size:10px}
+.viewer-sidebar .vs-reply-input{display:flex;gap:4px;margin-top:6px}
+.viewer-sidebar .vs-reply-input input{flex:1;padding:4px 8px;border:1px solid #ccc;border-radius:3px;font-size:12px}
+.viewer-sidebar .vs-reply-input button{padding:4px 10px;background:#1565c0;color:#fff;border:none;border-radius:3px;font-size:11px;cursor:pointer}
+
+/* Comment input popup */
+.viewer-comment-popup{display:none;position:fixed;z-index:9100;background:#fff;border:1px solid #1565c0;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.15);padding:12px;width:300px;font-family:'Segoe UI',Roboto,sans-serif;box-sizing:border-box}
+.viewer-comment-popup textarea{width:100%;height:70px;border:1px solid #ccc;border-radius:4px;padding:8px;font-size:13px;resize:vertical;font-family:inherit;box-sizing:border-box}
+.viewer-comment-popup .vcp-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:8px}
+.viewer-comment-popup .vcp-actions button{padding:5px 14px;border:none;border-radius:4px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;box-sizing:border-box}
+.viewer-comment-popup .vcp-submit{background:#1565c0;color:#fff}
+.viewer-comment-popup .vcp-cancel{background:#e0e0e0;color:#333}
+
+/* Toast */
+.viewer-toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:10px 24px;border-radius:6px;font-size:14px;z-index:9200;display:none;box-shadow:0 4px 12px rgba(0,0,0,0.2);font-family:'Segoe UI',Roboto,sans-serif;white-space:nowrap}
+.viewer-toast.show{display:block}
+.viewer-toast.error{background:#c62828}
+.viewer-toast.success{background:#2e7d32}
+
+.viewer-loading{text-align:center;padding:60px;color:#78909c;font-size:16px;font-family:'Segoe UI',Roboto,sans-serif}
+</style>
+</head>
+<body>
+
+<!-- Top toolbar -->
+<div class="viewer-toolbar">
+  <a class="vt-back" href="/perf-reports/{{ '/'.join(report_path.split('/')[:-1]) }}/">&#8592; Back</a>
+  <div class="vt-sep"></div>
+  <span class="vt-title">{{ report_name }}</span>
+  <button class="vt-btn" id="btnComment" onclick="toggleCommentMode()">&#x1f4ac; Comment</button>
+  <button class="vt-btn" id="btnEdit" onclick="toggleEditMode()">&#x270f;&#xfe0f; Edit</button>
+  <button class="vt-btn vt-btn-save" id="btnSave" style="display:none" onclick="saveContent()">Save</button>
+  <button class="vt-btn vt-btn-cancel" id="btnCancel" style="display:none" onclick="cancelEdit()">Cancel</button>
+</div>
+
+<!-- Editing toolbar -->
+<div class="viewer-edit-toolbar" id="editToolbar">
+  <button title="Bold" onclick="execFmt('bold')"><b>B</b></button>
+  <button title="Italic" onclick="execFmt('italic')"><i>I</i></button>
+  <button title="Underline" onclick="execFmt('underline')"><u>U</u></button>
+  <button title="Strikethrough" onclick="execFmt('strikeThrough')"><s>S</s></button>
+  <div class="vet-sep"></div>
+  <button title="Heading 1" onclick="execFmt('formatBlock','H1')">H1</button>
+  <button title="Heading 2" onclick="execFmt('formatBlock','H2')">H2</button>
+  <button title="Heading 3" onclick="execFmt('formatBlock','H3')">H3</button>
+  <button title="Paragraph" onclick="execFmt('formatBlock','P')">P</button>
+  <div class="vet-sep"></div>
+  <label title="Text Color" style="display:inline-flex;align-items:center;cursor:pointer;gap:2px;font-size:12px;font-weight:600;color:#1565c0;">A<input type="color" value="#000000" onchange="execFmt('foreColor',this.value)" style="width:20px;height:20px;border:none;padding:0;cursor:pointer;"></label>
+  <label title="Highlight Color" style="display:inline-flex;align-items:center;cursor:pointer;gap:2px;font-size:12px;font-weight:600;background:#fff9c4;padding:1px 4px;border-radius:2px;">Hi<input type="color" value="#ffff00" onchange="execFmt('hiliteColor',this.value)" style="width:20px;height:20px;border:none;padding:0;cursor:pointer;"></label>
+  <div class="vet-sep"></div>
+  <select title="Font Size" onchange="execFmt('fontSize',this.value);this.selectedIndex=0" style="padding:3px 6px;border:1px solid #90caf9;border-radius:3px;font-size:12px;cursor:pointer;">
+    <option value="" disabled selected>Size</option>
+    <option value="1">Small</option>
+    <option value="3">Normal</option>
+    <option value="5">Large</option>
+    <option value="7">Huge</option>
+  </select>
+  <div class="vet-sep"></div>
+  <button title="Align Left" onclick="execFmt('justifyLeft')">&#x2190;</button>
+  <button title="Align Center" onclick="execFmt('justifyCenter')">&#x2194;</button>
+  <button title="Align Right" onclick="execFmt('justifyRight')">&#x2192;</button>
+  <div class="vet-sep"></div>
+  <button title="Unordered List" onclick="execFmt('insertUnorderedList')">UL</button>
+  <button title="Ordered List" onclick="execFmt('insertOrderedList')">OL</button>
+  <button title="Blockquote" onclick="execFmt('formatBlock','BLOCKQUOTE')">&#x201C;</button>
+  <button title="Horizontal Rule" onclick="execFmt('insertHorizontalRule')">HR</button>
+  <div class="vet-sep"></div>
+  <button title="Insert Link" onclick="insertLink()">Link</button>
+  <button title="Insert Table" onclick="insertTable()">Table</button>
+  <button title="Insert Image from file" onclick="insertImage()">Img</button>
+  <button title="Insert Image from URL" onclick="insertImageFromUrl()">ImgURL</button>
+  <div class="vet-sep"></div>
+  <select title="Float Box" onchange="insertFloatBox(this.value);this.selectedIndex=0" style="padding:3px 6px;border:1px solid #90caf9;border-radius:3px;font-size:12px;cursor:pointer;">
+    <option value="" disabled selected>Float Box</option>
+    <option value="#ffffff,#1565c0">White (blue border)</option>
+    <option value="#e8f5e9,#2e7d32">Green</option>
+    <option value="#e3f2fd,#1565c0">Blue</option>
+    <option value="#fff8e1,#f57f17">Yellow</option>
+    <option value="#ffebee,#c62828">Red</option>
+    <option value="#f3e5f5,#7b1fa2">Purple</option>
+    <option value="#263238,#78909c">Dark</option>
+    <option value="transparent,transparent">Transparent</option>
+  </select>
+  <div class="vet-sep"></div>
+  <select title="Insert Box" onchange="insertCallout(this.value);this.selectedIndex=0" style="padding:3px 6px;border:1px solid #90caf9;border-radius:3px;font-size:12px;cursor:pointer;">
+    <option value="" disabled selected>Insert Box</option>
+    <optgroup label="Callouts">
+      <option value="info">Info (blue)</option>
+      <option value="success">Success (green)</option>
+      <option value="warning">Warning (yellow)</option>
+      <option value="danger">Danger (red)</option>
+      <option value="note">Note (gray)</option>
+    </optgroup>
+    <optgroup label="Text Boxes">
+      <option value="key-findings">Key Findings</option>
+      <option value="summary">Summary</option>
+      <option value="recommendation">Recommendation</option>
+      <option value="conclusion">Conclusion</option>
+      <option value="action-items">Action Items</option>
+    </optgroup>
+    <optgroup label="Colored Boxes">
+      <option value="box-blue">Blue Box</option>
+      <option value="box-green">Green Box</option>
+      <option value="box-orange">Orange Box</option>
+      <option value="box-red">Red Box</option>
+      <option value="box-purple">Purple Box</option>
+      <option value="box-dark">Dark Box</option>
+    </optgroup>
+  </select>
+  <div class="vet-sep"></div>
+  <button title="Remove Formatting" onclick="execFmt('removeFormat')">Clear</button>
+  <button title="Undo" onclick="execFmt('undo')">&#x21a9;</button>
+  <button title="Redo" onclick="execFmt('redo')">&#x21aa;</button>
+</div>
+
+<!-- Report content wrapper - the report's own styles apply here -->
+<div class="viewer-report-wrapper" id="reportWrapper" style="position:relative;">
+  <div id="floatOverlay" style="position:absolute;top:0;left:0;right:0;bottom:0;pointer-events:none;z-index:100;"></div>
+  <div class="viewer-report-content" id="reportContent">
+    <div class="viewer-loading">Loading report...</div>
+  </div>
+</div>
+
+<!-- Comment sidebar (overlays, fixed position) -->
+<div class="viewer-sidebar" id="sidebar">
+  <div class="vs-header">
+    <span>Comments</span>
+    <button onclick="toggleSidebar()" title="Close">&times;</button>
+  </div>
+  <div class="vs-list" id="commentList"></div>
+</div>
+
+<!-- Comment input popup -->
+<div class="viewer-comment-popup" id="commentPopup">
+  <input type="text" id="commentName" placeholder="Your name (required)" required
+    style="width:100%;border:1px solid #ccc;border-radius:4px;padding:8px;font-size:13px;font-family:inherit;box-sizing:border-box;margin-bottom:8px">
+  <textarea id="commentInput" placeholder="Add a comment..."></textarea>
+  <div class="vcp-actions">
+    <button class="vcp-cancel" onclick="cancelComment()">Cancel</button>
+    <button class="vcp-submit" onclick="submitComment()">Submit</button>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="viewer-toast" id="toast"></div>
+
+<script>
+var REPORT_PATH = "{{ report_path }}";
+var ENCODED_PATH = encodeURI(REPORT_PATH);
+var RAW_URL = "/perf-reports/raw/" + ENCODED_PATH;
+var COMMENTS_URL = "/perf-reports/api/comments/" + ENCODED_PATH;
+var CONTENT_URL = "/perf-reports/api/content/" + ENCODED_PATH;
+
+var commentMode = false;
+var editMode = false;
+var originalHTML = "";
+var comments = [];
+var pendingSelection = null;
+
+async function init() {
+  await loadReport();
+  await loadComments();
+}
+
+async function loadReport() {
+  try {
+    var resp = await fetch(RAW_URL);
+    if (!resp.ok) throw new Error("Failed to load report");
+    var html = await resp.text();
+    var el = document.getElementById("reportContent");
+    var styleContainer = document.getElementById("reportStyles");
+
+    var parser = new DOMParser();
+    var doc = parser.parseFromString(html, "text/html");
+
+    var headStyles = doc.querySelectorAll("head style, head link[rel='stylesheet']");
+    headStyles.forEach(function(s) { styleContainer.appendChild(s.cloneNode(true)); });
+
+    var bodyStyles = doc.querySelectorAll("body style");
+    bodyStyles.forEach(function(s) { styleContainer.appendChild(s.cloneNode(true)); });
+
+    var bodyHtml = doc.body ? doc.body.innerHTML : html;
+    var savedBoxes = doc.querySelector('.saved-float-boxes');
+    if (savedBoxes) {
+      bodyHtml = bodyHtml.replace(savedBoxes.outerHTML, '');
+      var overlay = document.getElementById('floatOverlay');
+      overlay.innerHTML = savedBoxes.innerHTML;
+      overlay.querySelectorAll('.float-box').forEach(function(box) {
+        box.style.pointerEvents = 'auto';
+        initFloatBoxDrag(box);
+        initFloatBoxResize(box);
+      });
+    }
+    el.innerHTML = bodyHtml;
+  } catch (e) {
+    document.getElementById("reportContent").innerHTML =
+      '<div class="viewer-loading" style="color:#c62828">Error loading report: ' + e.message + '</div>';
+  }
+}
+
+async function loadComments() {
+  try {
+    var resp = await fetch(COMMENTS_URL);
+    if (!resp.ok) return;
+    comments = await resp.json();
+    applyHighlights();
+    renderCommentList();
+  } catch (_) {}
+}
+
+function applyHighlights() {
+  var el = document.getElementById("reportContent");
+  comments.forEach(function(c) {
+    if (!c.anchor_text) return;
+    highlightText(el, c.anchor_text, c.id);
+  });
+}
+
+function highlightText(root, text, commentId) {
+  var walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null, false);
+  while (walker.nextNode()) {
+    var node = walker.currentNode;
+    var idx = node.textContent.indexOf(text);
+    if (idx === -1) continue;
+    if (node.parentElement && node.parentElement.classList.contains("comment-highlight")) continue;
+    var range = document.createRange();
+    range.setStart(node, idx);
+    range.setEnd(node, idx + text.length);
+    var mark = document.createElement("mark");
+    mark.className = "comment-highlight";
+    mark.dataset.commentId = commentId;
+    mark.addEventListener("click", function() { focusComment(commentId); });
+    range.surroundContents(mark);
+    return true;
+  }
+  return false;
+}
+
+function renderCommentList() {
+  var list = document.getElementById("commentList");
+  if (comments.length === 0) {
+    list.innerHTML = '<div style="padding:16px;color:#78909c;text-align:center;font-size:13px">No comments yet</div>';
+    return;
+  }
+  list.innerHTML = comments.map(function(c) {
+    var ts = c.timestamp ? new Date(c.timestamp).toLocaleString() : "";
+    var anchor = (c.anchor_text || "").substring(0, 60);
+    var resolved = c.resolved ? ' resolved' : '';
+    var resolveLabel = c.resolved ? 'Reopen' : 'Done';
+    var replies = (c.replies || []).map(function(r) {
+      var rts = r.timestamp ? new Date(r.timestamp).toLocaleString() : "";
+      return '<div class="vs-reply"><div class="vs-meta">' + escapeHtml(r.author || "unknown") + ' - ' + rts + '</div>' +
+        '<div>' + escapeHtml(r.comment_text || "") + '</div></div>';
+    }).join("");
+    return '<div class="vs-card' + resolved + '" data-comment-id="' + c.id + '" onclick="focusComment(\'' + c.id + '\')">' +
+      '<button class="vs-delete" onclick="event.stopPropagation();deleteComment(\'' + c.id + '\')" title="Delete">&#x2715;</button>' +
+      '<div class="vs-meta">' + escapeHtml(c.author || "unknown") + ' - ' + ts + '</div>' +
+      (anchor ? '<div class="vs-anchor">"' + escapeHtml(anchor) + '"</div>' : '') +
+      '<div class="vs-body">' + escapeHtml(c.comment_text || "") + '</div>' +
+      (replies ? '<div class="vs-replies">' + replies + '</div>' : '') +
+      '<div class="vs-actions">' +
+        '<button onclick="event.stopPropagation();toggleReplyInput(\'' + c.id + '\')">Reply</button>' +
+        '<button class="resolve-btn" onclick="event.stopPropagation();resolveComment(\'' + c.id + '\')">' + resolveLabel + '</button>' +
+      '</div>' +
+      '<div class="vs-reply-input" id="reply-' + c.id + '" style="display:none;" onclick="event.stopPropagation()">' +
+        '<input type="text" placeholder="Type reply..." id="reply-text-' + c.id + '" onkeydown="if(event.key===\'Enter\')submitReply(\'' + c.id + '\')">' +
+        '<button onclick="submitReply(\'' + c.id + '\')">Send</button>' +
+      '</div>' +
+    '</div>';
+  }).join("");
+}
+
+function focusComment(id) {
+  document.querySelectorAll(".vs-card").forEach(function(el) { el.classList.remove("active"); });
+  document.querySelectorAll("mark.comment-highlight").forEach(function(el) { el.classList.remove("active"); });
+  var card = document.querySelector('.vs-card[data-comment-id="' + id + '"]');
+  var mark = document.querySelector('mark.comment-highlight[data-comment-id="' + id + '"]');
+  if (card) card.classList.add("active");
+  if (mark) {
+    mark.classList.add("active");
+    mark.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+}
+
+async function deleteComment(id) {
+  if (!confirm("Delete this comment?")) return;
+  try {
+    var resp = await fetch(COMMENTS_URL + "/" + id, { method: "DELETE", credentials: "same-origin" });
+    if (!resp.ok) { toast("Failed to delete comment", "error"); return; }
+    comments = comments.filter(function(c) { return c.id !== id; });
+    var mark = document.querySelector('mark.comment-highlight[data-comment-id="' + id + '"]');
+    if (mark) {
+      var parent = mark.parentNode;
+      while (mark.firstChild) parent.insertBefore(mark.firstChild, mark);
+      parent.removeChild(mark);
+    }
+    renderCommentList();
+    toast("Comment deleted", "success");
+  } catch (_) { toast("Error deleting comment", "error"); }
+}
+
+function toggleReplyInput(commentId) {
+  var el = document.getElementById("reply-" + commentId);
+  el.style.display = el.style.display === "none" ? "flex" : "none";
+  if (el.style.display === "flex") {
+    el.querySelector("input").focus();
+  }
+}
+
+async function submitReply(commentId) {
+  var input = document.getElementById("reply-text-" + commentId);
+  var text = input.value.trim();
+  if (!text) return;
+  try {
+    var resp = await fetch(COMMENTS_URL + "/" + commentId + "/reply", {
+      method: "POST", credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ comment_text: text, author_name: localStorage.getItem("commentName") || "Anonymous" })
+    });
+    if (!resp.ok) { toast("Failed to save reply", "error"); return; }
+    var reply = await resp.json();
+    var c = comments.find(function(x) { return x.id === commentId; });
+    if (c) { if (!c.replies) c.replies = []; c.replies.push(reply); }
+    renderCommentList();
+    toast("Reply added", "success");
+  } catch (_) { toast("Error saving reply", "error"); }
+}
+
+async function resolveComment(commentId) {
+  try {
+    var resp = await fetch(COMMENTS_URL + "/" + commentId + "/resolve", {
+      method: "POST", credentials: "same-origin"
+    });
+    if (!resp.ok) { toast("Failed to update comment", "error"); return; }
+    var data = await resp.json();
+    var c = comments.find(function(x) { return x.id === commentId; });
+    if (c) c.resolved = data.resolved;
+    renderCommentList();
+    toast(data.resolved ? "Marked as done" : "Reopened", "success");
+  } catch (_) { toast("Error updating comment", "error"); }
+}
+
+function toggleCommentMode() {
+  if (editMode) return;
+  commentMode = !commentMode;
+  document.getElementById("btnComment").classList.toggle("active", commentMode);
+  var rc = document.getElementById("reportContent");
+  if (commentMode) {
+    openSidebar();
+    rc.querySelectorAll('[draggable="true"]').forEach(function(el) {
+      el.removeAttribute('draggable');
+    });
+    rc.addEventListener("mouseup", onTextSelected);
+  } else {
+    rc.removeEventListener("mouseup", onTextSelected);
+    cancelComment();
+  }
+}
+
+function openSidebar() { document.getElementById("sidebar").classList.add("open"); }
+function toggleSidebar() { document.getElementById("sidebar").classList.toggle("open"); }
+
+function onTextSelected() {
+  if (!commentMode) return;
+  var sel = window.getSelection();
+  if (!sel || sel.isCollapsed || !sel.toString().trim()) return;
+  pendingSelection = { text: sel.toString().trim(), range: sel.getRangeAt(0).cloneRange() };
+  var rect = sel.getRangeAt(0).getBoundingClientRect();
+  var popup = document.getElementById("commentPopup");
+  popup.style.display = "block";
+  popup.style.top = Math.min(rect.bottom + 8, window.innerHeight - 160) + "px";
+  popup.style.left = Math.min(rect.left, window.innerWidth - 320) + "px";
+  document.getElementById("commentName").value = localStorage.getItem("commentName") || "";
+  document.getElementById("commentInput").value = "";
+  var nameField = document.getElementById("commentName");
+  if (nameField.value) { document.getElementById("commentInput").focus(); } else { nameField.focus(); }
+}
+
+function cancelComment() {
+  document.getElementById("commentPopup").style.display = "none";
+  pendingSelection = null;
+}
+
+async function submitComment() {
+  if (!pendingSelection) return;
+  var name = document.getElementById("commentName").value.trim();
+  if (!name) { toast("Name is required", "error"); document.getElementById("commentName").focus(); return; }
+  var text = document.getElementById("commentInput").value.trim();
+  if (!text) { toast("Comment cannot be empty", "error"); return; }
+  localStorage.setItem("commentName", name);
+  try {
+    var resp = await fetch(COMMENTS_URL, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ anchor_text: pendingSelection.text, comment_text: text, author_name: name })
+    });
+    if (!resp.ok) { toast("Failed to save comment", "error"); return; }
+    var nc = await resp.json();
+    comments.push(nc);
+    var mark = document.createElement("mark");
+    mark.className = "comment-highlight";
+    mark.dataset.commentId = nc.id;
+    mark.addEventListener("click", function() { focusComment(nc.id); });
+    try { pendingSelection.range.surroundContents(mark); } catch (_) {
+      highlightText(document.getElementById("reportContent"), pendingSelection.text, nc.id);
+    }
+    renderCommentList();
+    cancelComment();
+    toast("Comment added", "success");
+  } catch (_) { toast("Error saving comment", "error"); }
+}
+
+var dragSrc = null;
+
+function onEditKeydown(e) {
+  if (e.ctrlKey || e.metaKey) {
+    if (e.key === 'z' && !e.shiftKey) { e.preventDefault(); execFmt('undo'); }
+    else if (e.key === 'z' && e.shiftKey) { e.preventDefault(); execFmt('redo'); }
+    else if (e.key === 'y') { e.preventDefault(); execFmt('redo'); }
+    else if (e.key === 's') { e.preventDefault(); saveContent(); }
+  }
+  if (e.key === 'Escape') { e.preventDefault(); cancelEdit(); }
+}
+
+function toggleEditMode() {
+  if (commentMode || editMode) return;
+  editMode = true;
+  var el = document.getElementById("reportContent");
+  originalHTML = el.innerHTML;
+  el.contentEditable = "true";
+  el.classList.add("vrc-editing");
+  document.getElementById("btnEdit").style.display = "none";
+  document.getElementById("btnComment").style.display = "none";
+  document.getElementById("btnSave").style.display = "";
+  document.getElementById("btnCancel").style.display = "";
+  document.getElementById("editToolbar").classList.add("visible");
+  document.getElementById("reportWrapper").classList.add("has-edit-toolbar");
+  enableDragDrop(el);
+  el.addEventListener('paste', onRichPaste);
+  document.addEventListener('keydown', onEditKeydown);
+  addInserters(el);
+}
+
+function cancelEdit() {
+  document.getElementById("reportContent").innerHTML = originalHTML;
+  exitEditMode();
+}
+
+async function saveContent() {
+  var el = document.getElementById("reportContent");
+  removeInserters(el);
+  var overlay = document.getElementById("floatOverlay");
+  var floatBoxesHtml = overlay.innerHTML;
+  var content = el.innerHTML;
+  if (floatBoxesHtml.trim()) {
+    content += '\n<!-- FLOAT-BOXES -->\n<div class="saved-float-boxes" style="position:relative;">' + floatBoxesHtml + '</div>';
+  }
+  try {
+    var resp = await fetch(CONTENT_URL, {
+      method: "PUT",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content: content })
+    });
+    if (!resp.ok) {
+      var errData = await resp.json().catch(function() { return {}; });
+      toast(errData.error || "Failed to save", "error");
+      return;
+    }
+    originalHTML = content;
+    exitEditMode();
+    toast("Content saved", "success");
+  } catch (_) { toast("Error saving content", "error"); }
+}
+
+function exitEditMode() {
+  editMode = false;
+  var el = document.getElementById("reportContent");
+  removeInserters(el);
+  el.removeEventListener('paste', onRichPaste);
+  document.removeEventListener('keydown', onEditKeydown);
+  disableDragDrop(el);
+  el.contentEditable = "false";
+  el.classList.remove("vrc-editing");
+  document.getElementById("btnEdit").style.display = "";
+  document.getElementById("btnComment").style.display = "";
+  document.getElementById("btnSave").style.display = "none";
+  document.getElementById("btnCancel").style.display = "none";
+  document.getElementById("editToolbar").classList.remove("visible");
+  document.getElementById("reportWrapper").classList.remove("has-edit-toolbar");
+}
+
+function addInserters(container) {
+  removeInserters(container);
+  var children = Array.from(container.children);
+  for (var i = 0; i < children.length; i++) {
+    var tag = children[i].tagName;
+    if (['TABLE','DIV','FIGURE','BLOCKQUOTE','UL','OL','PRE','SECTION','H1','H2','H3','HR','IMG'].indexOf(tag) === -1) continue;
+    var ins = document.createElement('div');
+    ins.className = 'vrc-inserter';
+    ins.innerHTML = '<button class="ins-btn" title="Insert here">+</button>';
+    ins.addEventListener('click', (function(ref) {
+      return function(e) {
+        e.stopPropagation();
+        var p = document.createElement('p');
+        p.innerHTML = '<br>';
+        ref.parentNode.insertBefore(p, ref);
+        p.focus();
+        var range = document.createRange();
+        range.setStart(p, 0);
+        range.collapse(true);
+        var sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+        refreshInserters();
+      };
+    })(children[i]));
+    children[i].parentNode.insertBefore(ins, children[i]);
+  }
+}
+
+function removeInserters(container) {
+  container.querySelectorAll('.vrc-inserter').forEach(function(el) { el.remove(); });
+}
+
+function refreshInserters() {
+  var el = document.getElementById("reportContent");
+  removeInserters(el);
+  addInserters(el);
+  disableDragDrop(el);
+  enableDragDrop(el);
+}
+
+var DRAG_TAGS = ['TABLE','DIV','FIGURE','IMG','BLOCKQUOTE','UL','OL','PRE','SECTION','ASIDE','H1','H2','H3'];
+
+function enableDragDrop(container) {
+  container.querySelectorAll(DRAG_TAGS.join(',')).forEach(function(el) {
+    if (el.closest('[contenteditable]') !== container) return;
+    if (el.parentNode !== container && !el.parentNode.closest('[contenteditable]')) return;
+    el.setAttribute('draggable', 'true');
+    el.addEventListener('dragstart', onDragStart);
+    el.addEventListener('dragend', onDragEnd);
+  });
+  container.addEventListener('dragover', onDragOver);
+  container.addEventListener('drop', onDrop);
+}
+
+function disableDragDrop(container) {
+  container.querySelectorAll('[draggable="true"]').forEach(function(el) {
+    el.removeAttribute('draggable');
+    el.removeEventListener('dragstart', onDragStart);
+    el.removeEventListener('dragend', onDragEnd);
+  });
+  container.removeEventListener('dragover', onDragOver);
+  container.removeEventListener('drop', onDrop);
+}
+
+function onDragStart(e) {
+  dragSrc = this;
+  this.style.opacity = '0.4';
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', '');
+  e.stopPropagation();
+}
+
+function onDragEnd(e) {
+  this.style.opacity = '1';
+  document.querySelectorAll('.drag-over,.drag-over-below').forEach(function(el) {
+    el.classList.remove('drag-over', 'drag-over-below');
+  });
+  dragSrc = null;
+}
+
+function onDragOver(e) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  document.querySelectorAll('.drag-over,.drag-over-below').forEach(function(el) {
+    el.classList.remove('drag-over', 'drag-over-below');
+  });
+  var target = getDragTarget(e.target);
+  if (target && target !== dragSrc && (!dragSrc || target.parentNode === dragSrc.parentNode)) {
+    var rect = target.getBoundingClientRect();
+    var midY = rect.top + rect.height / 2;
+    if (e.clientY < midY) {
+      target.classList.add('drag-over');
+    } else {
+      target.classList.add('drag-over-below');
+    }
+  }
+}
+
+function onDrop(e) {
+  e.preventDefault();
+  e.stopPropagation();
+  var target = getDragTarget(e.target);
+  if (!target || !dragSrc || target === dragSrc) return;
+  if (target.parentNode !== dragSrc.parentNode) return;
+  var rect = target.getBoundingClientRect();
+  var midY = rect.top + rect.height / 2;
+  if (e.clientY < midY) {
+    target.parentNode.insertBefore(dragSrc, target);
+  } else {
+    target.parentNode.insertBefore(dragSrc, target.nextSibling);
+  }
+  document.querySelectorAll('.drag-over,.drag-over-below').forEach(function(el) {
+    el.classList.remove('drag-over', 'drag-over-below');
+  });
+}
+
+function getDragTarget(el) {
+  while (el && el.id !== 'reportContent') {
+    if (el.getAttribute && el.getAttribute('draggable') === 'true') return el;
+    el = el.parentNode;
+  }
+  return null;
+}
+
+function onRichPaste(e) {
+  var items = (e.clipboardData || e.originalEvent.clipboardData).items;
+  for (var i = 0; i < items.length; i++) {
+    if (items[i].type.indexOf('image') !== -1) {
+      e.preventDefault();
+      var file = items[i].getAsFile();
+      embedImageFile(file);
+      return;
+    }
+  }
+  var html = e.clipboardData.getData('text/html');
+  if (html) {
+    e.preventDefault();
+    document.execCommand('insertHTML', false, html);
+  }
+}
+
+function embedImageFile(file) {
+  var reader = new FileReader();
+  reader.onload = function(ev) {
+    var img = '<img src="' + ev.target.result + '" style="max-width:100%;height:auto;margin:8px 0;border-radius:4px;">';
+    document.execCommand('insertHTML', false, img);
+  };
+  reader.readAsDataURL(file);
+}
+
+function insertImage() {
+  var input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*';
+  input.onchange = function() {
+    if (input.files && input.files[0]) embedImageFile(input.files[0]);
+  };
+  input.click();
+}
+
+function insertImageFromUrl() {
+  ensureEditFocus();
+  var url = prompt("Enter image URL:");
+  if (url) {
+    var img = '<img src="' + url + '" style="max-width:100%;height:auto;margin:8px 0;border-radius:4px;">';
+    document.execCommand('insertHTML', false, img);
+  }
+}
+
+function insertFloatBox(colors) {
+  if (!colors) return;
+  var parts = colors.split(',');
+  var bg = parts[0], border = parts[1];
+  var el = document.getElementById("reportContent");
+  el.style.position = 'relative';
+  var wrapper = document.getElementById("reportWrapper");
+  var scrollTop = wrapper.scrollTop || window.scrollY || 0;
+  var elRect = el.getBoundingClientRect();
+  var topPos = scrollTop + 100;
+  var leftPos = Math.max(20, Math.floor(elRect.width / 2 - 100));
+  var overlay = document.getElementById('floatOverlay');
+  var box = document.createElement('div');
+  box.className = 'float-box';
+  box.style.position = 'absolute';
+  box.style.zIndex = '101';
+  box.style.left = leftPos + 'px';
+  box.style.top = topPos + 'px';
+  box.style.width = '200px';
+  box.style.background = bg;
+  box.style.borderColor = border;
+  box.style.pointerEvents = 'auto';
+  if (bg === '#263238') box.style.color = '#fff';
+  box.innerHTML = '<div class="fb-color-bar" style="background:' + border + '"></div>' +
+    '<button class="fb-close" onclick="this.parentNode.remove()" title="Remove">x</button>' +
+    '<div class="fb-content" contenteditable="true">Type here</div>' +
+    '<div class="fb-resize"></div>';
+  overlay.appendChild(box);
+  initFloatBoxDrag(box);
+  initFloatBoxResize(box);
+  box.querySelector('.fb-content').focus();
+  box.scrollIntoView({behavior:'smooth', block:'center'});
+}
+
+function initFloatBoxDrag(box) {
+  var startX, startY, startLeft, startTop;
+  box.addEventListener('mousedown', function(e) {
+    if (e.target.classList.contains('fb-resize') || e.target.classList.contains('fb-close') || e.target.closest('.fb-content')) return;
+    e.preventDefault();
+    box.style.position = 'absolute';
+    box.style.zIndex = '100';
+    startX = e.clientX; startY = e.clientY;
+    startLeft = parseInt(box.style.left) || 0;
+    startTop = parseInt(box.style.top) || 0;
+    function onMove(ev) {
+      box.style.left = (startLeft + ev.clientX - startX) + 'px';
+      box.style.top = (startTop + ev.clientY - startY) + 'px';
+    }
+    function onUp() {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    }
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+}
+
+function initFloatBoxResize(box) {
+  var handle = box.querySelector('.fb-resize');
+  handle.addEventListener('mousedown', function(e) {
+    e.preventDefault(); e.stopPropagation();
+    var startX = e.clientX, startY = e.clientY;
+    var startW = box.offsetWidth, startH = box.offsetHeight;
+    function onMove(ev) {
+      box.style.width = Math.max(80, startW + ev.clientX - startX) + 'px';
+      box.style.height = Math.max(40, startH + ev.clientY - startY) + 'px';
+    }
+    function onUp() {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    }
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+}
+
+function execFmt(cmd, value) {
+  document.execCommand(cmd, false, value || null);
+  document.getElementById("reportContent").focus();
+}
+
+function insertLink() {
+  ensureEditFocus();
+  var url = prompt("Enter URL:", "https://");
+  if (url) execFmt('createLink', url);
+}
+
+function ensureEditFocus() {
+  var el = document.getElementById("reportContent");
+  if (!el.contains(document.activeElement)) {
+    el.focus();
+    var range = document.createRange();
+    range.selectNodeContents(el);
+    range.collapse(false);
+    var sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
+}
+
+function insertCallout(type) {
+  if (!type) return;
+  ensureEditFocus();
+  var callouts = {
+    info: {bg:'#e3f2fd',border:'#1565c0',icon:'&#x2139;&#xFE0F;',title:'Info'},
+    success: {bg:'#e8f5e9',border:'#2e7d32',icon:'&#x2705;',title:'Success'},
+    warning: {bg:'#fff8e1',border:'#f57f17',icon:'&#x26A0;&#xFE0F;',title:'Warning'},
+    danger: {bg:'#ffebee',border:'#c62828',icon:'&#x274C;',title:'Danger'},
+    note: {bg:'#f5f5f5',border:'#616161',icon:'&#x1F4DD;',title:'Note'},
+  };
+  var textboxes = {
+    'key-findings': {bg:'linear-gradient(135deg,#e8f5e9,#c8e6c9)',border:'#2e7d32',title:'Key Findings',icon:'&#x1F50D;'},
+    'summary': {bg:'linear-gradient(135deg,#e3f2fd,#bbdefb)',border:'#1565c0',title:'Summary',icon:'&#x1F4CB;'},
+    'recommendation': {bg:'linear-gradient(135deg,#fff3e0,#ffe0b2)',border:'#e65100',title:'Recommendation',icon:'&#x1F4A1;'},
+    'conclusion': {bg:'linear-gradient(135deg,#f3e5f5,#e1bee7)',border:'#7b1fa2',title:'Conclusion',icon:'&#x1F3AF;'},
+    'action-items': {bg:'linear-gradient(135deg,#fce4ec,#f8bbd0)',border:'#c62828',title:'Action Items',icon:'&#x2611;&#xFE0F;'},
+  };
+  var boxes = {
+    'box-blue': {bg:'#1565c0',color:'#fff',title:''},
+    'box-green': {bg:'#2e7d32',color:'#fff',title:''},
+    'box-orange': {bg:'#e65100',color:'#fff',title:''},
+    'box-red': {bg:'#c62828',color:'#fff',title:''},
+    'box-purple': {bg:'#6a1b9a',color:'#fff',title:''},
+    'box-dark': {bg:'#263238',color:'#fff',title:''},
+  };
+  var html = '';
+  if (callouts[type]) {
+    var c = callouts[type];
+    html = '<div style="background:' + c.bg + ';border-left:4px solid ' + c.border +
+      ';padding:12px 16px;border-radius:4px;margin:12px 0;">' +
+      '<strong>' + c.icon + ' ' + c.title + ':</strong> Type your text here</div>';
+  } else if (textboxes[type]) {
+    var t = textboxes[type];
+    html = '<div style="background:' + t.bg + ';border:1px solid ' + t.border +
+      ';border-radius:8px;padding:20px 24px;margin:16px 0;box-shadow:0 2px 8px rgba(0,0,0,0.08);">' +
+      '<div style="font-size:18px;font-weight:700;margin-bottom:10px;color:#1a1a2e;">' + t.icon + ' ' + t.title + '</div>' +
+      '<ul style="margin:0;padding-left:20px;"><li>Type your finding here</li><li>Add more items</li></ul></div>';
+  } else if (boxes[type]) {
+    var b = boxes[type];
+    html = '<div style="background:' + b.bg + ';color:' + b.color +
+      ';padding:20px 24px;border-radius:8px;margin:16px 0;box-shadow:0 2px 8px rgba(0,0,0,0.15);">' +
+      '<div style="font-size:16px;font-weight:700;margin-bottom:8px;">Title</div>' +
+      '<div>Type your content here</div></div>';
+  }
+  if (html) {
+    document.execCommand('insertHTML', false, html + '<p></p>');
+    document.getElementById("reportContent").focus();
+  }
+}
+
+function insertTable() {
+  ensureEditFocus();
+  var h = '<table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse;margin:8px 0">' +
+    '<tr><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr>' +
+    '<tr><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr>' +
+    '<tr><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr></table>';
+  document.execCommand("insertHTML", false, h);
+}
+
+function escapeHtml(s) {
+  var d = document.createElement("div");
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+function toast(msg, type) {
+  var el = document.getElementById("toast");
+  el.textContent = msg;
+  el.className = "viewer-toast show" + (type ? " " + type : "");
+  setTimeout(function() { el.className = "viewer-toast"; }, 3000);
+}
+
+init();
+</script>
+</body>
+</html>

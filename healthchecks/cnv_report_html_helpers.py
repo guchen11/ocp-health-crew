@@ -329,9 +329,11 @@ def _render_config_params_html(run_config, checks=None, mode="sanity"):
 
     # Parse env_vars overrides into a lookup dict
     overrides = {}
-    env_vars_str = run_config.get("env_vars", "")
-    if env_vars_str:
-        for pair in env_vars_str.split(","):
+    env_vars_raw = run_config.get("env_vars", "")
+    if isinstance(env_vars_raw, dict):
+        overrides = env_vars_raw
+    elif env_vars_raw:
+        for pair in env_vars_raw.split(","):
             pair = pair.strip()
             if "=" in pair:
                 k, v = pair.split("=", 1)

@@ -1,0 +1,313 @@
+{% extends "base.html" %}
+
+{% block title %}Upgrade Run #{{ run.id }} - {{ run.operator_name }} - CNV HealthCrew AI{% endblock %}
+
+{% block breadcrumb %}
+<span>></span>
+<a href="/upgrades">Operator Upgrades</a>
+<span>></span>
+<span>Run #{{ run.id }}</span>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.ur-container { max-width:960px; margin:0 auto; padding:24px; }
+.ur-header { background:var(--bg-card); border:1px solid var(--border); border-radius:12px; padding:20px 24px; margin-bottom:20px; }
+.ur-header h1 { margin:0 0 8px 0; font-size:20px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.ur-meta { font-size:13px; color:var(--text-secondary); display:flex; gap:16px; flex-wrap:wrap; }
+.ur-progress { background:var(--bg); border-radius:8px; height:8px; margin:16px 0 8px 0; overflow:hidden; }
+.ur-progress-bar { height:100%; border-radius:8px; transition:width 0.5s ease; }
+.ur-progress-bar.completed { background:var(--success); }
+.ur-progress-bar.running, .ur-progress-bar.upgrading, .ur-progress-bar.waiting, .ur-progress-bar.testing { background:var(--accent); }
+.ur-progress-bar.failed { background:var(--danger); }
+.ur-progress-bar.pending { background:var(--text-secondary); width:0%; }
+.ur-progress-bar.aborted { background:var(--text-secondary); }
+.ur-progress-text { font-size:12px; color:var(--text-secondary); }
+.ur-status { display:inline-flex; align-items:center; gap:6px; padding:4px 12px; border-radius:12px; font-size:12px; font-weight:600; }
+.ur-status.pending { background:rgba(128,128,128,0.15); color:var(--text-secondary); }
+.ur-status.upgrading, .ur-status.waiting, .ur-status.testing { background:rgba(74,144,226,0.15); color:var(--accent); }
+.ur-status.completed { background:rgba(40,167,69,0.15); color:var(--success); }
+.ur-status.failed { background:rgba(220,53,69,0.15); color:var(--danger); }
+.ur-status.aborted, .ur-status.blocked { background:rgba(255,193,7,0.15); color:#92400e; }
+.ur-section { background:var(--bg-card); border:1px solid var(--border); border-radius:12px; margin-bottom:20px; overflow:hidden; }
+.ur-section-title { font-size:14px; font-weight:700; padding:14px 20px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:8px; }
+.ur-step { display:flex; align-items:center; gap:14px; padding:14px 20px; border-bottom:1px solid var(--border); }
+.ur-step:last-child { border-bottom:none; }
+.ur-step.current { background:rgba(74,144,226,0.05); }
+.ur-step-num { width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:700; flex-shrink:0; }
+.ur-step-num.pending { background:var(--bg-secondary); color:var(--text-secondary); }
+.ur-step-num.running { background:var(--accent); color:white; animation:pulse 1.5s infinite; }
+.ur-step-num.success { background:var(--success); color:white; }
+.ur-step-num.failed, .ur-step-num.error { background:var(--danger); color:white; }
+.ur-step-num.skipped { background:var(--bg-secondary); color:var(--text-secondary); }
+.ur-step-info { flex:1; min-width:0; }
+.ur-step-name { font-weight:600; font-size:14px; }
+.ur-step-detail { font-size:12px; color:var(--text-secondary); margin-top:2px; }
+.ur-step-right { text-align:right; flex-shrink:0; }
+.ur-step-duration { font-size:12px; color:var(--text-secondary); font-family:monospace; }
+.ur-step-badge { display:inline-block; padding:2px 8px; border-radius:4px; font-size:10px; font-weight:700; color:white; }
+.ur-step-badge.upgrade { background:linear-gradient(135deg,#f59e0b,#d97706); }
+.ur-step-badge.test { background:linear-gradient(135deg,#22c55e,#16a34a); }
+.ur-step-badge.health { background:linear-gradient(135deg,#3b82f6,#2563eb); }
+.ur-upgrade-card { background:var(--bg-secondary); border-radius:8px; padding:12px 16px; margin:0 20px 14px 20px; }
+.ur-upgrade-card .op-name { font-weight:700; font-size:14px; margin-bottom:6px; }
+.ur-upgrade-card .op-ver { font-family:monospace; font-size:11px; color:var(--text-secondary); }
+.ur-upgrade-card .op-ver .from { color:var(--danger); }
+.ur-upgrade-card .op-ver .to { color:var(--success); font-weight:700; }
+.ur-log { background:var(--bg-secondary); border-radius:0 0 12px 12px; padding:16px 20px; max-height:500px; overflow-y:auto; font-family:'JetBrains Mono',monospace,Consolas; font-size:11px; line-height:1.7; white-space:pre-wrap; word-wrap:break-word; }
+.ur-log .log-phase { color:var(--accent); font-weight:700; }
+.ur-log .log-ok { color:var(--success); }
+.ur-log .log-fail { color:var(--danger); font-weight:700; }
+.ur-log .log-warn { color:#f59e0b; }
+.ur-log .log-wait { color:var(--text-secondary); }
+.ur-log .log-divider { color:var(--text-secondary); font-weight:700; }
+.ur-log .log-ts { color:var(--text-secondary); opacity:0.7; }
+.ur-actions { display:flex; gap:8px; margin-top:16px; }
+.btn-abort { padding:8px 18px; font-size:13px; border-radius:6px; border:1px solid var(--danger); background:none; color:var(--danger); cursor:pointer; }
+.btn-abort:hover { background:rgba(220,53,69,0.1); }
+@keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
+</style>
+{% endblock %}
+
+{% block content %}
+{% set rd = run.report_data or {} %}
+{% set steps_done = (rd.get('steps', []) if rd is mapping else [])|list %}
+{% set upgrades = (rd.get('upgrades', []) if rd is mapping else [])|list %}
+{% set total_steps = policy_steps|length if policy_steps else (steps_done|length or 1) %}
+{% set completed_steps = steps_done|selectattr('status', 'in', ['success','failed','error'])|list|length %}
+{% set is_active = run.status in ('pending', 'upgrading', 'waiting', 'testing') %}
+
+<div class="ur-container">
+    <div class="ur-header">
+        <h1>
+            <span>🔄</span>
+            <span id="urName">{{ run.operator_name }}</span>
+            <span class="ur-status {{ run.status }}" id="urStatus">{{ run.status | capitalize }}</span>
+        </h1>
+        <div class="ur-meta">
+            <span>Run #{{ run.id }}</span>
+            <span>By {{ run.created_by }}</span>
+            <span>Started {{ run.upgrade_started_at or run.created_at }}</span>
+            <span id="urFinished">{% if run.upgrade_finished_at %}Finished {{ run.upgrade_finished_at }}{% endif %}</span>
+            {% if rd.get('total_duration') %}<span>Duration: {{ rd.total_duration }}</span>{% endif %}
+        </div>
+        <div class="ur-progress">
+            <div class="ur-progress-bar {{ run.status }}" id="urProgressBar"
+                 style="width:{{ (completed_steps / total_steps * 100) if total_steps > 0 else 0 }}%;"></div>
+        </div>
+        <div class="ur-progress-text" id="urProgressText">
+            {{ completed_steps }} of {{ total_steps }} steps completed
+        </div>
+        <div class="ur-actions" id="urActions">
+            {% if is_active %}
+            <button class="btn-abort" onclick="abortRun()">Abort Pipeline</button>
+            {% endif %}
+            {% if run.report_file %}
+            <a href="/report/{{ run.report_file }}" class="btn-sm" style="text-decoration:none;">📊 View Report</a>
+            {% endif %}
+            <a href="/upgrades" class="btn-sm" style="text-decoration:none;">Back to Upgrades</a>
+        </div>
+    </div>
+
+    {% if upgrades %}
+    <div class="ur-section">
+        <div class="ur-section-title">🔄 Operators Upgraded</div>
+        {% for u in upgrades if u.get('namespace') %}
+        <div class="ur-upgrade-card">
+            <div class="op-name">{{ u.operator }} <span style="font-weight:400;font-size:12px;color:var(--text-secondary);">({{ u.namespace }})</span></div>
+            <div class="op-ver"><span class="from">{{ u.from_version }}</span> -> <span class="to">{{ u.to_version }}</span></div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="ur-section">
+        <div class="ur-section-title">📋 Pipeline Steps</div>
+        <div id="urSteps">
+            {% for ps in policy_steps %}
+            {% set sd = steps_done[loop.index0] if loop.index0 < steps_done|length else {} %}
+            {% set step_status = sd.get('status', 'pending') if sd else 'pending' %}
+            {% set step_type = ps.get('type', '') %}
+            {% set is_current = (loop.index0 == completed_steps and is_active) %}
+            <div class="ur-step {% if is_current %}current{% endif %}">
+                <div class="ur-step-num {% if is_current and step_status == 'pending' %}running{% else %}{{ step_status }}{% endif %}">{{ loop.index }}</div>
+                <div class="ur-step-info">
+                    <div class="ur-step-name">{{ ps.get('label', step_type) }}</div>
+                    <div class="ur-step-detail">
+                        {% if step_type.startswith('upgrade') %}
+                        <span class="ur-step-badge upgrade">{{ step_type.replace('_', ' ')|upper }}</span>
+                        {% elif step_type == 'test_suite' %}
+                        <span class="ur-step-badge test">TEST SUITE</span>
+                        {% elif step_type == 'template' %}
+                        <span class="ur-step-badge test">TEMPLATE</span>
+                        {% elif step_type == 'health_check' %}
+                        <span class="ur-step-badge health">HEALTH CHECK</span>
+                        {% endif %}
+                        {% if sd.get('error') %} <span style="color:var(--danger);">{{ sd.error }}</span>{% endif %}
+                    </div>
+                </div>
+                <div class="ur-step-right">
+                    {% if sd.get('duration') %}
+                    <div class="ur-step-duration">{{ sd.duration }}</div>
+                    {% elif is_current %}
+                    <div class="ur-step-duration" style="color:var(--accent);">in progress...</div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+            {% if not policy_steps %}
+            {% for sd in steps_done %}
+            <div class="ur-step">
+                <div class="ur-step-num {{ sd.status }}">{{ loop.index }}</div>
+                <div class="ur-step-info">
+                    <div class="ur-step-name">{{ sd.label }}</div>
+                    <div class="ur-step-detail">
+                        {% set st = sd.get('type', '') %}
+                        {% if st.startswith('upgrade') %}<span class="ur-step-badge upgrade">{{ st.replace('_', ' ')|upper }}</span>
+                        {% elif st == 'test_suite' %}<span class="ur-step-badge test">TEST SUITE</span>
+                        {% else %}<span class="ur-step-badge health">{{ st|upper }}</span>{% endif %}
+                    </div>
+                </div>
+                <div class="ur-step-right">
+                    {% if sd.get('duration') %}<div class="ur-step-duration">{{ sd.duration }}</div>{% endif %}
+                </div>
+            </div>
+            {% endfor %}
+            {% endif %}
+        </div>
+    </div>
+
+    {% if run.test_suite_run_id or run.test_build_number %}
+    <div class="ur-section" style="padding:14px 20px;">
+        <div style="font-size:13px;">
+            Test result:
+            {% if run.test_suite_run_id %}
+            <a href="/suite-run/{{ run.test_suite_run_id }}" style="color:var(--accent);font-weight:600;">Suite Run #{{ run.test_suite_run_id }}</a>
+            {% endif %}
+            {% if run.test_build_number %}
+            <a href="/job/{{ run.test_build_number }}" style="color:var(--accent);font-weight:600;">Build #{{ run.test_build_number }}</a>
+            {% endif %}
+            {% if run.test_status %}
+            <span class="ur-status {{ run.test_status }}" style="margin-left:8px;">{{ run.test_status }}</span>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="ur-section">
+        <div class="ur-section-title">📟 Console Log</div>
+        <div class="ur-log" id="urLog">{{ run.log or 'Waiting for pipeline to start...' }}</div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const RUN_ID = {{ run.id }};
+let isActive = {{ 'true' if is_active else 'false' }};
+const TOTAL_STEPS = {{ total_steps }};
+
+function formatLog(raw) {
+    if (!raw) return 'Waiting for pipeline to start...';
+    return raw.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+        .replace(/^(\[[\d:]+\]) (──+.*)/gm, '<span class="log-ts">$1</span> <span class="log-divider">$2</span>')
+        .replace(/^(\[[\d:]+\]) (▶ .*)/gm, '<span class="log-ts">$1</span> <span class="log-phase">$2</span>')
+        .replace(/^(\[[\d:]+\]) (✅ .*)/gm, '<span class="log-ts">$1</span> <span class="log-ok">$2</span>')
+        .replace(/^(\[[\d:]+\]) (❌ .*)/gm, '<span class="log-ts">$1</span> <span class="log-fail">$2</span>')
+        .replace(/^(\[[\d:]+\]) (⚠️ .*)/gm, '<span class="log-ts">$1</span> <span class="log-warn">$2</span>')
+        .replace(/^(\[[\d:]+\]) (⏳ .*)/gm, '<span class="log-ts">$1</span> <span class="log-wait">$2</span>')
+        .replace(/^(\[[\d:]+\])/gm, '<span class="log-ts">$1</span>');
+}
+
+function renderSteps(data) {
+    var rd = data.report_data || {};
+    var stepsDone = rd.steps || [];
+    var completedCount = stepsDone.filter(function(s) { return s.status === 'success' || s.status === 'failed' || s.status === 'error'; }).length;
+    var active = ['pending','upgrading','waiting','testing'].indexOf(data.status) >= 0;
+
+    var container = document.getElementById('urSteps');
+    if (!container) return;
+
+    var policySteps = {{ policy_steps | tojson }};
+    var stepsToRender = policySteps.length ? policySteps : stepsDone;
+
+    container.innerHTML = stepsToRender.map(function(ps, idx) {
+        var sd = stepsDone[idx] || {};
+        var stepStatus = sd.status || 'pending';
+        var isCurrent = (idx === completedCount && active);
+        var numClass = (isCurrent && stepStatus === 'pending') ? 'running' : stepStatus;
+        var stype = ps.type || sd.type || '';
+        var badgeClass = stype.startsWith('upgrade') ? 'upgrade' : (stype === 'test_suite' || stype === 'template') ? 'test' : 'health';
+        var badgeLabel = stype.replace(/_/g,' ').toUpperCase();
+        var durHtml = sd.duration ? '<div class="ur-step-duration">' + sd.duration + '</div>' :
+                      isCurrent ? '<div class="ur-step-duration" style="color:var(--accent);">in progress...</div>' : '';
+        var errHtml = sd.error ? ' <span style="color:var(--danger);">' + sd.error + '</span>' : '';
+        return '<div class="ur-step ' + (isCurrent ? 'current' : '') + '">' +
+            '<div class="ur-step-num ' + numClass + '">' + (idx+1) + '</div>' +
+            '<div class="ur-step-info"><div class="ur-step-name">' + (ps.label || sd.label || stype) + '</div>' +
+            '<div class="ur-step-detail"><span class="ur-step-badge ' + badgeClass + '">' + badgeLabel + '</span>' + errHtml + '</div></div>' +
+            '<div class="ur-step-right">' + durHtml + '</div></div>';
+    }).join('');
+
+    return completedCount;
+}
+
+function pollStatus() {
+    if (!isActive) return;
+    fetch('/api/upgrades/runs/' + RUN_ID).then(function(r) { return r.json(); }).then(function(data) {
+        if (data.error) return;
+
+        var statusEl = document.getElementById('urStatus');
+        statusEl.className = 'ur-status ' + data.status;
+        statusEl.textContent = data.status.charAt(0).toUpperCase() + data.status.slice(1);
+
+        var rd = data.report_data || {};
+        var stepsDone = rd.steps || [];
+        var completedCount = stepsDone.filter(function(s) { return s.status === 'success' || s.status === 'failed' || s.status === 'error'; }).length;
+        var total = TOTAL_STEPS || stepsDone.length || 1;
+        var pct = (completedCount / total * 100);
+        if (['upgrading','waiting','testing'].indexOf(data.status) >= 0 && pct < 100) {
+            pct = Math.max(pct, (completedCount / total * 100) + (100 / total * 0.5));
+        }
+
+        var bar = document.getElementById('urProgressBar');
+        bar.style.width = Math.min(pct, 100) + '%';
+        bar.className = 'ur-progress-bar ' + data.status;
+        document.getElementById('urProgressText').textContent = completedCount + ' of ' + total + ' steps completed';
+
+        if (data.upgrade_finished_at) {
+            document.getElementById('urFinished').textContent = 'Finished ' + data.upgrade_finished_at;
+        }
+
+        renderSteps(data);
+
+        var logEl = document.getElementById('urLog');
+        var wasAtBottom = logEl.scrollHeight - logEl.scrollTop - logEl.clientHeight < 50;
+        logEl.innerHTML = formatLog(data.log);
+        if (wasAtBottom) logEl.scrollTop = logEl.scrollHeight;
+
+        if (['pending','upgrading','waiting','testing'].indexOf(data.status) < 0) {
+            isActive = false;
+            var actions = document.getElementById('urActions');
+            var reportLink = data.report_file ? '<a href="/report/' + data.report_file + '" class="btn-sm" style="text-decoration:none;">View Report</a> ' : '';
+            actions.innerHTML = reportLink + '<a href="/upgrades" class="btn-sm" style="text-decoration:none;">Back to Upgrades</a>';
+        }
+    });
+}
+
+function abortRun() {
+    if (!confirm('Abort this upgrade pipeline?')) return;
+    fetch('/api/upgrades/runs/' + RUN_ID + '/abort', {method:'POST'}).then(function(r) { return r.json(); }).then(function(data) {
+        if (data.error) return alert(data.error);
+        isActive = false;
+        pollStatus();
+    });
+}
+
+document.getElementById('urLog').innerHTML = formatLog(document.getElementById('urLog').textContent);
+var logEl = document.getElementById('urLog');
+logEl.scrollTop = logEl.scrollHeight;
+
+if (isActive) setInterval(pollStatus, 3000);
+</script>
+{% endblock %}

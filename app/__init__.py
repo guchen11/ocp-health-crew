@@ -70,11 +70,19 @@ def create_app(config_object=None):
     
     # Create database tables
     with app.app_context():
-        from app.models import User, Build, Schedule, Host, AuditLog, CustomCheck, Template  # noqa: F811
+        from app.models import User, Build, Schedule, Host, AuditLog, CustomCheck, Template, TestSuite, SuiteRun, UpgradePolicy, UpgradeRun  # noqa: F811
         db.create_all()
 
         # Seed built-in shared templates (idempotent)
         _seed_builtin_templates()
+
+        # SEC-005: recover stale suite runs from prior crash/restart
+        from app.routes.suite_executor import recover_stale_runs
+        recover_stale_runs(app)
+
+        # Recover stale upgrade runs
+        from app.routes.upgrade_executor import recover_stale_upgrade_runs
+        recover_stale_upgrade_runs(app)
     
     # Register blueprints
     from app.routes import dashboard_bp
@@ -90,5 +98,9 @@ def create_app(config_object=None):
     if os.environ.get('WERKZEUG_RUN_MAIN') == 'true' or not app.debug:
         from app.scheduler import start_scheduler
         start_scheduler(app)
+
+        if not os.environ.get('SKIP_UPGRADE_SCANNER'):
+            from app.routes.upgrade_scanner import start_upgrade_scanner
+            start_upgrade_scanner(app)
     
     return app

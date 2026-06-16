@@ -2,7 +2,7 @@
 from flask import jsonify, request
 from flask_login import current_user, login_required
 
-from app.decorators import operator_required
+from app.decorators import log_audit, operator_required
 
 from app.models import Build, Template, db
 
@@ -109,4 +109,35 @@ def api_templates_from_build(build_num):
     db.session.add(tmpl)
     db.session.commit()
     return jsonify(tmpl.to_dict()), 201
+
+
+@dashboard_bp.route('/api/templates/<int:tmpl_id>/run', methods=['POST'])
+@operator_required
+def api_templates_run(tmpl_id):
+    """Run a template directly without going through the configure form."""
+    from app.routes.build_executor import start_build
+
+    tmpl = Template.query.get_or_404(tmpl_id)
+    if tmpl.created_by != current_user.id and not tmpl.shared and not current_user.is_admin:
+        return jsonify({'error': 'forbidden'}), 403
+
+    config = tmpl.config or {}
+    checks = config.get('scenario_tests', [])
+    if not checks and config.get('task_type') != 'cnv_scenarios':
+        checks = config.get('_checks', config.get('checks', []))
+
+    options = dict(config)
+    options.pop('_checks', None)
+    options.pop('checks', None)
+
+    if not options.get('run_name'):
+        options['run_name'] = tmpl.name
+
+    data = request.get_json(silent=True) or {}
+    if data.get('server_host'):
+        options['server_host'] = data['server_host']
+
+    build_num = start_build(checks, options, user_id=current_user.id)
+    log_audit('template_run', target=f'Template #{tmpl.id}: {tmpl.name} -> Build #{build_num}')
+    return jsonify({'build_number': build_num}), 201
 

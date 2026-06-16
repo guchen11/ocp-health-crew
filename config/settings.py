@@ -61,6 +61,7 @@ class Config:
     
     TEMPLATES_DIR = os.path.join(BASE_DIR, "app", "templates")
     STATIC_DIR = os.path.join(BASE_DIR, "app", "static")
+    PERF_REPORTS_DIR = os.path.join(BASE_DIR, "perf-reports")
     
     # SSH Configuration
     SSH_HOST = os.getenv("RH_LAB_HOST")

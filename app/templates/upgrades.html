@@ -1,0 +1,445 @@
+{% extends "base.html" %}
+{% block title %}Operator Upgrades - CNV HealthCrew AI{% endblock %}
+{% block breadcrumb %}<span>›</span><a href="/upgrades">Operator Upgrades</a>{% endblock %}
+
+{% block extra_css %}
+<style>
+.ug-container { max-width:1200px; margin:0 auto; padding:24px; }
+.ug-section { background:var(--bg-card); border:1px solid var(--border); border-radius:12px; padding:20px; margin-bottom:20px; }
+.ug-section h2 { margin:0 0 16px 0; font-size:16px; display:flex; align-items:center; gap:8px; }
+.ug-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+.ug-card { border:1px solid var(--border); border-radius:8px; padding:14px; }
+.ug-card h3 { margin:0 0 8px 0; font-size:14px; }
+.ug-card .meta { font-size:12px; color:var(--text-secondary); }
+.ug-badge { display:inline-block; padding:2px 10px; border-radius:10px; font-size:11px; font-weight:600; }
+.ug-badge.green { background:rgba(40,167,69,0.15); color:var(--success); }
+.ug-badge.yellow { background:rgba(255,193,7,0.15); color:#d4a005; }
+.ug-badge.red { background:rgba(220,53,69,0.15); color:var(--danger); }
+.ug-badge.blue { background:rgba(74,144,226,0.15); color:var(--accent); }
+.ug-badge.gray { background:rgba(128,128,128,0.15); color:var(--text-secondary); }
+.ug-warn { font-size:12px; color:var(--danger); margin-top:6px; padding:6px 10px; background:rgba(220,53,69,0.05); border-radius:4px; }
+.btn-sm { padding:6px 14px; font-size:12px; border-radius:6px; border:1px solid var(--border); background:var(--bg); color:var(--text-primary); cursor:pointer; }
+.btn-sm:hover { background:var(--bg-secondary); }
+.btn-primary { background:var(--accent); color:white; border-color:var(--accent); }
+.btn-primary:hover { opacity:0.9; }
+.btn-danger { color:var(--danger); border-color:var(--danger); }
+.ug-table { width:100%; border-collapse:collapse; font-size:13px; }
+.ug-table th { text-align:left; padding:8px 12px; border-bottom:2px solid var(--border); font-size:12px; text-transform:uppercase; color:var(--text-secondary); }
+.ug-table td { padding:10px 12px; border-bottom:1px solid var(--border); }
+.ug-table tr:last-child td { border-bottom:none; }
+.modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:1000; align-items:center; justify-content:center; }
+.modal-overlay.show { display:flex; }
+.modal { background:var(--bg-card); border-radius:12px; padding:24px; width:90%; max-width:550px; max-height:80vh; overflow-y:auto; }
+.modal h3 { margin:0 0 16px 0; }
+.modal label { display:block; font-size:13px; font-weight:600; margin-bottom:4px; margin-top:12px; }
+.modal input, .modal select, .modal textarea { width:100%; padding:8px 12px; border:1px solid var(--border); border-radius:6px; background:var(--bg); color:var(--text-primary); box-sizing:border-box; font-family:inherit; }
+.modal .actions { display:flex; gap:8px; justify-content:flex-end; margin-top:20px; }
+.toggle { position:relative; display:inline-block; width:40px; height:22px; }
+.toggle input { opacity:0; width:0; height:0; }
+.toggle .slider { position:absolute; inset:0; background:var(--border); border-radius:11px; cursor:pointer; transition:0.3s; }
+.toggle .slider::before { content:''; position:absolute; width:16px; height:16px; left:3px; bottom:3px; background:white; border-radius:50%; transition:0.3s; }
+.toggle input:checked + .slider { background:var(--accent); }
+.toggle input:checked + .slider::before { transform:translateX(18px); }
+.scan-spinner { display:none; }
+.scan-spinner.active { display:inline-block; animation:spin 1s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+.ug-collapsible { transition:all 0.2s; }
+.ug-collapsible.collapsed { display:none; }
+h2 .collapse-icon { transition:transform 0.2s; display:inline-block; }
+h2.collapsed .collapse-icon { transform:rotate(-90deg); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="ug-container">
+    <div class="ug-section">
+        <h2>🔍 Available Upgrades <button class="btn-sm" onclick="scanNow()" style="margin-left:auto;">
+            <span class="scan-spinner" id="scanSpinner">⟳</span> Scan Now</button></h2>
+        <div id="scanResults">
+            <div style="text-align:center;padding:24px;color:var(--text-secondary);">Click "Scan Now" to check for available upgrades</div>
+        </div>
+    </div>
+
+    <div class="ug-section">
+        <h2 onclick="toggleSection(this)" style="cursor:pointer;">📋 Upgrade Policies
+            <span class="collapse-icon" style="margin-left:8px;font-size:10px;opacity:0.6;">▼</span>
+            <button class="btn-sm btn-primary" onclick="event.stopPropagation();openPolicyModal()" style="margin-left:auto;">+ Add Policy</button>
+        </h2>
+        <div class="ug-collapsible">
+        <table class="ug-table" id="policiesTable">
+            <thead><tr><th>Name</th><th>Steps</th><th>Auto</th><th>Interval</th><th>Enabled</th><th></th></tr></thead>
+            <tbody>
+            {% for p in policies %}
+            <tr data-id="{{ p.id }}">
+                <td><strong>{{ p.name }}</strong><br><span style="font-size:11px;color:var(--text-secondary);">{{ p.description }}</span></td>
+                <td>{% for s in p.steps %}<span class="ug-badge {{ 'yellow' if s.type.startswith('upgrade') else 'green' if s.type == 'test_suite' else 'blue' if s.type == 'template' else 'gray' }}" style="margin:1px;{{ 'opacity:0.4;' if not s.enabled }}">{{ s.label or s.type }}</span> {% endfor %}{% if not p.steps %}<span style="color:var(--text-secondary);">empty</span>{% endif %}</td>
+                <td>{{ 'Auto' if p.auto_approve else 'Manual' }}</td>
+                <td>{{ p.scan_interval_minutes }}m</td>
+                <td><label class="toggle"><input type="checkbox" {{ 'checked' if p.enabled }} onchange="togglePolicy({{ p.id }}, this.checked)"><span class="slider"></span></label></td>
+                <td style="white-space:nowrap;">
+                    <button class="btn-sm" onclick="editPolicy({{ p.id }})" title="Edit">✏️</button>
+                    <button class="btn-sm" onclick="triggerPolicy({{ p.id }})" title="Trigger now">▶</button>
+                    <button class="btn-sm btn-danger" onclick="deletePolicy({{ p.id }})" title="Delete">✕</button>
+                </td>
+            </tr>
+            {% endfor %}
+            {% if not policies %}
+            <tr><td colspan="6" style="text-align:center;padding:24px;color:var(--text-secondary);">No policies configured. Click "+ Add Policy" to create one.</td></tr>
+            {% endif %}
+            </tbody>
+        </table>
+        </div>
+    </div>
+
+    <div class="ug-section">
+        <h2 onclick="toggleSection(this)" style="cursor:pointer;">📊 Upgrade History
+            <span class="collapse-icon" style="margin-left:8px;font-size:10px;opacity:0.6;">▼</span>
+        </h2>
+        <div class="ug-collapsible">
+        <table class="ug-table">
+            <thead><tr><th style="width:50px;">Run</th><th>Operator</th><th>Type</th><th>From</th><th>To</th><th>Status</th><th>Test</th><th>Report</th><th>Started</th><th></th></tr></thead>
+            <tbody>
+            {% for r in recent_runs %}
+            <tr>
+                <td><a href="/upgrade-run/{{ r.id }}" style="font-weight:700;color:var(--accent);text-decoration:none;">#{{ r.id }}</a></td>
+                <td><a href="/upgrade-run/{{ r.id }}" style="color:inherit;text-decoration:none;">{{ r.operator_name }}</a></td>
+                <td><span class="ug-badge {{ 'blue' if r.upgrade_type == 'cvo' else 'green' }}">{{ r.upgrade_type|upper }}</span></td>
+                <td style="font-size:12px;">{{ r.from_version[:30] }}</td>
+                <td style="font-size:12px;">{{ r.to_version[:30] }}</td>
+                <td><span class="ug-badge {{ 'green' if r.status == 'completed' else 'red' if r.status in ('failed','blocked') else 'blue' if r.status in ('upgrading','waiting','testing') else 'gray' }}">{{ r.status }}</span></td>
+                <td>
+                    {% if r.test_suite_run_id %}<a href="/suite-run/{{ r.test_suite_run_id }}">Suite #{{ r.test_suite_run_id }}</a>
+                    {% elif r.test_build_number %}<a href="/job/{{ r.test_build_number }}/console">Build #{{ r.test_build_number }}</a>
+                    {% else %}{{ r.test_status }}{% endif %}
+                </td>
+                <td>{% if r.report_file %}<a href="/report/{{ r.report_file }}" target="_blank" style="color:var(--accent);text-decoration:none;" title="View report">📊 Report</a>{% else %}<span style="color:var(--text-secondary);font-size:11px;">-</span>{% endif %}</td>
+                <td style="font-size:12px;">{{ r.created_at }}</td>
+                <td><button class="btn-sm" onclick="showRunLog({{ r.id }})" title="View log">📄</button>
+                    {% if r.status in ('pending','upgrading','waiting') %}<button class="btn-sm btn-danger" onclick="abortRun({{ r.id }})" title="Abort">⏹</button>{% endif %}</td>
+            </tr>
+            {% endfor %}
+            {% if not recent_runs %}
+            <tr><td colspan="10" style="text-align:center;padding:24px;color:var(--text-secondary);">No upgrade runs yet</td></tr>
+            {% endif %}
+            </tbody>
+        </table>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="policyModal">
+    <div class="modal">
+        <h3 id="policyModalTitle">Add Upgrade Policy</h3>
+        <input type="hidden" id="policyEditId" value="">
+        <label>Name</label>
+        <input id="polName" placeholder="e.g. Full Upgrade Pipeline">
+        <label>Description</label>
+        <input id="polDesc" placeholder="Optional description">
+        <div style="display:flex;gap:16px;margin-top:12px;">
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;flex:1;">
+                <select id="polAutoApprove" style="width:auto;flex:1;"><option value="false" selected>Manual trigger only</option><option value="true">Auto-trigger when upgrades detected</option></select>
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+                Scan every <input id="polInterval" type="number" value="60" min="5" style="width:60px;"> min
+            </label>
+        </div>
+        <label style="margin-top:16px;">Pipeline Steps (run sequentially, top to bottom)</label>
+        <div id="actionsList" style="margin-bottom:8px;"></div>
+        <div style="display:flex;gap:8px;align-items:center;">
+            <select id="newActionType" style="flex:1;">
+                <option value="" disabled selected>+ Add step...</option>
+                <optgroup label="Upgrades">
+                    <option value="upgrade_olm">Upgrade OLM Operator(s)</option>
+                    <option value="upgrade_cvo">Upgrade Cluster (CVO)</option>
+                </optgroup>
+                <optgroup label="Tests">
+                    <option value="test_suite">Run Test Suite</option>
+                    <option value="template">Run Template</option>
+                    <option value="health_check">Run Health Check</option>
+                </optgroup>
+            </select>
+            <select id="newActionId" style="flex:2;display:none;"></select>
+        </div>
+        <script>
+        var _policyActions = [];
+        var _suites = {{ user_suites | tojson }};
+        var _templates = {{ user_templates | tojson }};
+        document.getElementById('newActionType').addEventListener('change', onStepTypeSelected);
+        document.getElementById('newActionId').addEventListener('change', onStepValueSelected);
+
+        function onStepTypeSelected() {
+            var type = document.getElementById('newActionType').value;
+            var sel = document.getElementById('newActionId');
+            sel.innerHTML = '';
+            sel.style.display = 'none';
+
+            if (type === 'health_check' || type === 'upgrade_cvo') {
+                addStepEntry(type, '', '');
+                return;
+            }
+            if (type === 'upgrade_olm') {
+                addStepEntry(type, '*', '');
+                return;
+            }
+            if (type === 'test_suite') {
+                sel.innerHTML = '<option value="" disabled selected>-- select suite --</option>';
+                _suites.forEach(function(s) { sel.innerHTML += '<option value="' + s.id + '">' + s.name + ' (' + s.item_count + ' items)</option>'; });
+                sel.style.display = '';
+            } else if (type === 'template') {
+                sel.innerHTML = '<option value="" disabled selected>-- select template --</option>';
+                _templates.forEach(function(t) { sel.innerHTML += '<option value="' + t.id + '">' + t.name + '</option>'; });
+                sel.style.display = '';
+            }
+        }
+
+        function onStepValueSelected() {
+            var type = document.getElementById('newActionType').value;
+            var sel = document.getElementById('newActionId');
+            var val = sel.value;
+            if (!val) return;
+            var label = sel.selectedOptions[0].text;
+            addStepEntry(type, val, label);
+        }
+
+        function addStepEntry(type, val, label) {
+            var entry = {type: type, id: null, label: '', target: '', enabled: true};
+            if (type === 'upgrade_olm') {
+                entry.target = val || '*';
+                entry.label = 'Upgrade OLM: ' + (entry.target === '*' ? 'all operators' : entry.target);
+            } else if (type === 'upgrade_cvo') {
+                entry.label = 'Upgrade Cluster (CVO)';
+            } else if (type === 'health_check') {
+                entry.label = 'Health Check (all)';
+            } else if (type === 'test_suite') {
+                entry.id = parseInt(val);
+                entry.label = label;
+            } else if (type === 'template') {
+                entry.id = parseInt(val);
+                entry.label = label;
+            }
+            _policyActions.push(entry);
+            renderActions();
+            document.getElementById('newActionType').value = '';
+            document.getElementById('newActionId').style.display = 'none';
+            document.getElementById('newActionId').innerHTML = '';
+        }
+
+        function removeAction(idx) { _policyActions.splice(idx, 1); renderActions(); }
+        function moveAction(idx, dir) {
+            var n = idx + dir;
+            if (n < 0 || n >= _policyActions.length) return;
+            var tmp = _policyActions[idx]; _policyActions[idx] = _policyActions[n]; _policyActions[n] = tmp;
+            renderActions();
+        }
+
+        function toggleStepEnabled(idx) {
+            _policyActions[idx].enabled = !_policyActions[idx].enabled;
+            renderActions();
+        }
+
+        function renderActions() {
+            var c = document.getElementById('actionsList');
+            if (!_policyActions.length) { c.innerHTML = '<div style="font-size:12px;color:var(--text-secondary);padding:4px 0;">No steps added yet. Add upgrades and tests below.</div>'; return; }
+            c.innerHTML = _policyActions.map(function(a, i) {
+                var enabled = a.enabled !== false;
+                var badge = a.type === 'test_suite' ? 'green' : a.type === 'template' ? 'blue' : (a.type.startsWith('upgrade') ? 'yellow' : 'gray');
+                var opacity = enabled ? '1' : '0.4';
+                return '<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;margin-bottom:4px;opacity:' + opacity + ';">' +
+                    '<label class="toggle" style="flex-shrink:0;"><input type="checkbox" ' + (enabled?'checked':'') + ' onchange="toggleStepEnabled(' + i + ')"><span class="slider"></span></label>' +
+                    '<span style="font-size:12px;font-weight:600;width:22px;text-align:center;">' + (i+1) + '</span>' +
+                    '<span class="ug-badge ' + badge + '">' + a.type.replace('_',' ') + '</span>' +
+                    '<span style="flex:1;font-size:13px;">' + (a.label || '') + '</span>' +
+                    '<button type="button" onclick="moveAction(' + i + ',-1)" style="border:none;background:none;cursor:pointer;font-size:12px;" ' + (i===0?'disabled':'') + '>↑</button>' +
+                    '<button type="button" onclick="moveAction(' + i + ',1)" style="border:none;background:none;cursor:pointer;font-size:12px;" ' + (i===_policyActions.length-1?'disabled':'') + '>↓</button>' +
+                    '<button type="button" onclick="removeAction(' + i + ')" style="border:none;background:none;cursor:pointer;color:var(--danger);font-size:14px;">✕</button>' +
+                    '</div>';
+            }).join('');
+        }
+        renderActions();
+        </script>
+        <div class="actions" style="margin-top:16px;">
+            <button class="btn-sm" onclick="closePolicyModal()">Cancel</button>
+            <button class="btn-sm btn-primary" onclick="savePolicy()">Save</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="logModal">
+    <div class="modal" style="max-width:700px;">
+        <h3>Upgrade Run Log</h3>
+        <pre id="logContent" style="background:var(--bg);padding:12px;border-radius:6px;font-size:12px;max-height:400px;overflow-y:auto;white-space:pre-wrap;"></pre>
+        <div class="actions"><button class="btn-sm" onclick="document.getElementById('logModal').classList.remove('show')">Close</button></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+var ALL_POLICIES = {{ policies | tojson }};
+
+function toggleSection(h2) {
+    h2.classList.toggle('collapsed');
+    var content = h2.nextElementSibling;
+    if (content && content.classList.contains('ug-collapsible')) {
+        content.classList.toggle('collapsed');
+    }
+}
+
+function editPolicy(id) {
+    var p = ALL_POLICIES.find(function(x) { return x.id === id; });
+    if (!p) { fetch('/api/upgrades/policies/' + id).then(function(r){return r.json();}).then(function(data){ _loadPolicyIntoModal(data); }); return; }
+    _loadPolicyIntoModal(p);
+}
+
+function _loadPolicyIntoModal(p) {
+    document.getElementById('policyEditId').value = p.id;
+    document.getElementById('policyModalTitle').textContent = 'Edit Policy: ' + p.name;
+    document.getElementById('polName').value = p.name;
+    document.getElementById('polDesc').value = p.description || '';
+    document.getElementById('polAutoApprove').value = p.auto_approve ? 'true' : 'false';
+    document.getElementById('polInterval').value = p.scan_interval_minutes || 60;
+    _policyActions = (p.steps || []).map(function(s) {
+        return {type: s.type, id: s.id, target: s.target || '', enabled: s.enabled !== false, label: s.label || s.type, namespace: s.namespace || ''};
+    });
+    renderActions();
+    document.getElementById('policyModal').classList.add('show');
+}
+
+function scanNow() {
+    var sp = document.getElementById('scanSpinner');
+    sp.classList.add('active');
+    fetch('/api/upgrades/scan').then(r => r.json()).then(data => {
+        sp.classList.remove('active');
+        if (data.error) { document.getElementById('scanResults').innerHTML = '<div class="ug-warn">' + data.error + '</div>'; return; }
+        renderScanResults(data);
+    }).catch(() => sp.classList.remove('active'));
+}
+
+function renderScanResults(data) {
+    var html = '<div class="ug-grid">';
+    var cvo = data.cvo || {};
+    html += '<div class="ug-card"><h3>Cluster Version (CVO)</h3>';
+    html += '<div class="meta">Current: <strong>' + (cvo.current_version || 'N/A') + '</strong> | Channel: ' + (cvo.channel || 'N/A') + '</div>';
+    var updates = cvo.available_updates || [];
+    if (updates.length) {
+        html += '<div style="margin-top:8px;">';
+        updates.forEach(function(u) {
+            var blocked = !cvo.upgradeable;
+            html += '<div style="display:flex;align-items:center;gap:8px;margin:4px 0;">';
+            html += '<span class="ug-badge ' + (blocked ? 'red' : 'green') + '">' + u.version + '</span>';
+            if (!blocked) html += '<button class="btn-sm" onclick="triggerCvoUpgrade(\'' + u.version + '\')" style="font-size:11px;">Upgrade</button>';
+            else html += '<span style="font-size:11px;color:var(--danger);">blocked</span>';
+            html += '</div>';
+        });
+        html += '</div>';
+        if (cvo.warnings && cvo.warnings.length) {
+            cvo.warnings.forEach(function(w) { html += '<div class="ug-warn">' + w + '</div>'; });
+        }
+    } else { html += '<div class="meta" style="margin-top:8px;">No updates available</div>'; }
+    html += '</div>';
+
+    var olm = data.olm || [];
+    html += '<div class="ug-card"><h3>OLM Operators</h3>';
+    if (olm.length) {
+        olm.forEach(function(op) {
+            html += '<div style="margin:6px 0;padding:6px 0;border-bottom:1px solid var(--border);">';
+            html += '<strong>' + op.name + '</strong> <span class="meta">(' + op.namespace + ')</span><br>';
+            html += '<span class="meta">' + (op.installed_csv||'').substring(0,40) + ' → ' + (op.current_csv||'').substring(0,40) + '</span>';
+            if (op.pending_plans && op.pending_plans.length) {
+                html += ' <span class="ug-badge yellow">' + op.pending_plans.length + ' pending</span>';
+            }
+            html += '</div>';
+        });
+    } else { html += '<div class="meta">No pending OLM upgrades</div>'; }
+    html += '</div></div>';
+    document.getElementById('scanResults').innerHTML = html;
+}
+
+function triggerCvoUpgrade(version) {
+    if (!confirm('Trigger cluster upgrade to ' + version + '?')) return;
+    fetch('/api/upgrades/policies', {method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({name:'Manual CVO ' + version, upgrade_type:'cvo', target_operator:'cluster', auto_approve:true, post_upgrade_action:'none', scan_interval_minutes:9999})
+    }).then(r => r.json()).then(p => {
+        if (p.error) return alert(p.error);
+        fetch('/api/upgrades/policies/' + p.id + '/trigger', {method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({to_version: version})
+        }).then(r => r.json()).then(run => {
+            if (run.error) return alert(run.error);
+            location.reload();
+        });
+    });
+}
+
+function onTypeChange() {
+    var t = document.getElementById('polType').value;
+    document.getElementById('olmFields').style.display = t === 'olm' ? '' : 'none';
+    if (t === 'cvo') { document.getElementById('polTarget').value = 'cluster'; document.getElementById('polNs').value = ''; }
+}
+function onActionChange() {
+    var a = document.getElementById('polAction').value;
+    document.getElementById('suiteField').style.display = a === 'test_suite' ? '' : 'none';
+    document.getElementById('templateField').style.display = a === 'template' ? '' : 'none';
+}
+function openPolicyModal() {
+    document.getElementById('policyEditId').value = '';
+    document.getElementById('policyModalTitle').textContent = 'Add Upgrade Policy';
+    document.getElementById('polName').value = '';
+    document.getElementById('polDesc').value = '';
+    document.getElementById('polAutoApprove').value = 'false';
+    document.getElementById('polInterval').value = '60';
+    _policyActions = [];
+    renderActions();
+    document.getElementById('policyModal').classList.add('show');
+}
+function closePolicyModal() { document.getElementById('policyModal').classList.remove('show'); }
+
+function savePolicy() {
+    var data = {
+        name: document.getElementById('polName').value.trim(),
+        description: document.getElementById('polDesc').value.trim(),
+        auto_approve: document.getElementById('polAutoApprove').value === 'true',
+        steps: _policyActions.map(function(a) {
+            return {type: a.type, id: a.id, target: a.target || '', enabled: a.enabled !== false, label: a.label || a.type};
+        }),
+        scan_interval_minutes: parseInt(document.getElementById('polInterval').value) || 60,
+    };
+    if (!data.name) return alert('Name is required');
+    var editId = document.getElementById('policyEditId').value;
+    var url = editId ? '/api/upgrades/policies/' + editId : '/api/upgrades/policies';
+    var method = editId ? 'PUT' : 'POST';
+    fetch(url, {method, headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)})
+        .then(r => { if (!r.ok && r.status === 302 || r.redirected) { location.href = '/login'; return; } return r.json(); })
+        .then(p => { if (!p) return; if (p.error) return alert(p.error); closePolicyModal(); location.reload(); })
+        .catch(e => alert('Save failed: ' + e));
+}
+
+function togglePolicy(id, enabled) {
+    fetch('/api/upgrades/policies/' + id, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({enabled})});
+}
+function deletePolicy(id) {
+    if (!confirm('Delete this policy?')) return;
+    fetch('/api/upgrades/policies/' + id, {method:'DELETE'}).then(() => location.reload());
+}
+function triggerPolicy(id) {
+    if (!confirm('Trigger this upgrade policy now?')) return;
+    fetch('/api/upgrades/policies/' + id + '/trigger', {method:'POST'}).then(r => r.json()).then(run => {
+        if (run.no_upgrades) {
+            alert('No upgrades available. Tests will not run.');
+            return;
+        }
+        if (run.error) return alert(run.error);
+        window.location.href = '/upgrade-run/' + run.id;
+    });
+}
+function showRunLog(id) {
+    fetch('/api/upgrades/runs/' + id).then(r => r.json()).then(run => {
+        document.getElementById('logContent').textContent = run.log || 'No log entries';
+        document.getElementById('logModal').classList.add('show');
+    });
+}
+function abortRun(id) {
+    if (!confirm('Abort this upgrade run?')) return;
+    fetch('/api/upgrades/runs/' + id + '/abort', {method:'POST'}).then(() => location.reload());
+}
+</script>
+{% endblock %}

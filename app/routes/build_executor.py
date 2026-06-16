@@ -29,6 +29,7 @@ from app.routes import (
 
 from app.routes.build_custom_checks import run_custom_checks
 from app.routes.build_phases import find_phase_idx, run_primary_phases
+from config.settings import Config
 
 
 def _pending_phase(name):
@@ -85,8 +86,9 @@ def _execute_build(job_id, checks, options, user_id=None):
 
     if is_cnv or is_combined:
         cmd = [sys.executable, CNV_SCRIPT_PATH]
-        server_host = options.get('server_host', '')
+        server_host = options.get('server_host', '') or os.getenv('RH_LAB_HOST', '')
         if server_host:
+            options['server_host'] = server_host
             cmd.extend(['--server', server_host])
             host_obj = Host.query.filter_by(host=server_host).first()
             if host_obj and host_obj.name:
@@ -102,7 +104,10 @@ def _execute_build(job_id, checks, options, user_id=None):
         if options.get('cnv_path'):
             cmd.extend(['--cnv-path', options['cnv_path']])
         if options.get('env_vars'):
-            cmd.extend(['--env-vars', options['env_vars']])
+            env_vars = options['env_vars']
+            if isinstance(env_vars, dict):
+                env_vars = ','.join(f'{k}={v}' for k, v in env_vars.items())
+            cmd.extend(['--env-vars', env_vars])
         if options.get('kb_log_level'):
             cmd.extend(['--log-level', options['kb_log_level']])
         if options.get('kb_timeout'):
@@ -140,8 +145,9 @@ def _execute_build(job_id, checks, options, user_id=None):
     else:
         cmd = [sys.executable, SCRIPT_PATH]
 
-        server_host = options.get('server_host', '')
+        server_host = options.get('server_host', '') or os.getenv('RH_LAB_HOST', '')
         if server_host:
+            options['server_host'] = server_host
             cmd.extend(['--server', server_host])
             host_obj = Host.query.filter_by(host=server_host).first()
             if host_obj and host_obj.name:
@@ -421,18 +427,18 @@ def _execute_build(job_id, checks, options, user_id=None):
 
             with app.app_context():
                 save_build_to_db(build_record, user_id=user_id)
-
                 if not is_cnv and not is_combined:
                     try:
                         from app.learning import record_health_check_run
-
                         detected_issues = extract_issues_from_output(full_output)
                         if detected_issues:
                             record_health_check_run(detected_issues)
                     except Exception:
                         pass
 
-                if (is_cnv or is_combined) and options.get('email') and options.get('email_to'):
+                if (is_cnv or is_combined) and options.get('email'):
+                    if not options.get('email_to'):
+                        options['email_to'] = Config.DEFAULT_EMAIL
                     email_phase_idx = find_phase_idx(phases, 'Send Email')
                     if email_phase_idx is not None and email_phase_idx >= 0:
                         set_phase(job, email_phase_idx, 'running', 'Sending email report...')
@@ -487,13 +493,11 @@ def _execute_build(job_id, checks, options, user_id=None):
             }
             with app.app_context():
                 save_build_to_db(build_record, user_id=user_id)
-
         finally:
             with _jobs_lock:
                 if job_id in running_jobs:
                     del running_jobs[job_id]
             _start_next_queued()
 
-    thread = threading.Thread(target=run_job)
-    thread.daemon = True
+    thread = threading.Thread(target=run_job, daemon=True)
     thread.start()

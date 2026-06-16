@@ -297,3 +297,198 @@ class Template(db.Model):
 
     def __repr__(self):
         return f'<Template {self.name} (by user {self.created_by})>'
+
+
+MAX_SUITE_ITEMS = 50
+
+
+class TestSuite(db.Model):
+    """A saved collection of test templates to run sequentially."""
+
+    __tablename__ = 'test_suites'
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(200), nullable=False)
+    description = db.Column(db.Text, default='')
+    icon = db.Column(db.String(10), default='📦')
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+    shared = db.Column(db.Boolean, default=False)
+    stop_on_failure = db.Column(db.Boolean, default=True)
+    items = db.Column(db.JSON, nullable=False, default=list)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc),
+                           onupdate=lambda: datetime.now(timezone.utc))
+
+    owner = db.relationship('User', backref='test_suites')
+    runs = db.relationship('SuiteRun', backref='suite', lazy='dynamic')
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'description': self.description or '',
+            'icon': self.icon or '📦',
+            'shared': self.shared,
+            'stop_on_failure': self.stop_on_failure,
+            'items': self.items or [],
+            'item_count': len(self.items or []),
+            'created_by': self.owner.username if self.owner else 'unknown',
+            'created_by_id': self.created_by,
+            'created_at': self.created_at.strftime('%Y-%m-%d %H:%M') if self.created_at else '',
+            'updated_at': self.updated_at.strftime('%Y-%m-%d %H:%M') if self.updated_at else '',
+        }
+
+    def __repr__(self):
+        return f'<TestSuite {self.name} ({len(self.items or [])} items)>'
+
+
+class SuiteRun(db.Model):
+    """A single execution of a test suite."""
+
+    __tablename__ = 'suite_runs'
+
+    id = db.Column(db.Integer, primary_key=True)
+    suite_id = db.Column(db.Integer, db.ForeignKey('test_suites.id'), nullable=True)
+    name = db.Column(db.String(200), nullable=False)
+    status = db.Column(db.String(20), default='pending')
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+    stop_on_failure = db.Column(db.Boolean, default=True)
+    items = db.Column(db.JSON, nullable=False, default=list)
+    total_items = db.Column(db.Integer, default=0)
+    completed_items = db.Column(db.Integer, default=0)
+    current_item_index = db.Column(db.Integer, default=-1)
+    started_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    finished_at = db.Column(db.DateTime, nullable=True)
+
+    owner = db.relationship('User', backref='suite_runs',
+                            foreign_keys=[created_by])
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'suite_id': self.suite_id,
+            'name': self.name,
+            'status': self.status,
+            'stop_on_failure': self.stop_on_failure,
+            'items': self.items or [],
+            'total_items': self.total_items,
+            'completed_items': self.completed_items,
+            'current_item_index': self.current_item_index,
+            'created_by': self.owner.username if self.owner else 'unknown',
+            'created_by_id': self.created_by,
+            'started_at': self.started_at.strftime('%Y-%m-%d %H:%M') if self.started_at else '',
+            'finished_at': self.finished_at.strftime('%Y-%m-%d %H:%M') if self.finished_at else '',
+        }
+
+    def __repr__(self):
+        return f'<SuiteRun {self.name} ({self.status})>'
+
+
+class UpgradePolicy(db.Model):
+    """An ordered pipeline of upgrade and test steps.
+
+    Each step in ``steps`` is a dict:
+        {type, enabled, id, target, namespace}
+    Steps execute sequentially; disabled steps are skipped.
+    """
+
+    __tablename__ = 'upgrade_policies'
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(200), nullable=False)
+    description = db.Column(db.Text, default='')
+    enabled = db.Column(db.Boolean, default=True)
+    auto_approve = db.Column(db.Boolean, default=False)
+    steps = db.Column(db.JSON, default=list)
+    scan_interval_minutes = db.Column(db.Integer, default=60)
+    last_scanned_at = db.Column(db.DateTime, nullable=True)
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc),
+                           onupdate=lambda: datetime.now(timezone.utc))
+
+    owner = db.relationship('User', backref='upgrade_policies')
+    runs = db.relationship('UpgradeRun', backref='policy', lazy='dynamic')
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'description': self.description or '',
+            'enabled': self.enabled,
+            'auto_approve': self.auto_approve,
+            'steps': self.steps or [],
+            'step_count': len(self.steps or []),
+            'scan_interval_minutes': self.scan_interval_minutes,
+            'last_scanned_at': self.last_scanned_at.strftime('%Y-%m-%d %H:%M') if self.last_scanned_at else '',
+            'created_by': self.owner.username if self.owner else 'unknown',
+            'created_by_id': self.created_by,
+            'created_at': self.created_at.strftime('%Y-%m-%d %H:%M') if self.created_at else '',
+        }
+
+    def __repr__(self):
+        return f'<UpgradePolicy {self.name} ({len(self.steps or [])} steps)>'
+
+
+class UpgradeRun(db.Model):
+    """Tracks a single operator upgrade execution."""
+
+    __tablename__ = 'upgrade_runs'
+
+    id = db.Column(db.Integer, primary_key=True)
+    policy_id = db.Column(db.Integer, db.ForeignKey('upgrade_policies.id'), nullable=True)
+    upgrade_type = db.Column(db.String(10), nullable=False)
+    operator_name = db.Column(db.String(200), nullable=False)
+    from_version = db.Column(db.String(50), default='')
+    to_version = db.Column(db.String(50), default='')
+    status = db.Column(db.String(20), default='pending')
+    upgrade_started_at = db.Column(db.DateTime, nullable=True)
+    upgrade_finished_at = db.Column(db.DateTime, nullable=True)
+    test_suite_run_id = db.Column(db.Integer, db.ForeignKey('suite_runs.id'), nullable=True)
+    test_build_number = db.Column(db.Integer, nullable=True)
+    test_status = db.Column(db.String(20), default='pending')
+    log = db.Column(db.Text, default='')
+    report_file = db.Column(db.String(200), nullable=True)
+    report_data = db.Column(db.JSON, default=dict)
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    owner = db.relationship('User', backref='upgrade_runs', foreign_keys=[created_by])
+
+    def append_log(self, msg, level='info'):
+        ts = datetime.now(timezone.utc).strftime('%H:%M:%S')
+        prefix = {
+            'phase': f'[{ts}] ▶ ',
+            'ok': f'[{ts}] ✅ ',
+            'fail': f'[{ts}] ❌ ',
+            'warn': f'[{ts}] ⚠️  ',
+            'wait': f'[{ts}] ⏳ ',
+            'skip': f'[{ts}] ⏭️  ',
+            'divider': f'[{ts}] {"─" * 50}\n[{ts}] ',
+            'info': f'[{ts}] ',
+        }.get(level, f'[{ts}] ')
+        self.log = (self.log or '') + f'{prefix}{msg}\n'
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'policy_id': self.policy_id,
+            'upgrade_type': self.upgrade_type,
+            'operator_name': self.operator_name,
+            'from_version': self.from_version,
+            'to_version': self.to_version,
+            'status': self.status,
+            'upgrade_started_at': self.upgrade_started_at.strftime('%Y-%m-%d %H:%M') if self.upgrade_started_at else '',
+            'upgrade_finished_at': self.upgrade_finished_at.strftime('%Y-%m-%d %H:%M') if self.upgrade_finished_at else '',
+            'test_suite_run_id': self.test_suite_run_id,
+            'test_build_number': self.test_build_number,
+            'test_status': self.test_status,
+            'log': self.log or '',
+            'report_file': self.report_file,
+            'report_data': self.report_data or {},
+            'created_by': self.owner.username if self.owner else 'system',
+            'created_at': self.created_at.strftime('%Y-%m-%d %H:%M') if self.created_at else '',
+        }
+
+    def __repr__(self):
+        return f'<UpgradeRun {self.operator_name} {self.from_version}->{self.to_version} ({self.status})>'

@@ -34,6 +34,12 @@
                 🏷️ {{ build.name }}
             </div>
             {% endif %}
+            {% if build.options._upgrade_context %}
+            {% set uc = build.options._upgrade_context %}
+            <div style="padding:8px 12px;font-size:11px;background:rgba(251,191,36,0.1);border-left:3px solid #f59e0b;border-radius:4px;margin-bottom:8px;">
+                🔄 Post-upgrade: <strong>{{ uc.operator_name }}</strong> {{ uc.from_version }} -> {{ uc.to_version }}
+            </div>
+            {% endif %}
             <a href="/job/{{ build.number }}" class="sidebar-item">
                 <span class="sidebar-icon">📊</span>
                 Build Summary

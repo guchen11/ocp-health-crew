@@ -405,5 +405,9 @@ from . import templates_api  # noqa: F401
 from . import settings_routes  # noqa: F401
 from . import custom_checks  # noqa: F401
 from . import learning_api  # noqa: F401
+from . import suites_api  # noqa: F401
+from . import upgrades_api  # noqa: F401
+from . import perf_reports  # noqa: F401
+from . import perf_report_editor  # noqa: F401
 
 from .build_executor import start_build

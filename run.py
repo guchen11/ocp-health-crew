@@ -21,6 +21,7 @@ from config.settings import Config
 def ensure_dirs():
     """Create data directories if they don't exist."""
     os.makedirs(Config.REPORTS_DIR, exist_ok=True)
+    os.makedirs(Config.PERF_REPORTS_DIR, exist_ok=True)
     data_dir = getattr(Config, 'DATA_DIR', None)
     if data_dir:
         os.makedirs(os.path.join(data_dir, "logs"), exist_ok=True)

@@ -16,7 +16,7 @@ from config.settings import (
 )
 
 REPORTS_DIR = Config.REPORTS_DIR
-from app.models import CustomCheck, Template
+from app.models import CustomCheck, SuiteRun, Template, TestSuite, UpgradePolicy, UpgradeRun
 
 from app.decorators import operator_required
 
@@ -27,9 +27,13 @@ from app.routes import (
     DEFAULT_SETTINGS,
     DEFAULT_THRESHOLDS,
     load_builds,
+    load_schedules,
     load_settings,
+    get_cron_display,
+    get_next_run_time,
     queued_jobs,
     running_jobs,
+    schedules,
     _jobs_lock,
     get_hosts_for_user,
 )
@@ -78,6 +82,16 @@ def dashboard():
                           or_(Template.created_by == current_user.id, Template.shared == True)
                       ).order_by(Template.name).all()] if current_user.is_authenticated else []
 
+    # Load user test suites for sidebar
+    user_suites = [s.to_dict() for s in
+                   TestSuite.query.filter(
+                       or_(TestSuite.created_by == current_user.id, TestSuite.shared == True)
+                   ).order_by(TestSuite.name).all()] if current_user.is_authenticated and current_user.is_operator else []
+
+    from app.models import UpgradeRun
+    recent_upgrades = [u.to_dict() for u in
+                       UpgradeRun.query.order_by(UpgradeRun.created_at.desc()).limit(10).all()]
+
     return render_template('dashboard.html',
                            builds=display_builds[:10],
                            recent_builds=display_builds[:10],
@@ -87,6 +101,8 @@ def dashboard():
                            queued_count=len(queued_jobs),
                            current_view=view,
                            user_templates=user_templates,
+                           user_suites=user_suites,
+                           recent_upgrades=recent_upgrades,
                            active_page='dashboard')
 
 
@@ -275,6 +291,85 @@ def rebuild(build_num):
         return redirect(url_for('dashboard.console_output', build_num=new_build_num))
 
     return redirect(url_for('dashboard.dashboard'))
+
+
+@dashboard_bp.route('/suites')
+@operator_required
+def suites_page():
+    """Test suites management page."""
+    user_suites = [s.to_dict() for s in
+                   TestSuite.query.filter(
+                       or_(TestSuite.created_by == current_user.id, TestSuite.shared == True)
+                   ).order_by(TestSuite.updated_at.desc()).all()]
+
+    user_templates = [t.to_dict() for t in
+                      Template.query.filter(
+                          or_(Template.created_by == current_user.id, Template.shared == True)
+                      ).order_by(Template.name).all()]
+
+    recent_runs = [r.to_dict() for r in
+                   SuiteRun.query.filter_by(created_by=current_user.id)
+                   .order_by(SuiteRun.started_at.desc()).limit(20).all()]
+
+    return render_template('suites.html',
+                           suites=user_suites,
+                           user_templates=user_templates,
+                           recent_runs=recent_runs,
+                           active_page='suites')
+
+
+@dashboard_bp.route('/suite-run/<int:run_id>')
+@login_required
+def suite_run_detail(run_id):
+    """Suite run progress page."""
+    sr = SuiteRun.query.get_or_404(run_id)
+    if sr.created_by != current_user.id and not current_user.is_admin:
+        return "Access denied", 403
+    return render_template('suite_run.html',
+                           suite_run=sr.to_dict(),
+                           active_page='suites')
+
+
+@dashboard_bp.route('/upgrade-run/<int:run_id>')
+@login_required
+def upgrade_run_detail(run_id):
+    """Upgrade pipeline run detail page with live progress."""
+    run = UpgradeRun.query.get_or_404(run_id)
+    policy_steps = []
+    if run.policy:
+        policy_steps = [s for s in (run.policy.steps or []) if s.get('enabled', True)]
+    return render_template('upgrade_run.html',
+                           run=run.to_dict(),
+                           policy_steps=policy_steps,
+                           active_page='upgrades')
+
+
+@dashboard_bp.route('/upgrades')
+@operator_required
+def upgrades_page():
+    """Operator upgrades management page."""
+    policies = [p.to_dict() for p in
+                UpgradePolicy.query.order_by(UpgradePolicy.created_at.desc()).all()]
+
+    recent_runs = [r.to_dict() for r in
+                   UpgradeRun.query.order_by(UpgradeRun.created_at.desc()).limit(30).all()]
+
+    user_suites = [s.to_dict() for s in
+                   TestSuite.query.filter(
+                       or_(TestSuite.created_by == current_user.id, TestSuite.shared == True)
+                   ).order_by(TestSuite.name).all()]
+
+    user_templates = [t.to_dict() for t in
+                      Template.query.filter(
+                          or_(Template.created_by == current_user.id, Template.shared == True)
+                      ).order_by(Template.name).all()]
+
+    return render_template('upgrades.html',
+                           policies=policies,
+                           recent_runs=recent_runs,
+                           user_suites=user_suites,
+                           user_templates=user_templates,
+                           active_page='upgrades')
 
 
 @dashboard_bp.route('/report/<filename>')

@@ -1,0 +1,406 @@
+{% extends "base.html" %}
+
+{% block title %}Test Suites - CNV HealthCrew AI{% endblock %}
+
+{% block breadcrumb %}
+<span>›</span>
+<a href="/suites">Test Suites</a>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.suites-container { display:flex; gap:24px; padding:24px; max-width:1400px; margin:0 auto; }
+.suites-sidebar { width:280px; flex-shrink:0; }
+.suites-main { flex:1; min-width:0; }
+.suite-card { background:var(--bg-card); border:1px solid var(--border); border-radius:12px; padding:16px; margin-bottom:12px; cursor:pointer; transition:border-color 0.2s; }
+.suite-card:hover, .suite-card.active { border-color:var(--accent); }
+.suite-card h3 { margin:0 0 4px 0; font-size:14px; display:flex; align-items:center; gap:8px; }
+.suite-card .meta { font-size:12px; color:var(--text-secondary); }
+.section-title { font-size:13px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-secondary); margin:20px 0 10px 0; }
+.builder-panel { background:var(--bg-card); border:1px solid var(--border); border-radius:12px; padding:20px; }
+.builder-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
+.builder-header h2 { margin:0; font-size:18px; }
+.item-row { background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:12px 16px; margin-bottom:8px; display:flex; align-items:center; gap:12px; }
+.item-row .item-num { width:28px; height:28px; border-radius:50%; background:var(--accent); color:white; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; flex-shrink:0; }
+.item-row .item-info { flex:1; min-width:0; }
+.item-row .item-name { font-weight:600; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.item-row .item-meta { font-size:12px; color:var(--text-secondary); }
+.item-row .item-actions { display:flex; gap:4px; flex-shrink:0; }
+.item-row .item-actions button { background:none; border:none; cursor:pointer; padding:4px 8px; border-radius:4px; font-size:14px; }
+.item-row .item-actions button:hover { background:var(--bg-secondary); }
+.btn-sm { padding:6px 14px; font-size:12px; border-radius:6px; border:1px solid var(--border); background:var(--bg); color:var(--text-primary); cursor:pointer; }
+.btn-sm:hover { background:var(--bg-secondary); }
+.btn-primary { background:var(--accent); color:white; border-color:var(--accent); }
+.btn-primary:hover { opacity:0.9; }
+.btn-danger { color:var(--danger); }
+.btn-danger:hover { background:rgba(220,53,69,0.1); }
+.empty-state { text-align:center; padding:48px 24px; color:var(--text-secondary); }
+.empty-state .empty-icon { font-size:48px; margin-bottom:12px; }
+.empty-state p { margin:8px 0; }
+.modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:1000; align-items:center; justify-content:center; }
+.modal-overlay.show { display:flex; }
+.modal { background:var(--bg-card); border-radius:12px; padding:24px; width:90%; max-width:600px; max-height:80vh; overflow-y:auto; }
+.modal h3 { margin:0 0 16px 0; }
+.modal input, .modal textarea, .modal select { width:100%; padding:8px 12px; border:1px solid var(--border); border-radius:6px; background:var(--bg); color:var(--text-primary); margin-bottom:12px; box-sizing:border-box; font-family:inherit; }
+.modal label { display:block; font-size:13px; font-weight:600; margin-bottom:4px; }
+.modal .modal-actions { display:flex; gap:8px; justify-content:flex-end; margin-top:16px; }
+.template-picker { display:grid; grid-template-columns:1fr 1fr; gap:8px; max-height:400px; overflow-y:auto; }
+.template-pick-item { border:1px solid var(--border); border-radius:8px; padding:10px 12px; cursor:pointer; transition:border-color 0.2s; }
+.template-pick-item:hover { border-color:var(--accent); }
+.template-pick-item.selected { border-color:var(--accent); background:rgba(var(--accent-rgb,74,144,226),0.1); }
+.template-pick-item .tpi-name { font-size:13px; font-weight:600; }
+.template-pick-item .tpi-desc { font-size:11px; color:var(--text-secondary); margin-top:2px; }
+.run-card { background:var(--bg-card); border:1px solid var(--border); border-radius:8px; padding:12px 16px; margin-bottom:8px; display:flex; align-items:center; gap:12px; text-decoration:none; color:inherit; }
+.run-card:hover { border-color:var(--accent); }
+.run-card .run-status { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+.run-card .run-status.completed { background:var(--success); }
+.run-card .run-status.running { background:var(--accent); animation:pulse 1.5s infinite; }
+.run-card .run-status.failed { background:var(--danger); }
+.run-card .run-status.aborted { background:var(--text-secondary); }
+.run-card .run-status.pending { background:var(--border); }
+.run-card .run-info { flex:1; min-width:0; }
+.run-card .run-name { font-weight:600; font-size:13px; }
+.run-card .run-meta { font-size:11px; color:var(--text-secondary); }
+.suite-form-row { display:flex; gap:12px; margin-bottom:12px; }
+.suite-form-row > * { flex:1; }
+.override-panel { background:var(--bg-secondary); border-radius:6px; padding:12px; margin-top:8px; }
+.override-row { display:flex; gap:8px; align-items:center; margin-bottom:6px; }
+.override-row label { width:140px; font-size:12px; flex-shrink:0; }
+.override-row input, .override-row select { flex:1; padding:4px 8px; border:1px solid var(--border); border-radius:4px; background:var(--bg); color:var(--text-primary); font-size:12px; }
+@keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="suites-container">
+    <div class="suites-sidebar">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+            <div class="section-title" style="margin:0;">My Suites</div>
+            <button class="btn-sm btn-primary" onclick="openNewSuiteModal()">+ New</button>
+        </div>
+        <div id="suitesList">
+            {% if suites %}
+            {% for s in suites %}
+            <div class="suite-card" data-id="{{ s.id }}" onclick="loadSuite({{ s.id }})">
+                <h3><span>{{ s.icon }}</span> {{ s.name }}</h3>
+                <div class="meta">{{ s.item_count }} item{{ 's' if s.item_count != 1 }} - {{ s.created_by }}</div>
+            </div>
+            {% endfor %}
+            {% else %}
+            <div style="text-align:center;padding:24px;color:var(--text-secondary);font-size:13px;">
+                No suites yet. Click "+ New" to create one.
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="section-title" style="margin-top:24px;">Recent Runs</div>
+        <div id="recentRuns">
+            {% if recent_runs %}
+            {% for r in recent_runs %}
+            <a href="/suite-run/{{ r.id }}" class="run-card">
+                <div class="run-status {{ r.status }}"></div>
+                <div class="run-info">
+                    <div class="run-name">{{ r.name }}</div>
+                    <div class="run-meta">{{ r.completed_items }}/{{ r.total_items }} items - {{ r.started_at }}</div>
+                </div>
+            </a>
+            {% endfor %}
+            {% else %}
+            <div style="text-align:center;padding:16px;color:var(--text-secondary);font-size:12px;">No runs yet</div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="suites-main">
+        <div id="emptyState" class="builder-panel empty-state" {% if suites %}style="display:none;"{% endif %}>
+            <div class="empty-icon">📦</div>
+            <p style="font-size:16px;font-weight:600;">Test Suites</p>
+            <p>Create a suite to run multiple tests sequentially with custom parameters.</p>
+            <button class="btn-sm btn-primary" style="margin-top:12px;padding:10px 24px;font-size:14px;" onclick="openNewSuiteModal()">Create Your First Suite</button>
+        </div>
+
+        <div id="builderPanel" class="builder-panel" style="display:none;">
+            <div class="builder-header">
+                <h2 id="builderTitle">Suite Builder</h2>
+                <div style="display:flex;gap:8px;">
+                    <button class="btn-sm" onclick="openAddItemModal()">+ Add Template</button>
+                    <button class="btn-sm btn-primary" id="runSuiteBtn" onclick="runCurrentSuite()">Run Suite</button>
+                    <button class="btn-sm" onclick="saveSuite()">Save</button>
+                    <button class="btn-sm btn-danger" onclick="deleteSuite()">Delete</button>
+                </div>
+            </div>
+            <div class="suite-form-row">
+                <div>
+                    <label style="font-size:12px;color:var(--text-secondary);">Suite Name</label>
+                    <input type="text" id="suiteName" placeholder="Suite name" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text-primary);width:100%;box-sizing:border-box;">
+                </div>
+                <div>
+                    <label style="font-size:12px;color:var(--text-secondary);">Description</label>
+                    <input type="text" id="suiteDesc" placeholder="Optional description" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text-primary);width:100%;box-sizing:border-box;">
+                </div>
+            </div>
+            <div style="display:flex;gap:16px;margin-bottom:16px;font-size:13px;">
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+                    <input type="checkbox" id="suiteStopOnFail" checked> Stop on failure
+                </label>
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+                    <input type="checkbox" id="suiteShared"> Share with team
+                </label>
+            </div>
+            <div id="suiteItems"></div>
+            <div id="noItems" style="text-align:center;padding:32px;color:var(--text-secondary);font-size:13px;">
+                No items yet. Click "+ Add Template" to add tests to this suite.
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- New Suite Modal -->
+<div class="modal-overlay" id="newSuiteModal">
+    <div class="modal">
+        <h3>Create New Suite</h3>
+        <label>Name</label>
+        <input type="text" id="newSuiteName" placeholder="e.g. Full Regression Suite">
+        <label>Description</label>
+        <textarea id="newSuiteDesc" rows="2" placeholder="Optional description"></textarea>
+        <div class="modal-actions">
+            <button class="btn-sm" onclick="closeModal('newSuiteModal')">Cancel</button>
+            <button class="btn-sm btn-primary" onclick="createSuite()">Create</button>
+        </div>
+    </div>
+</div>
+
+<!-- Add Item Modal -->
+<div class="modal-overlay" id="addItemModal">
+    <div class="modal" style="max-width:700px;">
+        <h3>Add Templates to Suite</h3>
+        <input type="text" id="templateSearch" placeholder="Search templates..." oninput="filterTemplates(this.value)" style="margin-bottom:12px;">
+        <div class="template-picker" id="templatePicker">
+            {% for t in user_templates %}
+            <div class="template-pick-item" data-id="{{ t.id }}" data-name="{{ t.name }}" onclick="toggleTemplatePick(this)">
+                <div class="tpi-name">{{ t.icon }} {{ t.name }}</div>
+                <div class="tpi-desc">{{ t.description or 'No description' }}</div>
+            </div>
+            {% endfor %}
+        </div>
+        <div class="modal-actions">
+            <button class="btn-sm" onclick="closeModal('addItemModal')">Cancel</button>
+            <button class="btn-sm btn-primary" onclick="addSelectedTemplates()">Add Selected</button>
+        </div>
+    </div>
+</div>
+
+<!-- Override Modal -->
+<div class="modal-overlay" id="overrideModal">
+    <div class="modal">
+        <h3 id="overrideTitle">Edit Parameters</h3>
+        <div id="overrideFields"></div>
+        <div class="modal-actions">
+            <button class="btn-sm" onclick="closeModal('overrideModal')">Cancel</button>
+            <button class="btn-sm btn-primary" onclick="applyOverrides()">Apply</button>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+const ALL_TEMPLATES = {{ user_templates | tojson }};
+let currentSuiteId = null;
+let currentItems = [];
+
+function openNewSuiteModal() { document.getElementById('newSuiteModal').classList.add('show'); document.getElementById('newSuiteName').focus(); }
+function closeModal(id) { document.getElementById(id).classList.remove('show'); }
+
+function createSuite() {
+    const name = document.getElementById('newSuiteName').value.trim();
+    if (!name) return alert('Name is required');
+    fetch('/api/suites', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({name, description: document.getElementById('newSuiteDesc').value.trim(), items:[]})
+    }).then(r => r.json()).then(s => {
+        if (s.error) return alert(s.error);
+        closeModal('newSuiteModal');
+        location.reload();
+    });
+}
+
+function loadSuite(id) {
+    document.querySelectorAll('.suite-card').forEach(c => c.classList.remove('active'));
+    const card = document.querySelector(`.suite-card[data-id="${id}"]`);
+    if (card) card.classList.add('active');
+
+    fetch(`/api/suites/${id}`).then(r => r.json()).then(s => {
+        if (s.error) return alert(s.error);
+        currentSuiteId = s.id;
+        currentItems = s.items || [];
+        document.getElementById('suiteName').value = s.name;
+        document.getElementById('suiteDesc').value = s.description;
+        document.getElementById('suiteStopOnFail').checked = s.stop_on_failure;
+        document.getElementById('suiteShared').checked = s.shared;
+        document.getElementById('builderTitle').textContent = s.icon + ' ' + s.name;
+        document.getElementById('emptyState').style.display = 'none';
+        document.getElementById('builderPanel').style.display = '';
+        renderItems();
+    });
+}
+
+function renderItems() {
+    const container = document.getElementById('suiteItems');
+    const noItems = document.getElementById('noItems');
+    if (!currentItems.length) {
+        container.innerHTML = '';
+        noItems.style.display = '';
+        return;
+    }
+    noItems.style.display = 'none';
+    container.innerHTML = currentItems.map((item, idx) => {
+        const cfg = item.config || {};
+        const mode = cfg.scenario_mode || cfg.task_type || 'health_check';
+        const tests = (cfg.scenario_tests || cfg._checks || cfg.checks || []);
+        const meta = mode + (tests.length ? ` - ${tests.length} test${tests.length!==1?'s':''}` : '');
+        return `<div class="item-row">
+            <div class="item-num">${idx+1}</div>
+            <div class="item-info">
+                <div class="item-name">${item.template_name || 'Custom'}</div>
+                <div class="item-meta">${meta}</div>
+            </div>
+            <div class="item-actions">
+                <button title="Edit parameters" onclick="openOverrideModal(${idx})">✏️</button>
+                <button title="Move up" onclick="moveItem(${idx},-1)" ${idx===0?'disabled':''}>↑</button>
+                <button title="Move down" onclick="moveItem(${idx},1)" ${idx===currentItems.length-1?'disabled':''}>↓</button>
+                <button title="Remove" onclick="removeItem(${idx})" class="btn-danger">✕</button>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+function moveItem(idx, dir) {
+    const newIdx = idx + dir;
+    if (newIdx < 0 || newIdx >= currentItems.length) return;
+    [currentItems[idx], currentItems[newIdx]] = [currentItems[newIdx], currentItems[idx]];
+    renderItems();
+}
+
+function removeItem(idx) {
+    currentItems.splice(idx, 1);
+    renderItems();
+}
+
+function openAddItemModal() {
+    document.querySelectorAll('.template-pick-item').forEach(el => el.classList.remove('selected'));
+    document.getElementById('templateSearch').value = '';
+    filterTemplates('');
+    document.getElementById('addItemModal').classList.add('show');
+}
+
+function toggleTemplatePick(el) { el.classList.toggle('selected'); }
+
+function filterTemplates(q) {
+    q = q.toLowerCase();
+    document.querySelectorAll('.template-pick-item').forEach(el => {
+        el.style.display = el.dataset.name.toLowerCase().includes(q) ? '' : 'none';
+    });
+}
+
+function addSelectedTemplates() {
+    document.querySelectorAll('.template-pick-item.selected').forEach(el => {
+        const tid = parseInt(el.dataset.id);
+        const tpl = ALL_TEMPLATES.find(t => t.id === tid);
+        if (tpl) {
+            currentItems.push({
+                template_id: tpl.id,
+                template_name: tpl.name,
+                config: JSON.parse(JSON.stringify(tpl.config)),
+            });
+        }
+    });
+    closeModal('addItemModal');
+    renderItems();
+}
+
+let overrideIdx = -1;
+function openOverrideModal(idx) {
+    overrideIdx = idx;
+    const item = currentItems[idx];
+    const cfg = item.config || {};
+    document.getElementById('overrideTitle').textContent = 'Edit: ' + (item.template_name || 'Item ' + (idx+1));
+
+    const envVars = cfg.env_vars || {};
+    const envStr = typeof envVars === 'string' ? envVars : Object.entries(envVars).map(([k,v]) => `${k}=${v}`).join(',');
+
+    let html = '';
+    html += `<label>Run Name</label><input id="ov_run_name" value="${cfg.run_name || ''}">`;
+    html += `<label>Mode</label><select id="ov_mode"><option value="sanity" ${cfg.scenario_mode==='sanity'?'selected':''}>Sanity</option><option value="full" ${cfg.scenario_mode==='full'?'selected':''}>Full</option></select>`;
+    html += `<label>Timeout</label><input id="ov_timeout" value="${cfg.kb_timeout || ''}" placeholder="e.g. 2h, 30m">`;
+    html += `<label>Environment Variable Overrides</label><textarea id="ov_env_vars" rows="3" placeholder="KEY=value,KEY2=value2" style="font-family:monospace;font-size:12px;">${envStr}</textarea>`;
+    html += `<label>Server Host</label><input id="ov_server" value="${cfg.server_host || ''}" placeholder="Leave empty for default">`;
+
+    document.getElementById('overrideFields').innerHTML = html;
+    document.getElementById('overrideModal').classList.add('show');
+}
+
+function applyOverrides() {
+    if (overrideIdx < 0) return;
+    const cfg = currentItems[overrideIdx].config;
+    const runName = document.getElementById('ov_run_name').value.trim();
+    if (runName) cfg.run_name = runName;
+    cfg.scenario_mode = document.getElementById('ov_mode').value;
+    const timeout = document.getElementById('ov_timeout').value.trim();
+    if (timeout) cfg.kb_timeout = timeout;
+    const envStr = document.getElementById('ov_env_vars').value.trim();
+    if (envStr) cfg.env_vars = envStr;
+    const server = document.getElementById('ov_server').value.trim();
+    if (server) cfg.server_host = server;
+    else delete cfg.server_host;
+    closeModal('overrideModal');
+    renderItems();
+}
+
+function saveSuite() {
+    if (!currentSuiteId) return;
+    const data = {
+        name: document.getElementById('suiteName').value.trim(),
+        description: document.getElementById('suiteDesc').value.trim(),
+        stop_on_failure: document.getElementById('suiteStopOnFail').checked,
+        shared: document.getElementById('suiteShared').checked,
+        items: currentItems,
+    };
+    fetch(`/api/suites/${currentSuiteId}`, {
+        method:'PUT', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify(data)
+    }).then(r => r.json()).then(s => {
+        if (s.error) return alert(s.error);
+        document.getElementById('builderTitle').textContent = (s.icon||'📦') + ' ' + s.name;
+        const card = document.querySelector(`.suite-card[data-id="${currentSuiteId}"]`);
+        if (card) {
+            card.querySelector('h3').innerHTML = `<span>${s.icon||'📦'}</span> ${s.name}`;
+            card.querySelector('.meta').textContent = `${s.item_count} item${s.item_count!==1?'s':''} - ${s.created_by}`;
+        }
+    });
+}
+
+function deleteSuite() {
+    if (!currentSuiteId || !confirm('Delete this suite?')) return;
+    fetch(`/api/suites/${currentSuiteId}`, {method:'DELETE'}).then(r => r.json()).then(() => location.reload());
+}
+
+function runCurrentSuite() {
+    if (!currentSuiteId) return;
+    if (!currentItems.length) return alert('Add items to the suite first');
+    saveSuite();
+    setTimeout(() => {
+        fetch(`/api/suites/${currentSuiteId}/run`, {method:'POST'})
+            .then(r => r.json()).then(sr => {
+                if (sr.error) return alert(sr.error);
+                window.location.href = `/suite-run/${sr.id}`;
+            });
+    }, 300);
+}
+
+{% if suites %}
+loadSuite({{ suites[0].id }});
+{% endif %}
+</script>
+{% endblock %}

@@ -1,0 +1,176 @@
+{% extends "base.html" %}
+
+{% block title %}Suite Run: {{ suite_run.name }} - CNV HealthCrew AI{% endblock %}
+
+{% block breadcrumb %}
+<span>›</span>
+<a href="/suites">Test Suites</a>
+<span>›</span>
+<span>Run #{{ suite_run.id }}</span>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.sr-container { max-width:900px; margin:0 auto; padding:24px; }
+.sr-header { background:var(--bg-card); border:1px solid var(--border); border-radius:12px; padding:20px 24px; margin-bottom:20px; }
+.sr-header h1 { margin:0 0 8px 0; font-size:20px; display:flex; align-items:center; gap:10px; }
+.sr-header .sr-meta { font-size:13px; color:var(--text-secondary); display:flex; gap:16px; flex-wrap:wrap; }
+.sr-progress { background:var(--bg); border-radius:8px; height:8px; margin:16px 0 8px 0; overflow:hidden; }
+.sr-progress-bar { height:100%; border-radius:8px; transition:width 0.5s ease; }
+.sr-progress-bar.completed { background:var(--success); }
+.sr-progress-bar.running { background:var(--accent); }
+.sr-progress-bar.failed { background:var(--danger); }
+.sr-progress-bar.aborted { background:var(--text-secondary); }
+.sr-progress-text { font-size:12px; color:var(--text-secondary); }
+.sr-status { display:inline-flex; align-items:center; gap:6px; padding:4px 12px; border-radius:12px; font-size:12px; font-weight:600; }
+.sr-status.pending { background:rgba(128,128,128,0.15); color:var(--text-secondary); }
+.sr-status.running { background:rgba(74,144,226,0.15); color:var(--accent); }
+.sr-status.completed { background:rgba(40,167,69,0.15); color:var(--success); }
+.sr-status.failed { background:rgba(220,53,69,0.15); color:var(--danger); }
+.sr-status.aborted { background:rgba(128,128,128,0.15); color:var(--text-secondary); }
+.sr-items { background:var(--bg-card); border:1px solid var(--border); border-radius:12px; overflow:hidden; }
+.sr-item { display:flex; align-items:center; gap:14px; padding:14px 20px; border-bottom:1px solid var(--border); }
+.sr-item:last-child { border-bottom:none; }
+.sr-item.current { background:rgba(74,144,226,0.05); }
+.sr-item-num { width:30px; height:30px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:700; flex-shrink:0; }
+.sr-item-num.pending { background:var(--bg-secondary); color:var(--text-secondary); }
+.sr-item-num.running { background:var(--accent); color:white; animation:pulse 1.5s infinite; }
+.sr-item-num.success, .sr-item-num.unstable { background:var(--success); color:white; }
+.sr-item-num.failed { background:var(--danger); color:white; }
+.sr-item-num.skipped, .sr-item-num.aborted { background:var(--bg-secondary); color:var(--text-secondary); }
+.sr-item-info { flex:1; min-width:0; }
+.sr-item-name { font-weight:600; font-size:14px; }
+.sr-item-meta { font-size:12px; color:var(--text-secondary); margin-top:2px; }
+.sr-item-link { font-size:12px; }
+.sr-item-link a { color:var(--accent); text-decoration:none; }
+.sr-item-link a:hover { text-decoration:underline; }
+@keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
+.sr-actions { display:flex; gap:8px; margin-top:16px; }
+.btn-abort { padding:8px 18px; font-size:13px; border-radius:6px; border:1px solid var(--danger); background:none; color:var(--danger); cursor:pointer; }
+.btn-abort:hover { background:rgba(220,53,69,0.1); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="sr-container">
+    <div class="sr-header">
+        <h1>
+            <span>📦</span>
+            <span id="srName">{{ suite_run.name }}</span>
+            <span class="sr-status {{ suite_run.status }}" id="srStatus">{{ suite_run.status | capitalize }}</span>
+        </h1>
+        <div class="sr-meta">
+            <span>By {{ suite_run.created_by }}</span>
+            <span>Started {{ suite_run.started_at }}</span>
+            <span id="srFinished">{% if suite_run.finished_at %}Finished {{ suite_run.finished_at }}{% endif %}</span>
+        </div>
+        <div class="sr-progress">
+            <div class="sr-progress-bar {{ suite_run.status }}" id="srProgressBar"
+                 style="width:{{ (suite_run.completed_items / suite_run.total_items * 100) if suite_run.total_items > 0 else 0 }}%;"></div>
+        </div>
+        <div class="sr-progress-text" id="srProgressText">
+            {{ suite_run.completed_items }} of {{ suite_run.total_items }} items completed
+            {% if suite_run.stop_on_failure %} (stop on failure){% endif %}
+        </div>
+        <div class="sr-actions" id="srActions">
+            {% if suite_run.status in ('pending', 'running') %}
+            <button class="btn-abort" onclick="abortRun()">Abort Remaining</button>
+            {% endif %}
+            <a href="/suites" class="btn-sm" style="text-decoration:none;">Back to Suites</a>
+        </div>
+    </div>
+
+    <div class="sr-items" id="srItems">
+        {% for item in suite_run['items'] %}
+        {% set status = item.item_status or 'pending' %}
+        <div class="sr-item {% if suite_run.current_item_index == loop.index0 %}current{% endif %}">
+            <div class="sr-item-num {{ status }}">{{ loop.index }}</div>
+            <div class="sr-item-info">
+                <div class="sr-item-name">{{ item.template_name or 'Custom' }}</div>
+                <div class="sr-item-meta">
+                    {{ (item.config or {}).get('scenario_mode', (item.config or {}).get('task_type', '')) }}
+                    {% if item.error %} - {{ item.error }}{% endif %}
+                </div>
+            </div>
+            <div class="sr-item-link">
+                {% if item.build_number %}
+                <a href="/job/{{ item.build_number }}/console">Build #{{ item.build_number }}</a>
+                {% elif status == 'skipped' %}
+                <span style="color:var(--text-secondary);">Skipped</span>
+                {% elif status == 'pending' %}
+                <span style="color:var(--text-secondary);">Waiting</span>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const RUN_ID = {{ suite_run.id }};
+let isActive = {{ 'true' if suite_run.status in ('pending', 'running') else 'false' }};
+
+function pollStatus() {
+    if (!isActive) return;
+    fetch(`/api/suite-runs/${RUN_ID}`).then(r => r.json()).then(sr => {
+        if (sr.error) return;
+        document.getElementById('srStatus').className = 'sr-status ' + sr.status;
+        document.getElementById('srStatus').textContent = sr.status.charAt(0).toUpperCase() + sr.status.slice(1);
+
+        const pct = sr.total_items > 0 ? (sr.completed_items / sr.total_items * 100) : 0;
+        const bar = document.getElementById('srProgressBar');
+        bar.style.width = pct + '%';
+        bar.className = 'sr-progress-bar ' + sr.status;
+        document.getElementById('srProgressText').textContent =
+            `${sr.completed_items} of ${sr.total_items} items completed` +
+            (sr.stop_on_failure ? ' (stop on failure)' : '');
+
+        if (sr.finished_at) {
+            document.getElementById('srFinished').textContent = 'Finished ' + sr.finished_at;
+        }
+
+        const container = document.getElementById('srItems');
+        container.innerHTML = sr.items.map((item, idx) => {
+            const status = item.item_status || 'pending';
+            const cfg = item.config || {};
+            const mode = cfg.scenario_mode || cfg.task_type || '';
+            let linkHtml = '';
+            if (item.build_number) {
+                linkHtml = `<a href="/job/${item.build_number}/console">Build #${item.build_number}</a>`;
+            } else if (status === 'skipped') {
+                linkHtml = '<span style="color:var(--text-secondary);">Skipped</span>';
+            } else if (status === 'pending') {
+                linkHtml = '<span style="color:var(--text-secondary);">Waiting</span>';
+            }
+            return `<div class="sr-item ${sr.current_item_index===idx?'current':''}">
+                <div class="sr-item-num ${status}">${idx+1}</div>
+                <div class="sr-item-info">
+                    <div class="sr-item-name">${item.template_name || 'Custom'}</div>
+                    <div class="sr-item-meta">${mode}${item.error ? ' - ' + item.error : ''}</div>
+                </div>
+                <div class="sr-item-link">${linkHtml}</div>
+            </div>`;
+        }).join('');
+
+        if (sr.status !== 'pending' && sr.status !== 'running') {
+            isActive = false;
+            document.getElementById('srActions').innerHTML =
+                '<a href="/suites" class="btn-sm" style="text-decoration:none;">Back to Suites</a>';
+        }
+    });
+}
+
+function abortRun() {
+    if (!confirm('Abort remaining items in this suite run?')) return;
+    fetch(`/api/suite-runs/${RUN_ID}/abort`, {method:'POST'}).then(r => r.json()).then(sr => {
+        if (sr.error) return alert(sr.error);
+        isActive = false;
+        pollStatus();
+    });
+}
+
+if (isActive) setInterval(pollStatus, 3000);
+</script>
+{% endblock %}
