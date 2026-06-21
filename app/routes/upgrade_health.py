@@ -4,14 +4,12 @@ import logging
 import shlex
 import time
 
-from config.settings import Config
+from app.routes.upgrade_pre_checks import (
+    _ssh_run, _wait_cluster_operators_stable, _wait_nodes_ready,
+    OPERATOR_HEALTH_TIMEOUT, OPERATOR_HEALTH_POLL, SSH_HEALTH_TIMEOUT,
+)
 
 log = logging.getLogger(__name__)
-
-KUBECONFIG = Config.KUBECONFIG
-OPERATOR_HEALTH_TIMEOUT = 1800
-OPERATOR_HEALTH_POLL = 15
-SSH_HEALTH_TIMEOUT = 20
 
 _OPERATOR_CR_MAP = {
     'kubevirt-hyperconverged': {
@@ -35,12 +33,6 @@ _ODF_SUB_NAMES = {
     'odf-csi-addons-operator', 'odf-external-snapshotter-operator',
     'odf-prometheus-operator', 'recipe', 'rook-ceph-operator',
 }
-
-
-def _ssh_run(client, cmd, timeout=60):
-    from app.ssh_utils import ssh_exec
-    stdout, stderr = ssh_exec(client, cmd, kubeconfig=KUBECONFIG, timeout=timeout)
-    return stdout, stderr
 
 
 def _is_storage_operator(sub_name, namespace):
@@ -346,48 +338,6 @@ def _wait_ceph_healthy(client, namespace, run, step_label):
 
 
 MCP_TIMEOUT = 3600
-NODE_TIMEOUT = 600
-
-
-def _wait_nodes_ready(client, run, step_label):
-    """Wait until all nodes report Ready status (post-MCP reboot)."""
-    from app.models import db
-
-    start = time.time()
-    while time.time() - start < NODE_TIMEOUT:
-        out, _ = _ssh_run(
-            client, "oc get nodes --no-headers 2>/dev/null",
-            timeout=SSH_HEALTH_TIMEOUT,
-        )
-        if out:
-            not_ready = []
-            for line in out.splitlines():
-                parts = line.split()
-                if len(parts) >= 2:
-                    name, status = parts[0], parts[1]
-                    if 'Ready' not in status or 'NotReady' in status:
-                        not_ready.append(f"{name}={status}")
-
-            if not not_ready:
-                run.append_log(f"{step_label}   All nodes Ready", level='ok')
-                db.session.commit()
-                return True
-
-            msg = ', '.join(not_ready[:3])
-            if len(not_ready) > 3:
-                msg += f" +{len(not_ready) - 3} more"
-            run.append_log(
-                f"{step_label}   Nodes not ready: {msg}", level='wait'
-            )
-            db.session.commit()
-        time.sleep(15)
-
-    run.append_log(
-        f"{step_label}   Node readiness timeout after {NODE_TIMEOUT}s",
-        level='fail',
-    )
-    db.session.commit()
-    return False
 
 
 def _wait_mcp_stable(client, run, step_label):
@@ -464,41 +414,3 @@ def _wait_mcp_stable(client, run, step_label):
     return False
 
 
-def _wait_cluster_operators_stable(client, run, step_label):
-    """Verify no ClusterOperators are degraded or progressing."""
-    from app.models import db
-
-    start = time.time()
-    while time.time() - start < OPERATOR_HEALTH_TIMEOUT:
-        out, _ = _ssh_run(client, "oc get co --no-headers 2>/dev/null", timeout=OPERATOR_HEALTH_POLL)
-        if out:
-            issues = []
-            for line in out.splitlines():
-                parts = line.split()
-                if len(parts) >= 5:
-                    name, available, progressing, degraded = (
-                        parts[0], parts[2], parts[3], parts[4]
-                    )
-                    if available == 'False':
-                        issues.append(f"{name}=Unavailable")
-                    elif degraded == 'True':
-                        issues.append(f"{name}=Degraded")
-                    elif progressing == 'True':
-                        issues.append(f"{name}=Progressing")
-
-            if not issues:
-                run.append_log(f"{step_label}   All ClusterOperators stable", level='ok')
-                db.session.commit()
-                return True
-
-            summary = ', '.join(issues[:3])
-            if len(issues) > 3:
-                summary += f" +{len(issues) - 3} more"
-            run.append_log(f"{step_label}   COs not stable: {summary}", level='wait')
-            db.session.commit()
-
-        time.sleep(OPERATOR_HEALTH_POLL)
-
-    run.append_log(f"{step_label}   ClusterOperator stability timeout", level='fail')
-    db.session.commit()
-    return False

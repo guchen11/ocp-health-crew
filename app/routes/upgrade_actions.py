@@ -4,11 +4,9 @@ import logging
 import shlex
 import time
 
-from config.settings import Config
+from app.routes.upgrade_pre_checks import _ssh_run
 
 log = logging.getLogger(__name__)
-
-KUBECONFIG = Config.KUBECONFIG
 
 # Shared upgrade timing constants
 CVO_POLL_INTERVAL = 30
@@ -17,12 +15,6 @@ OLM_POLL_INTERVAL = 15
 OLM_TIMEOUT = 1800
 SSH_CMD_TIMEOUT = 30
 SSH_CMD_TIMEOUT_LONG = 60
-
-
-def _ssh_run(client, cmd, timeout=60):
-    from app.ssh_utils import ssh_exec
-    stdout, stderr = ssh_exec(client, cmd, kubeconfig=KUBECONFIG, timeout=timeout)
-    return stdout, stderr
 
 
 def build_upgrade_tag(run):
@@ -204,10 +196,12 @@ def _run_single_action(run, action_def, tag, app, step_label):
 
 
 def _pre_test_health_gate(run, step_label):
-    """Block test actions until cluster operators and storage are stable."""
+    """Block test actions until cluster operators, storage, virtctl, and namespaces are ready."""
     from app.models import db
-    from app.routes.upgrade_health import (
-        _wait_cluster_operators_stable, _wait_ceph_healthy,
+    from app.routes.upgrade_health import _wait_ceph_healthy
+    from app.routes.upgrade_pre_checks import (
+        _wait_cluster_operators_stable, sync_virtctl_version,
+        cleanup_stale_test_namespaces,
     )
     from app.ssh_utils import create_ssh_client
 
@@ -234,6 +228,12 @@ def _pre_test_health_gate(run, step_label):
             run.append_log(f"{step_label} Health gate failed: storage not healthy", level='fail')
             db.session.commit()
             return False
+
+        if not sync_virtctl_version(client, run, step_label):
+            run.append_log(f"{step_label} Health gate: virtctl sync failed (non-blocking)", level='warn')
+            db.session.commit()
+
+        cleanup_stale_test_namespaces(client, run, step_label)
 
         run.append_log(f"{step_label} Health gate passed: cluster stable", level='ok')
         db.session.commit()

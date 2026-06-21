@@ -199,25 +199,30 @@ def _run_pipeline(upgrade_run_id, app):
             run.append_log(f"Failed at step {idx+1}/{len(enabled)} ({duration_str})", level='fail')
         db.session.commit()
 
-        try:
-            from app.routes.upgrade_report import generate_upgrade_report
-            report_file = generate_upgrade_report(run)
-            run.report_file = report_file
-            run.append_log(f"Report saved: {report_file}", level='ok')
-            db.session.commit()
-        except Exception as exc:
-            run.append_log(f"Report generation failed: {exc}", level='warn')
-            db.session.commit()
-            log.error("Report generation failed: %s", exc)
+        had_upgrades = any(u.get('namespace') for u in rd.get('upgrades', []))
+        if had_upgrades:
+            try:
+                from app.routes.upgrade_report import generate_upgrade_report
+                report_file = generate_upgrade_report(run)
+                run.report_file = report_file
+                run.append_log(f"Report saved: {report_file}", level='ok')
+                db.session.commit()
+            except Exception as exc:
+                run.append_log(f"Report generation failed: {exc}", level='warn')
+                db.session.commit()
+                log.error("Report generation failed: %s", exc)
 
-        try:
-            _send_pipeline_email(run, enabled, all_ok, duration_str)
-            run.append_log("Email report sent", level='ok')
+            try:
+                _send_pipeline_email(run, enabled, all_ok, duration_str)
+                run.append_log("Email report sent", level='ok')
+                db.session.commit()
+            except Exception as exc:
+                run.append_log(f"Email send failed: {exc}", level='warn')
+                db.session.commit()
+                log.error("Pipeline email failed: %s", exc)
+        else:
+            run.append_log("No upgrades performed, skipping report and email", level='skip')
             db.session.commit()
-        except Exception as exc:
-            run.append_log(f"Email send failed: {exc}", level='warn')
-            db.session.commit()
-            log.error("Pipeline email failed: %s", exc)
 
 
 def _send_pipeline_email(run, steps, success, duration):
