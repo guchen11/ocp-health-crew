@@ -241,7 +241,7 @@ BUILTIN_TEMPLATES = [
             'per_host_density.vmMemory': '256Mi',
             'per_host_density.vmCpuRequest': '100m',
             'per_host_density.sleepBetweenPhases': '1m',
-            'maxWaitTimeout': '30m',
+            'maxWaitTimeout': '45m',
         },
     ),
     _tpl(
@@ -276,7 +276,7 @@ BUILTIN_TEMPLATES = [
             'per_host_density.vmMemory': '256Mi',
             'per_host_density.vmCpuRequest': '100m',
             'per_host_density.sleepBetweenPhases': '1m',
-            'maxWaitTimeout': '30m',
+            'maxWaitTimeout': '45m',
         },
     ),
     _tpl(
@@ -310,7 +310,7 @@ BUILTIN_TEMPLATES = [
             'per_host_density.max_ssh_retries': '60',
             'per_host_density.vmMemory': '256Mi',
             'per_host_density.vmCpuRequest': '100m',
-            'maxWaitTimeout': '30m',
+            'maxWaitTimeout': '45m',
         },
     ),
     _tpl(
