@@ -14,6 +14,8 @@ login_manager.login_view = 'auth.login'
 login_manager.login_message = 'Please log in to access the dashboard.'
 login_manager.login_message_category = 'info'
 
+_startup_recovery_done = False
+
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -76,13 +78,15 @@ def create_app(config_object=None):
         # Seed built-in shared templates (idempotent)
         _seed_builtin_templates()
 
-        # SEC-005: recover stale suite runs from prior crash/restart
-        from app.routes.suite_executor import recover_stale_runs
-        recover_stale_runs(app)
+        global _startup_recovery_done
+        if not _startup_recovery_done:
+            _startup_recovery_done = True
 
-        # Recover stale upgrade runs
-        from app.routes.upgrade_executor import recover_stale_upgrade_runs
-        recover_stale_upgrade_runs(app)
+            from app.routes.suite_executor import recover_stale_runs
+            recover_stale_runs(app)
+
+            from app.routes.upgrade_executor import recover_stale_upgrade_runs
+            recover_stale_upgrade_runs(app)
     
     # Register blueprints
     from app.routes import dashboard_bp
