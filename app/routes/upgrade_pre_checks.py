@@ -13,6 +13,8 @@ SSH_HEALTH_TIMEOUT = 20
 NODE_TIMEOUT = 600
 OPERATOR_HEALTH_TIMEOUT = 1800
 OPERATOR_HEALTH_POLL = 15
+NS_CLEANUP_TIMEOUT = 600
+NS_CLEANUP_POLL = 15
 
 
 def _ssh_run(client, cmd, timeout=60):
@@ -165,7 +167,56 @@ def cleanup_stale_test_namespaces(client, run, step_label):
         ns_q = shlex.quote(ns)
         _ssh_run(client, f"oc delete ns {ns_q} --wait=false 2>/dev/null", timeout=SSH_HEALTH_TIMEOUT)
 
-    run.append_log(f"{step_label}   Initiated deletion of {len(stale)} stale namespace(s)", level='ok')
+    run.append_log(
+        f"{step_label}   Initiated deletion of {len(stale)} stale namespace(s), waiting...",
+        level='wait',
+    )
+    db.session.commit()
+
+    return _wait_namespaces_gone(client, stale, run, step_label)
+
+
+def _wait_namespaces_gone(client, namespaces, run, step_label):
+    """Poll until all namespaces are fully deleted or timeout."""
+    from app.models import db
+
+    start = time.time()
+    remaining = set(namespaces)
+
+    while remaining and time.time() - start < NS_CLEANUP_TIMEOUT:
+        time.sleep(NS_CLEANUP_POLL)
+        ns_out, _ = _ssh_run(
+            client,
+            "oc get ns --no-headers 2>/dev/null | awk '{print $1}'",
+            timeout=SSH_HEALTH_TIMEOUT,
+        )
+        live = set()
+        if ns_out:
+            live = {ns.strip() for ns in ns_out.strip().splitlines() if ns.strip()}
+        remaining = remaining & live
+
+        if remaining:
+            elapsed = int(time.time() - start)
+            run.append_log(
+                f"{step_label}   {len(remaining)} namespace(s) still terminating ({elapsed}s)...",
+                level='wait',
+            )
+            db.session.commit()
+
+    if remaining:
+        elapsed = int(time.time() - start)
+        run.append_log(
+            f"{step_label}   Namespace cleanup timed out after {elapsed}s, "
+            f"{len(remaining)} still exist: {', '.join(sorted(remaining))}",
+            level='warn',
+        )
+        db.session.commit()
+        return True
+
+    elapsed = int(time.time() - start)
+    run.append_log(
+        f"{step_label}   All stale namespaces deleted ({elapsed}s)", level='ok',
+    )
     db.session.commit()
     return True
 
