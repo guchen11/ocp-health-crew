@@ -383,3 +383,10 @@ def serve_report_public(filename):
     """Alias for serve_report - kept for backward-compatible URLs."""
     return serve_report(filename)
 
+
+@dashboard_bp.route('/operators')
+@login_required
+def operators_page():
+    """Operator management dashboard."""
+    return render_template('operators.html', active_page='operators')
+

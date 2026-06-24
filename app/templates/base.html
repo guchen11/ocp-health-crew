@@ -111,6 +111,9 @@
                 <a href="/suites" {% if active_page == 'suites' %}class="active"{% endif %}>Test Suites</a>
                 <a href="/upgrades" {% if active_page == 'upgrades' %}class="active"{% endif %}>Upgrades</a>
                 {% endif %}
+                {% if current_user.is_authenticated and current_user.is_operator %}
+                <a href="/operators" {% if active_page == 'operators' %}class="active"{% endif %}>OCP Deployer</a>
+                {% endif %}
                 <a href="/settings" {% if active_page == 'settings' %}class="active"{% endif %}>Settings</a>
                 <a href="/perf-reports/" {% if active_page == 'perf-reports' %}class="active"{% endif %}>Perf Reports</a>
                 {% if current_user.is_authenticated and current_user.is_admin %}

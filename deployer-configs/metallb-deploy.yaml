@@ -1,0 +1,86 @@
+version: 0.0.0
+
+post_deploy:
+- bash:
+    command: |
+      cat <<'EOF' | oc apply -f -
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: metallb-system
+      ---
+      apiVersion: operators.coreos.com/v1
+      kind: OperatorGroup
+      metadata:
+        name: metallb-operator
+        namespace: metallb-system
+      spec: {}
+      ---
+      apiVersion: operators.coreos.com/v1alpha1
+      kind: Subscription
+      metadata:
+        name: metallb-operator
+        namespace: metallb-system
+      spec:
+        source: redhat-operators
+        sourceNamespace: openshift-marketplace
+        name: metallb-operator
+        channel: stable
+        installPlanApproval: Manual
+      EOF
+    timeout: 60
+
+- bash:
+    command: "for i in $(seq 1 60); do IP=$(oc get installplan -n metallb-system -o name 2>/dev/null | head -1); [ -n \"$IP\" ] && echo $IP && break; sleep 3; done"
+    timeout: 200
+
+- bash:
+    command: "oc get installplan -n metallb-system -o name | xargs -I{} oc patch {} -n metallb-system --type=merge -p '{\"spec\":{\"approved\":true}}'"
+    timeout: 60
+
+- bash:
+    command: "for i in $(seq 1 60); do CSV=$(oc get csv -n metallb-system -l operators.coreos.com/metallb-operator.metallb-system -o name 2>/dev/null | head -1); [ -n \"$CSV\" ] && echo $CSV && break; sleep 5; done"
+    timeout: 330
+
+- bash:
+    command: "oc wait --for=jsonpath='{.status.phase}'=Succeeded csv -n metallb-system -l operators.coreos.com/metallb-operator.metallb-system --timeout=300s"
+    timeout: 360
+
+- bash:
+    command: |
+      cat <<'EOF' | oc apply -f -
+      apiVersion: metallb.io/v1beta1
+      kind: MetalLB
+      metadata:
+        name: metallb
+        namespace: metallb-system
+      EOF
+    timeout: 30
+
+- bash:
+    command: "oc wait metallb metallb -n metallb-system --for=condition=Available --timeout=300s"
+    timeout: 360
+
+- bash:
+    command: |
+      cat <<'EOF' | oc apply -f -
+      apiVersion: metallb.io/v1beta1
+      kind: IPAddressPool
+      metadata:
+        name: metallb
+        namespace: metallb-system
+      spec:
+        addresses:
+          - 198.18.0.100-198.18.0.120
+        autoAssign: true
+      ---
+      apiVersion: metallb.io/v1beta1
+      kind: L2Advertisement
+      metadata:
+        name: l2advertisement
+        namespace: metallb-system
+      spec:
+        ipAddressPools:
+          - metallb
+      EOF
+    timeout: 30

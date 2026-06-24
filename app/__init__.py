@@ -73,6 +73,7 @@ def create_app(config_object=None):
     # Create database tables
     with app.app_context():
         from app.models import User, Build, Schedule, Host, AuditLog, CustomCheck, Template, TestSuite, SuiteRun, UpgradePolicy, UpgradeRun  # noqa: F811
+        from app.models_operators import OperatorInstall, DeployerConfig, DeployerRun  # noqa: F401
         db.create_all()
 
         # Seed built-in shared templates (idempotent)

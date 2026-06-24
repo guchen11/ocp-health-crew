@@ -1,0 +1,63 @@
+version: 0.0.0
+
+post_deploy:
+- bash:
+    command: |
+      cat <<'EOF' | oc apply -f -
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: openshift-nmstate
+      ---
+      apiVersion: operators.coreos.com/v1
+      kind: OperatorGroup
+      metadata:
+        name: openshift-nmstate
+        namespace: openshift-nmstate
+      spec:
+        targetNamespaces:
+          - openshift-nmstate
+      ---
+      apiVersion: operators.coreos.com/v1alpha1
+      kind: Subscription
+      metadata:
+        name: kubernetes-nmstate-operator
+        namespace: openshift-nmstate
+      spec:
+        source: redhat-operators
+        sourceNamespace: openshift-marketplace
+        name: kubernetes-nmstate-operator
+        channel: stable
+        installPlanApproval: Manual
+      EOF
+    timeout: 60
+
+- bash:
+    command: "for i in $(seq 1 60); do IP=$(oc get installplan -n openshift-nmstate -o name 2>/dev/null | head -1); [ -n \"$IP\" ] && echo $IP && break; sleep 3; done"
+    timeout: 200
+
+- bash:
+    command: "oc get installplan -n openshift-nmstate -o name | xargs -I{} oc patch {} -n openshift-nmstate --type=merge -p '{\"spec\":{\"approved\":true}}'"
+    timeout: 60
+
+- bash:
+    command: "for i in $(seq 1 60); do CSV=$(oc get csv -n openshift-nmstate -l operators.coreos.com/kubernetes-nmstate-operator.openshift-nmstate -o name 2>/dev/null | head -1); [ -n \"$CSV\" ] && echo $CSV && break; sleep 5; done"
+    timeout: 330
+
+- bash:
+    command: "oc wait --for=jsonpath='{.status.phase}'=Succeeded csv -n openshift-nmstate -l operators.coreos.com/kubernetes-nmstate-operator.openshift-nmstate --timeout=300s"
+    timeout: 360
+
+- bash:
+    command: |
+      cat <<'EOF' | oc apply -f -
+      apiVersion: nmstate.io/v1
+      kind: NMState
+      metadata:
+        name: nmstate
+      EOF
+    timeout: 30
+
+- bash:
+    command: "oc wait nmstate nmstate --for=jsonpath='{.status.conditions[?(@.type==\"Available\")].status}'=True --timeout=300s"
+    timeout: 360

@@ -1,0 +1,464 @@
+{% extends "base.html" %}
+{% block title %}OCP Deployer - CNV HealthCrew AI{% endblock %}
+{% block breadcrumb %}<span>›</span><a href="/operators">OCP Deployer</a>{% endblock %}
+
+{% block extra_css %}
+<style>
+.op-container { max-width:1400px; margin:0 auto; padding:24px; }
+.op-section { background:var(--bg-card); border:1px solid var(--border); border-radius:12px; padding:20px; margin-bottom:20px; }
+.op-section h2 { margin:0 0 16px 0; font-size:16px; display:flex; align-items:center; gap:8px; }
+.op-table { width:100%; border-collapse:collapse; font-size:13px; }
+.op-table th { text-align:left; padding:10px 12px; border-bottom:2px solid var(--border); font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-secondary); font-weight:600; }
+.op-table td { padding:12px 12px; border-bottom:1px solid var(--border); vertical-align:top; }
+.op-table tr:last-child td { border-bottom:none; }
+.op-table tr:hover { background:rgba(0,102,204,0.03); }
+.op-name-cell { display:flex; align-items:center; gap:12px; }
+.op-icon { width:36px; height:36px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:18px; flex-shrink:0; }
+.op-icon.rh { background:linear-gradient(135deg,#c00,#a00); color:white; }
+.op-icon.generic { background:var(--bg-secondary,#eee); color:var(--text-secondary); }
+.op-name-info { display:flex; flex-direction:column; }
+.op-name-info strong { font-size:13px; color:var(--accent); }
+.op-name-info .op-version { font-size:11px; color:var(--text-secondary); margin-top:2px; }
+.op-ns { display:inline-flex; align-items:center; gap:4px; padding:2px 8px; background:var(--bg-secondary,#f0f0f0); border-radius:4px; font-size:12px; font-family:monospace; }
+.op-badge { display:inline-block; padding:2px 10px; border-radius:10px; font-size:11px; font-weight:600; }
+.op-badge.green { background:rgba(40,167,69,0.15); color:var(--success); }
+.op-badge.yellow { background:rgba(255,193,7,0.15); color:#d4a005; }
+.op-badge.red { background:rgba(220,53,69,0.15); color:var(--danger); }
+.op-status-detail { font-size:11px; color:var(--text-secondary); margin-top:2px; }
+.op-apis { display:flex; flex-wrap:wrap; gap:4px; }
+.op-api-tag { font-size:10px; padding:1px 6px; background:var(--bg-secondary,#f0f0f0); border-radius:3px; font-family:monospace; color:var(--text-secondary); }
+.btn-sm { padding:6px 14px; font-size:12px; border-radius:6px; border:1px solid var(--border); background:var(--bg); color:var(--text-primary); cursor:pointer; }
+.btn-sm:hover { background:var(--bg-secondary); }
+.btn-primary { background:var(--accent); color:white; border-color:var(--accent); }
+.btn-primary:hover { opacity:0.9; }
+.btn-danger { color:var(--danger); border-color:var(--danger); }
+.btn-danger:hover { background:rgba(220,53,69,0.1); }
+.op-empty { text-align:center; padding:32px; color:var(--text-secondary); }
+.op-kebab { position:relative; }
+.op-kebab-btn { background:none; border:none; cursor:pointer; padding:4px 8px; font-size:18px; color:var(--text-secondary); border-radius:4px; line-height:1; }
+.op-kebab-btn:hover { background:var(--bg-secondary,#eee); }
+.op-kebab-menu { display:none; position:absolute; right:0; top:100%; background:var(--bg-card); border:1px solid var(--border); border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,0.15); min-width:160px; z-index:100; overflow:hidden; }
+.op-kebab-menu.show { display:block; }
+.op-kebab-menu a, .op-kebab-menu button { display:block; width:100%; text-align:left; padding:10px 14px; border:none; background:none; cursor:pointer; font-size:13px; color:var(--text-primary); text-decoration:none; }
+.op-kebab-menu a:hover, .op-kebab-menu button:hover { background:var(--bg-secondary,#f5f5f5); }
+.op-kebab-menu .danger { color:var(--danger); }
+.op-log { font-family:monospace; font-size:12px; background:var(--bg); border:1px solid var(--border); border-radius:6px; padding:12px; max-height:300px; overflow-y:auto; white-space:pre-wrap; word-break:break-all; margin-top:8px; display:none; }
+.op-log.show { display:block; }
+.spinner { display:inline-block; width:14px; height:14px; border:2px solid var(--border); border-top-color:var(--accent); border-radius:50%; animation:spin 0.8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+.modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:1000; align-items:center; justify-content:center; }
+.modal-overlay.show { display:flex; }
+.modal { background:var(--bg-card); border-radius:12px; padding:24px; width:90%; max-width:500px; max-height:80vh; overflow-y:auto; }
+.modal h3 { margin:0 0 16px 0; }
+.modal .actions { display:flex; gap:8px; justify-content:flex-end; margin-top:20px; }
+.catalog-item { border:1px solid var(--border); border-radius:8px; padding:14px; margin-bottom:10px; cursor:pointer; transition:border-color 0.2s; display:flex; align-items:center; gap:12px; }
+.catalog-item:hover { border-color:var(--accent); }
+.catalog-item.selected { border-color:var(--accent); background:rgba(74,144,226,0.05); }
+.catalog-item.installed { opacity:0.5; pointer-events:none; }
+.catalog-item h4 { margin:0 0 2px 0; font-size:14px; }
+.catalog-item p { margin:0; font-size:12px; color:var(--text-secondary); }
+.flash-msg { padding:10px 16px; border-radius:6px; margin-bottom:16px; font-size:13px; display:none; }
+.flash-msg.success { display:block; background:rgba(40,167,69,0.1); color:var(--success); border:1px solid rgba(40,167,69,0.3); }
+.flash-msg.error { display:block; background:rgba(220,53,69,0.1); color:var(--danger); border:1px solid rgba(220,53,69,0.3); }
+.op-hist-table td { vertical-align:middle; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="op-container">
+    <div id="flashMsg" class="flash-msg"></div>
+
+    <div class="op-section">
+        <h2>Installed Operators
+            <span style="margin-left:auto;display:flex;gap:8px;">
+                <button class="btn-sm" onclick="refreshOperators()">Refresh</button>
+            </span>
+        </h2>
+        <div id="operatorsList">
+            <div class="op-empty"><span class="spinner"></span> Loading operators...</div>
+        </div>
+    </div>
+
+    <div class="op-section">
+        <h2>Install / Remove History</h2>
+        <div id="operatorHistory">
+            <div class="op-empty">Loading...</div>
+        </div>
+    </div>
+
+    <div class="op-section">
+        <h2>Deployer Configs
+            {% if current_user.is_authenticated and current_user.is_operator %}
+            <span style="margin-left:auto;"><button class="btn-sm btn-primary" onclick="showConfigForm()">New Config</button></span>
+            {% endif %}
+        </h2>
+        <div id="configForm" style="display:none;margin-bottom:16px;padding:16px;border:1px solid var(--border);border-radius:8px;background:var(--bg-secondary,#f8f8f8);">
+            <input type="hidden" id="cfgId" value="">
+            <div style="margin-bottom:8px;">
+                <label style="font-size:12px;font-weight:600;">Name</label>
+                <input type="text" id="cfgName" placeholder="e.g. NMState Install" style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:4px;box-sizing:border-box;">
+            </div>
+            <div style="margin-bottom:8px;">
+                <label style="font-size:12px;font-weight:600;">Description (optional)</label>
+                <input type="text" id="cfgDesc" placeholder="Brief description" style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:4px;box-sizing:border-box;">
+            </div>
+            <div style="margin-bottom:8px;">
+                <label style="font-size:12px;font-weight:600;">YAML Config (post_deploy steps)</label>
+                <textarea id="cfgYaml" rows="12" placeholder="post_deploy:&#10;- bash:&#10;    command: oc get nodes&#10;    timeout: 30" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:4px;font-family:monospace;font-size:12px;box-sizing:border-box;resize:vertical;"></textarea>
+            </div>
+            <div style="display:flex;gap:8px;">
+                <button class="btn-sm btn-primary" onclick="saveConfig()">Save</button>
+                <button class="btn-sm" onclick="hideConfigForm()">Cancel</button>
+            </div>
+        </div>
+        <div id="deployerConfigs">
+            <div class="op-empty">Loading...</div>
+        </div>
+    </div>
+
+    <div class="op-section">
+        <h2>Deployer Run History</h2>
+        <div id="deployerRuns">
+            <div class="op-empty">Loading...</div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+var catalogData = {};
+var isOperator = {{ 'true' if current_user.is_authenticated and current_user.is_operator else 'false' }};
+
+function flash(msg, type) {
+    var el = document.getElementById('flashMsg');
+    el.textContent = msg;
+    el.className = 'flash-msg ' + type;
+    setTimeout(function() { el.className = 'flash-msg'; }, 5000);
+}
+
+function refreshOperators() {
+    var el = document.getElementById('operatorsList');
+    el.innerHTML = '<div class="op-empty"><span class="spinner"></span> Loading...</div>';
+    fetch('/api/operators').then(function(r) { return r.json(); }).then(function(data) {
+        if (data.error) { el.innerHTML = '<div class="op-empty">' + data.error + '</div>'; return; }
+        catalogData = data.catalog || {};
+        var ops = data.operators || [];
+        if (ops.length === 0) {
+            el.innerHTML = '<div class="op-empty">No operators found on cluster</div>';
+            return;
+        }
+        var html = '<table class="op-table"><thead><tr>'
+            + '<th>Name</th><th>Namespace</th><th>Managed Namespaces</th>'
+            + '<th>Status</th><th>Provided APIs</th><th></th>'
+            + '</tr></thead><tbody>';
+        ops.forEach(function(op) {
+            var badge = op.phase === 'Succeeded' ? 'green' : (op.phase === 'Installing' ? 'yellow' : 'red');
+            var iconCls = op.provider && op.provider.toLowerCase().indexOf('red hat') >= 0 ? 'rh' : 'generic';
+            var initials = (op.display_name || 'O').substring(0, 2).toUpperCase();
+            var apis = (op.provided_apis || []).slice(0, 3);
+            var apisHtml = apis.length > 0
+                ? apis.map(function(a) { return '<span class="op-api-tag">' + escH(a.split('.')[0]) + '</span>'; }).join('')
+                  + (op.provided_apis.length > 3 ? '<span class="op-api-tag">+' + (op.provided_apis.length - 3) + '</span>' : '')
+                : '<span style="color:var(--text-secondary);font-size:11px">-</span>';
+            var actionBtn = '';
+            if (isOperator && op.catalog_key) {
+                actionBtn = '<button class="btn-sm btn-danger" id="btn-uninstall-' + escH(op.catalog_key) + '" onclick="uninstallOperator(\'' + escH(op.catalog_key) + '\',\'' + escH(op.display_name) + '\',\'' + escH(op.namespace) + '\')">Uninstall</button>';
+            }
+            html += '<tr>'
+                + '<td><div class="op-name-cell">'
+                + '<div class="op-icon ' + iconCls + '">' + initials + '</div>'
+                + '<div class="op-name-info"><strong>' + escH(op.display_name) + '</strong>'
+                + '<span class="op-version">' + escH(op.version) + (op.provider ? ' provided by ' + escH(op.provider) : '') + '</span>'
+                + '</div></div></td>'
+                + '<td><span class="op-ns">' + escH(op.namespace) + '</span></td>'
+                + '<td>' + escH(op.managed_namespaces) + '</td>'
+                + '<td><span class="op-badge ' + badge + '">' + escH(op.phase) + '</span></td>'
+                + '<td><div class="op-apis">' + apisHtml + '</div></td>'
+                + '<td>' + actionBtn + '</td>'
+                + '</tr>';
+        });
+
+        if (isOperator) {
+            Object.keys(catalogData).forEach(function(key) {
+                var c = catalogData[key];
+                if (c.installed) return;
+                var params = c.parameters || [];
+                var isReady = c.cr !== null || key === 'oadp' ? false : true;
+                if (key !== 'oadp') isReady = true;
+                var paramsHtml = '';
+                if (params.length > 0) {
+                    paramsHtml = '<div class="op-params" id="params-' + key + '" style="margin-top:8px;padding:10px;background:var(--bg-secondary,#f8f8f8);border-radius:6px;">';
+                    params.forEach(function(p) {
+                        paramsHtml += '<div style="margin-bottom:8px;">'
+                            + '<label style="font-size:11px;font-weight:600;display:block;margin-bottom:2px;">' + escH(p.label) + '</label>';
+                        if (p.type === 'select') {
+                            paramsHtml += '<select id="param-' + key + '-' + p.id + '" style="width:100%;padding:4px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;">';
+                            (p.options || []).forEach(function(opt) {
+                                paramsHtml += '<option value="' + escH(opt) + '"' + (opt === p.default ? ' selected' : '') + '>' + escH(opt) + '</option>';
+                            });
+                            paramsHtml += '</select>';
+                        } else {
+                            paramsHtml += '<input type="text" id="param-' + key + '-' + p.id + '" value="' + escH(p.default || '') + '" placeholder="' + escH(p.description || '') + '" style="width:100%;padding:4px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;box-sizing:border-box;">';
+                        }
+                        if (p.description) paramsHtml += '<span style="font-size:10px;color:var(--text-secondary);">' + escH(p.description) + '</span>';
+                        paramsHtml += '</div>';
+                    });
+                    paramsHtml += '</div>';
+                }
+                var btnOnclick = params.length > 0
+                    ? 'toggleParams(\'' + key + '\')'
+                    : 'installDirect(\'' + key + '\',{})';
+                var btnDisabled = !isReady ? ' disabled' : '';
+                var btnTitle = !isReady ? ' title="Not yet configured"' : '';
+                html += '<tr style="opacity:' + (isReady ? '0.7' : '0.4') + ';background:rgba(40,167,69,0.02)">'
+                    + '<td><div class="op-name-cell">'
+                    + '<div class="op-icon generic">' + (c.display || 'O').substring(0, 2).toUpperCase() + '</div>'
+                    + '<div class="op-name-info"><strong>' + escH(c.display) + '</strong>'
+                    + '<span class="op-version">' + escH(c.description) + '</span>'
+                    + '</div></div></td>'
+                    + '<td><span class="op-ns">' + escH(c.namespace) + '</span></td>'
+                    + '<td>-</td>'
+                    + '<td><span class="op-badge gray">Not installed</span></td>'
+                    + '<td>-</td>'
+                    + '<td><button class="btn-sm btn-primary" id="btn-install-' + key + '"' + btnDisabled + btnTitle + ' onclick="' + btnOnclick + '">Install</button></td>'
+                    + '</tr>';
+                if (params.length > 0) {
+                    html += '<tr id="params-row-' + key + '" style="display:none;"><td colspan="6">' + paramsHtml
+                        + '<button class="btn-sm btn-primary" style="margin-top:6px;" onclick="installWithParams(\'' + key + '\')">Install with parameters</button>'
+                        + ' <button class="btn-sm" onclick="toggleParams(\'' + key + '\')">Cancel</button>'
+                        + '</td></tr>';
+                }
+            });
+        }
+
+        html += '</tbody></table>';
+        el.innerHTML = html;
+    }).catch(function() {
+        el.innerHTML = '<div class="op-empty">Failed to load operators</div>';
+    });
+    loadHistory();
+}
+
+function uninstallOperator(catKey, displayName, ns) {
+    if (!confirm('Uninstall ' + displayName + '?\n\nThis will delete the operator, CRDs, and namespace (' + ns + '). This action cannot be undone.')) return;
+    var btn = document.getElementById('btn-uninstall-' + catKey);
+    if (btn) { btn.disabled = true; btn.textContent = 'Removing...'; }
+    fetch('/api/operators/uninstall', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({operator_key: catKey})
+    }).then(function(r) { return r.json(); }).then(function(data) {
+        if (data.error) { flash(data.error, 'error'); if (btn) { btn.disabled = false; btn.textContent = 'Uninstall'; } return; }
+        flash(data.message, 'success');
+        if (data.id) pollStatus(data.id);
+        loadHistory();
+    }).catch(function() { flash('Request failed', 'error'); if (btn) { btn.disabled = false; btn.textContent = 'Uninstall'; } });
+}
+
+function installDirect(catKey, params) {
+    var btn = document.getElementById('btn-install-' + catKey);
+    if (btn) { btn.disabled = true; btn.textContent = 'Installing...'; }
+    fetch('/api/operators/install', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({operator_key: catKey, parameters: params || {}})
+    }).then(function(r) { return r.json(); }).then(function(data) {
+        if (data.error) { flash(data.error, 'error'); if (btn) { btn.disabled = false; btn.textContent = 'Install'; } return; }
+        flash(data.message, 'success');
+        if (data.id) pollStatus(data.id);
+        loadHistory();
+    }).catch(function() { flash('Request failed', 'error'); if (btn) { btn.disabled = false; btn.textContent = 'Install'; } });
+}
+
+function toggleParams(key) {
+    var row = document.getElementById('params-row-' + key);
+    if (row) row.style.display = row.style.display === 'none' ? '' : 'none';
+}
+
+function installWithParams(key) {
+    var params = {};
+    var cat = catalogData[key];
+    (cat.parameters || []).forEach(function(p) {
+        var el = document.getElementById('param-' + key + '-' + p.id);
+        if (el) params[p.id] = el.value;
+    });
+    var btn = document.getElementById('btn-install-' + key);
+    if (btn) { btn.disabled = true; btn.textContent = 'Installing...'; }
+    var paramBtn = document.querySelector('#params-row-' + key + ' .btn-primary');
+    if (paramBtn) { paramBtn.disabled = true; paramBtn.textContent = 'Installing...'; }
+    installDirect(key, params);
+}
+
+function loadHistory() {
+    fetch('/api/operators/history').then(function(r) { return r.json(); }).then(function(records) {
+        var el = document.getElementById('operatorHistory');
+        if (!records || records.length === 0) {
+            el.innerHTML = '<div class="op-empty">No install/remove history yet</div>';
+            return;
+        }
+        var html = '<table class="op-table op-hist-table"><thead><tr><th>Operator</th><th>Status</th><th>By</th><th>Started</th><th>Actions</th></tr></thead><tbody>';
+        records.forEach(function(r) {
+            var badge = {ready:'green', removed:'gray', installing:'yellow', removing:'yellow', failed:'red', pending:'blue'}[r.status] || 'gray';
+            html += '<tr><td><strong>' + escH(r.display_name) + '</strong><br><code style="font-size:11px">' + escH(r.namespace) + '</code></td>'
+                  + '<td><span class="op-badge ' + badge + '">' + escH(r.status) + '</span>'
+                  + (r.version ? ' v' + escH(r.version) : '') + '</td>'
+                  + '<td>' + escH(r.installed_by) + '</td>'
+                  + '<td>' + escH(r.started_at) + '</td>'
+                  + '<td style="display:flex;gap:6px;align-items:center;">'
+                  + '<button class="btn-sm" onclick="toggleLog(' + r.id + ')">Log</button>'
+                  + '</td></tr>';
+            html += '<tr><td colspan="5"><div class="op-log" id="log-' + r.id + '">' + escH(r.log) + '</div></td></tr>';
+        });
+        html += '</tbody></table>';
+        el.innerHTML = html;
+        records.forEach(function(r) {
+            if (r.status === 'installing' || r.status === 'removing') pollStatus(r.id);
+        });
+    }).catch(function() {
+        document.getElementById('operatorHistory').innerHTML = '<div class="op-empty">Failed to load history</div>';
+    });
+}
+
+function toggleLog(id) {
+    var el = document.getElementById('log-' + id);
+    if (el) el.classList.toggle('show');
+}
+
+function pollStatus(id) {
+    var interval = setInterval(function() {
+        fetch('/api/operators/' + id + '/status').then(function(r) { return r.json(); }).then(function(data) {
+            if (data.status === 'ready' || data.status === 'removed' || data.status === 'failed') {
+                clearInterval(interval);
+                refreshOperators();
+            }
+            var logEl = document.getElementById('log-' + id);
+            if (logEl) { logEl.textContent = data.log || ''; logEl.classList.add('show'); logEl.scrollTop = logEl.scrollHeight; }
+        }).catch(function() { clearInterval(interval); });
+    }, 3000);
+}
+
+function escH(s) { var d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+
+function showConfigForm(cfg) {
+    document.getElementById('cfgId').value = cfg ? cfg.id : '';
+    document.getElementById('cfgName').value = cfg ? cfg.name : '';
+    document.getElementById('cfgDesc').value = cfg ? cfg.description : '';
+    document.getElementById('cfgYaml').value = cfg ? cfg.config_yaml : '';
+    document.getElementById('configForm').style.display = 'block';
+}
+function hideConfigForm() { document.getElementById('configForm').style.display = 'none'; }
+
+function saveConfig() {
+    var payload = {
+        name: document.getElementById('cfgName').value,
+        description: document.getElementById('cfgDesc').value,
+        config_yaml: document.getElementById('cfgYaml').value,
+    };
+    var cfgId = document.getElementById('cfgId').value;
+    if (cfgId) payload.id = parseInt(cfgId);
+    fetch('/api/deployer/configs', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload)
+    }).then(function(r) { return r.json(); }).then(function(data) {
+        if (data.error) { flash(data.error, 'error'); return; }
+        flash('Config saved', 'success');
+        hideConfigForm();
+        loadConfigs();
+    }).catch(function() { flash('Failed to save', 'error'); });
+}
+
+function loadConfigs() {
+    fetch('/api/deployer/configs').then(function(r) { return r.json(); }).then(function(configs) {
+        var el = document.getElementById('deployerConfigs');
+        if (!configs || configs.length === 0) {
+            el.innerHTML = '<div class="op-empty">No deployer configs saved yet</div>';
+            return;
+        }
+        var html = '<table class="op-table"><thead><tr><th>Name</th><th>Description</th><th>Created</th><th>Actions</th></tr></thead><tbody>';
+        configs.forEach(function(c) {
+            html += '<tr><td><strong>' + escH(c.name) + '</strong></td>'
+                + '<td>' + escH(c.description) + '</td>'
+                + '<td>' + escH(c.created_at) + ' by ' + escH(c.created_by) + '</td>'
+                + '<td style="display:flex;gap:6px;">'
+                + '<button class="btn-sm btn-primary" onclick="runConfig(' + c.id + ')">Run</button>'
+                + '<button class="btn-sm" onclick="editConfig(' + c.id + ')">Edit</button>'
+                + '<button class="btn-sm btn-danger" onclick="deleteConfig(' + c.id + ',\'' + escH(c.name) + '\')">Delete</button>'
+                + '</td></tr>';
+        });
+        html += '</tbody></table>';
+        el.innerHTML = html;
+    });
+    loadDeployerRuns();
+}
+
+function editConfig(id) {
+    fetch('/api/deployer/configs').then(function(r) { return r.json(); }).then(function(configs) {
+        var cfg = configs.find(function(c) { return c.id === id; });
+        if (cfg) showConfigForm(cfg);
+    });
+}
+
+function deleteConfig(id, name) {
+    if (!confirm('Delete config "' + name + '"?')) return;
+    fetch('/api/deployer/configs/' + id, {method: 'DELETE'}).then(function(r) { return r.json(); }).then(function() {
+        loadConfigs();
+    });
+}
+
+function runConfig(id) {
+    fetch('/api/deployer/configs/' + id + '/run', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({phase: 'post_deploy'})
+    }).then(function(r) { return r.json(); }).then(function(data) {
+        if (data.error) { flash(data.error, 'error'); return; }
+        flash('Deployer run started', 'success');
+        pollDeployerRun(data.id);
+        loadDeployerRuns();
+    }).catch(function() { flash('Failed to start run', 'error'); });
+}
+
+function loadDeployerRuns() {
+    fetch('/api/deployer/runs').then(function(r) { return r.json(); }).then(function(runs) {
+        var el = document.getElementById('deployerRuns');
+        if (!runs || runs.length === 0) {
+            el.innerHTML = '<div class="op-empty">No deployer runs yet</div>';
+            return;
+        }
+        var html = '<table class="op-table"><thead><tr><th>Config</th><th>Phase</th><th>Status</th><th>By</th><th>Started</th><th>Actions</th></tr></thead><tbody>';
+        runs.forEach(function(r) {
+            var badge = {success:'green', running:'yellow', failed:'red'}[r.status] || 'gray';
+            html += '<tr><td><strong>' + escH(r.config_name) + '</strong></td>'
+                + '<td>' + escH(r.phase) + '</td>'
+                + '<td><span class="op-badge ' + badge + '">' + escH(r.status) + '</span></td>'
+                + '<td>' + escH(r.triggered_by) + '</td>'
+                + '<td>' + escH(r.started_at) + '</td>'
+                + '<td><button class="btn-sm" onclick="toggleRunLog(' + r.id + ')">Log</button></td></tr>';
+            html += '<tr><td colspan="6"><div class="op-log" id="run-log-' + r.id + '">' + escH(r.log) + '</div></td></tr>';
+        });
+        html += '</tbody></table>';
+        el.innerHTML = html;
+        runs.forEach(function(r) { if (r.status === 'running') pollDeployerRun(r.id); });
+    });
+}
+
+function toggleRunLog(id) {
+    var el = document.getElementById('run-log-' + id);
+    if (el) el.classList.toggle('show');
+}
+
+function pollDeployerRun(id) {
+    var interval = setInterval(function() {
+        fetch('/api/deployer/runs/' + id).then(function(r) { return r.json(); }).then(function(data) {
+            if (data.status !== 'running') { clearInterval(interval); loadConfigs(); }
+            var logEl = document.getElementById('run-log-' + id);
+            if (logEl) { logEl.textContent = data.log || ''; logEl.classList.add('show'); logEl.scrollTop = logEl.scrollHeight; }
+        }).catch(function() { clearInterval(interval); });
+    }, 3000);
+}
+
+document.addEventListener('DOMContentLoaded', function() { refreshOperators(); loadConfigs(); });
+</script>
+{% endblock %}

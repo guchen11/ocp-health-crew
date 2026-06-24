@@ -410,4 +410,7 @@ from . import upgrades_api  # noqa: F401
 from . import perf_reports  # noqa: F401
 from . import perf_report_editor  # noqa: F401
 
+from . import operators_api  # noqa: F401
+from . import deployer_api  # noqa: F401
+
 from .build_executor import start_build
