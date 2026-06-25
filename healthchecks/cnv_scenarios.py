@@ -81,6 +81,47 @@ def connect_ssh(host, user, key_path):
     return client
 
 
+def cleanup_stale_namespaces(client, kubeconfig):
+    """Delete leftover kube-burner test namespaces to prevent label collisions.
+
+    Stale namespaces from prior runs share the same kube-burner labels,
+    causing VM discovery to pick up old VMs and fail validation.
+    """
+    import shlex
+    log("Checking for stale test namespaces...")
+    kc = "export KUBECONFIG=" + kubeconfig + "; "
+    discover_cmd = (
+        kc
+        + "{ oc get ns --no-headers -l kube-burner.io/job 2>/dev/null; "
+        "oc get ns --no-headers 2>/dev/null | grep -E '^cnv-(sanity|scale)-'; "
+        "} | awk '{print $1}' | sort -u"
+    )
+    stdin, stdout, stderr = client.exec_command(discover_cmd, timeout=20)
+    stale = [ns.strip() for ns in stdout.read().decode().strip().splitlines() if ns.strip()]
+    if not stale:
+        log(f"{GREEN}No stale test namespaces found{RESET}")
+        return
+    log(f"{YELLOW}Found {len(stale)} stale namespace(s), cleaning before test...{RESET}")
+    for ns in stale:
+        client.exec_command(
+            kc + "oc delete ns " + shlex.quote(ns) + " --wait=false 2>/dev/null",
+            timeout=20,
+        )
+    deadline = time.time() + 120
+    while time.time() < deadline:
+        time.sleep(10)
+        stdin, stdout, stderr = client.exec_command(
+            kc + "oc get ns --no-headers 2>/dev/null | awk '{print $1}'", timeout=20,
+        )
+        live = set(stdout.read().decode().strip().splitlines())
+        remaining = [ns for ns in stale if ns in live]
+        if not remaining:
+            log(f"{GREEN}All stale namespaces deleted{RESET}")
+            return
+        log(f"  {len(remaining)} namespace(s) still terminating...")
+    log(f"{YELLOW}Cleanup timed out, {len(remaining)} namespace(s) remain - proceeding{RESET}")
+
+
 def build_remote_command(args):
     """Build the shell command to run on the remote host."""
     parts = []
@@ -384,6 +425,10 @@ def main():
         client.close()
         sys.exit(1)
     log(f"{GREEN}cnv-scenarios found at {args.cnv_path}{RESET}")
+
+    # ── Pre-cleanup stale namespaces ─────────────────────────────────────
+    if not is_cleanup:
+        cleanup_stale_namespaces(client, args.kubeconfig)
 
     # ── Build and run command ────────────────────────────────────────────
     remote_cmd = build_remote_command(args)
