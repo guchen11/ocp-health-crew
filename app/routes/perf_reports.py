@@ -184,8 +184,14 @@ def perf_reports_move():
     basename = os.path.basename(src_abs)
     dst_abs = os.path.join(dst_dir_abs, basename)
 
+    if os.path.dirname(src_abs) == dst_dir_abs:
+        return jsonify({"ok": True, "skipped": True, "new_path": source})
+
     if os.path.exists(dst_abs):
-        return jsonify({"error": f"'{basename}' already exists in destination"}), 409
+        if os.path.isdir(dst_abs):
+            shutil.rmtree(dst_abs)
+        else:
+            os.remove(dst_abs)
 
     shutil.move(src_abs, dst_abs)
     return jsonify({"ok": True, "new_path": os.path.join(destination, basename) if destination else basename})

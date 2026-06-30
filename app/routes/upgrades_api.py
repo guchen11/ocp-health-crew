@@ -183,6 +183,54 @@ def api_upgrade_policies_trigger(pid):
     return jsonify(run.to_dict()), 201
 
 
+@dashboard_bp.route('/api/upgrades/operator', methods=['POST'])
+@operator_required
+def api_upgrade_single_operator():
+    """Upgrade a single OLM operator by name/namespace."""
+    data = request.get_json(silent=True)
+    if not data or not data.get('operator'):
+        return jsonify({'error': 'operator name is required'}), 400
+
+    operator = data['operator'][:200]
+    namespace = (data.get('namespace') or '')[:200]
+
+    policy = UpgradePolicy(
+        name=f"Quick: {operator}"[:200],
+        description=f"Ad-hoc upgrade of {operator}",
+        enabled=False,
+        auto_approve=False,
+        steps=[{
+            'type': 'upgrade_olm',
+            'enabled': True,
+            'target': operator,
+            'namespace': namespace,
+            'label': f"Upgrade OLM: {operator}",
+        }],
+        scan_interval_minutes=9999,
+        created_by=current_user.id,
+    )
+    db.session.add(policy)
+    db.session.commit()
+
+    run = UpgradeRun(
+        policy_id=policy.id,
+        upgrade_type='pipeline',
+        operator_name=operator,
+        status='pending',
+        created_by=current_user.id,
+    )
+    run.append_log(f"Quick OLM upgrade triggered by {current_user.username}")
+    run.append_log(f"Target: {operator} ({namespace or 'any namespace'})")
+    db.session.add(run)
+    db.session.commit()
+
+    log_audit('upgrade_operator', target=f'Run #{run.id}: {operator}')
+
+    from app.routes.upgrade_executor import execute_pipeline
+    execute_pipeline(run.id, current_app._get_current_object())
+    return jsonify(run.to_dict()), 201
+
+
 @dashboard_bp.route('/api/upgrades/runs', methods=['GET'])
 @login_required
 def api_upgrade_runs_list():

@@ -97,12 +97,13 @@ CNV_SCENARIOS = {
         "remote_name": "disk-limits",
         "default": True,
         "variables": {
-            "diskCount": {"type": "int", "default": {"sanity": 1, "full": 1}, "label": "Disk Count", "min": 1, "max": 20},
+            "diskCount": {"type": "int", "default": {"sanity": 1, "full": 1}, "label": "Disk Count", "min": 1, "max": 256},
             "diskSize": {"type": "str", "default": {"sanity": "10Gi", "full": "100Ti"}, "label": "Disk Size", "placeholder": "e.g. 10Gi, 100Gi, 100Ti"},
             "vmCount": {"type": "int", "default": {"sanity": 1, "full": 1}, "label": "VM Count", "min": 1, "max": 50},
             "cpuCores": {"type": "int", "default": {"sanity": 4, "full": 16}, "label": "CPU Cores", "min": 1, "max": 128},
             "memory": {"type": "str", "default": {"sanity": "8Gi", "full": "32Gi"}, "label": "Memory per VM", "placeholder": "e.g. 32Gi"},
             "volumeMode": {"type": "choice", "default": {"sanity": "Block", "full": "Block"}, "label": "Volume Mode", "choices": ["Block", "Filesystem"]},
+            "diskBus": {"type": "choice", "default": {"sanity": "scsi", "full": "scsi"}, "label": "Disk Bus", "choices": ["virtio", "scsi"]},
         },
     },
 
@@ -247,6 +248,26 @@ CNV_SCENARIOS = {
             "max_ssh_retries": {"type": "int", "default": {"sanity": 8, "full": 30}, "label": "Max SSH Retries", "min": 1, "max": 100},
         },
     },
+    # ─── HCP (Hosted Control Planes) ────────────────────────────────────
+    "hcp_scale": {
+        "name": "HCP Scale",
+        "icon": "☁️",
+        "description": "Create hosted clusters with kubevirt workers, validate all VMs running",
+        "category": "HCP",
+        "remote_name": "hcp-scale",
+        "default": False,
+        "custom_script": "hcp-scale-test.sh",
+        "variables": {
+            "clusterCount": {"type": "int", "default": {"sanity": 1, "full": 3}, "label": "Cluster Count", "min": 1, "max": 10},
+            "workersPerCluster": {"type": "int", "default": {"sanity": 5, "full": 200}, "label": "Workers per Cluster", "min": 1, "max": 500},
+            "workerCpu": {"type": "int", "default": {"sanity": 1, "full": 1}, "label": "Worker CPU Cores", "min": 1, "max": 16},
+            "workerMemory": {"type": "str", "default": {"sanity": "4Gi", "full": "4Gi"}, "label": "Worker Memory", "placeholder": "e.g. 4Gi, 8Gi"},
+            "workerRootVolume": {"type": "int", "default": {"sanity": 16, "full": 16}, "label": "Worker Root Volume (GiB)", "min": 10, "max": 200},
+            "releaseImage": {"type": "str", "default": {"sanity": "quay.io/openshift-release-dev/ocp-release:4.19.3-multi", "full": "quay.io/openshift-release-dev/ocp-release:4.19.3-multi"}, "label": "Release Image", "placeholder": "quay.io/openshift-release-dev/ocp-release:X.Y.Z-multi"},
+            "etcdStorageClass": {"type": "str", "default": {"sanity": "lvms-lvmetcd", "full": "lvms-lvmetcd"}, "label": "etcd Storage Class"},
+            "pullSecretPath": {"type": "str", "default": {"sanity": "/root/global-pull-secret.json", "full": "/root/global-pull-secret.json"}, "label": "Pull Secret Path"},
+        },
+    },
 }
 
 
@@ -255,8 +276,9 @@ CNV_SCENARIO_CATEGORIES = {
     "Hot-plug": {"icon": "🔌", "description": "Disk and NIC hot-plug testing"},
     "Performance": {"icon": "⚡", "description": "High memory, large disk, minimal resources"},
     "Scale": {"icon": "📊", "description": "VM density and capacity benchmarks"},
+    "HCP": {"icon": "☁️", "description": "Hosted Control Planes testing"},
 }
 
 
 # Category display order
-CNV_CATEGORY_ORDER = ["Resource Limits", "Hot-plug", "Performance", "Scale"]
+CNV_CATEGORY_ORDER = ["Resource Limits", "Hot-plug", "Performance", "Scale", "HCP"]

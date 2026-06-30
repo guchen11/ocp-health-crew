@@ -18,6 +18,26 @@ import argparse
 import time
 from datetime import datetime
 
+# Ensure project root is in path for config imports
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, _PROJECT_ROOT)
+
+
+# Maps test remote_name -> custom_script filename (if any)
+_CUSTOM_SCRIPTS = {
+    'hcp-scale': 'hcp-scale-test.sh',
+}
+
+
+def _get_custom_script(tests_str):
+    """Return custom script path if any test in the comma-separated list uses one."""
+    for t in tests_str.split(","):
+        t = t.strip()
+        if t in _CUSTOM_SCRIPTS:
+            return _CUSTOM_SCRIPTS[t]
+    return None
+
 import paramiko
 from dotenv import load_dotenv
 
@@ -155,29 +175,35 @@ def build_remote_command(args):
     if args.cleanup_only:
         parts.append("export cleanup=true")
 
+    # Check if any test uses a custom_script (e.g., HCP)
+    custom_script = _get_custom_script(args.tests)
+
     # cd into the cnv-scenarios directory
     parts.append(f"cd {shlex.quote(args.cnv_path)}")
 
-    # Build run-workloads.sh command
-    runner = "./run-workloads.sh"
-    if args.tests.lower() == "all":
-        runner += " --all"
+    if custom_script:
+        parts.append(f"bash {shlex.quote(custom_script)}")
     else:
-        tests = " ".join(t.strip() for t in args.tests.split(",") if t.strip())
-        runner += f" {tests}"
+        # Build run-workloads.sh command
+        runner = "./run-workloads.sh"
+        if args.tests.lower() == "all":
+            runner += " --all"
+        else:
+            tests = " ".join(t.strip() for t in args.tests.split(",") if t.strip())
+            runner += f" {tests}"
 
-    runner += f" --mode {args.mode}"
+        runner += f" --mode {args.mode}"
 
-    if args.parallel:
-        runner += " --parallel"
+        if args.parallel:
+            runner += " --parallel"
 
-    # kube-burner passthrough options
-    if args.log_level:
-        runner += f" --log-level={args.log_level}"
-    if args.timeout:
-        runner += f" --timeout={args.timeout}"
+        # kube-burner passthrough options
+        if args.log_level:
+            runner += f" --log-level={args.log_level}"
+        if args.timeout:
+            runner += f" --timeout={args.timeout}"
 
-    parts.append(runner)
+        parts.append(runner)
 
     return " && ".join(parts)
 
@@ -416,18 +442,24 @@ def main():
         log(f"{RED}SSH connection failed: {e}{RESET}")
         sys.exit(1)
 
+    # ── Check if this is a custom script scenario ──────────────────────
+    _is_custom = _get_custom_script(args.tests) is not None
+
     # ── Verify cnv-scenarios exists ──────────────────────────────────────
-    log("Verifying cnv-scenarios installation...")
-    stdin, stdout, stderr = client.exec_command(f"test -f {args.cnv_path}/run-workloads.sh && echo OK")
-    if stdout.read().decode().strip() != "OK":
-        log(f"{RED}ERROR: run-workloads.sh not found at {args.cnv_path}{RESET}")
-        log(f"  Ensure cnv-scenarios is cloned at {args.cnv_path} on {args.server}")
-        client.close()
-        sys.exit(1)
-    log(f"{GREEN}cnv-scenarios found at {args.cnv_path}{RESET}")
+    if not _is_custom:
+        log("Verifying cnv-scenarios installation...")
+        stdin, stdout, stderr = client.exec_command(f"test -f {args.cnv_path}/run-workloads.sh && echo OK")
+        if stdout.read().decode().strip() != "OK":
+            log(f"{RED}ERROR: run-workloads.sh not found at {args.cnv_path}{RESET}")
+            log(f"  Ensure cnv-scenarios is cloned at {args.cnv_path} on {args.server}")
+            client.close()
+            sys.exit(1)
+        log(f"{GREEN}cnv-scenarios found at {args.cnv_path}{RESET}")
+    else:
+        log(f"{CYAN}Using custom script for test{RESET}")
 
     # ── Pre-cleanup stale namespaces ─────────────────────────────────────
-    if not is_cleanup:
+    if not is_cleanup and not _is_custom:
         cleanup_stale_namespaces(client, args.kubeconfig)
 
     # ── Build and run command ────────────────────────────────────────────

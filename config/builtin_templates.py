@@ -179,6 +179,62 @@ BUILTIN_TEMPLATES = [
         },
     ),
 
+    # ─── Maximum number of disks per virtual machine ───────────────────
+    _tpl(
+        name='Sanity - VIRTIO Maximum number of disks per virtual machine',
+        description='10 pre-attached virtio disks with lsblk verification.',
+        icon='💿', mode='sanity', tests=['disk-limits'], timeout='30m',
+        env_vars={
+            'disk_limits.diskCount': '10',
+            'disk_limits.diskSize': '1Gi',
+            'disk_limits.cpuCores': '4',
+            'disk_limits.memory': '8Gi',
+            'disk_limits.diskBus': 'virtio',
+            'jobPause': '1m',
+        },
+    ),
+    _tpl(
+        name='Sanity - SCSI Maximum number of disks per virtual machine',
+        description='10 pre-attached SCSI disks with lsblk verification.',
+        icon='💿', mode='sanity', tests=['disk-limits'], timeout='30m',
+        env_vars={
+            'disk_limits.diskCount': '10',
+            'disk_limits.diskSize': '1Gi',
+            'disk_limits.cpuCores': '4',
+            'disk_limits.memory': '8Gi',
+            'disk_limits.diskBus': 'scsi',
+            'jobPause': '1m',
+        },
+    ),
+    _tpl(
+        name='Full - Maximum number of disks per virtual machine (160 virtio)',
+        description='160 pre-attached virtio disks with lsblk verification.',
+        icon='💿', mode='full', tests=['disk-limits'], timeout='4h',
+        env_vars={
+            'disk_limits.diskCount': '160',
+            'disk_limits.diskSize': '1Gi',
+            'disk_limits.cpuCores': '16',
+            'disk_limits.memory': '32Gi',
+            'disk_limits.diskBus': 'virtio',
+            'jobPause': '2m',
+            'maxWaitTimeout': '60m',
+        },
+    ),
+    _tpl(
+        name='Full - Maximum number of disks per virtual machine (200 SCSI)',
+        description='200 pre-attached SCSI disks with lsblk verification.',
+        icon='💿', mode='full', tests=['disk-limits'], timeout='4h',
+        env_vars={
+            'disk_limits.diskCount': '200',
+            'disk_limits.diskSize': '1Gi',
+            'disk_limits.cpuCores': '16',
+            'disk_limits.memory': '32Gi',
+            'disk_limits.diskBus': 'scsi',
+            'jobPause': '2m',
+            'maxWaitTimeout': '30m',
+        },
+    ),
+
     # ─── Maximum number of hot-pluggable disks per virtual machine ───────
     _tpl(
         name='Sanity - Maximum number of hot-pluggable disks per virtual machine',

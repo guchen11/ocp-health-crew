@@ -272,24 +272,32 @@ async function doMove() {
   const selected = getSelected();
   const dest = document.getElementById('moveTarget').value;
   let errors = [];
+  let moved = 0;
+  let skipped = 0;
   for (const src of selected) {
     const resp = await fetch('/perf-reports/api/move', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({source: src, destination: dest})
     });
+    const d = await resp.json();
     if (!resp.ok) {
-      const d = await resp.json();
-      errors.push(src + ': ' + (d.error || 'failed'));
+      errors.push(src.split('/').pop() + ': ' + (d.error || 'failed'));
+    } else if (d.skipped) {
+      skipped++;
+    } else {
+      moved++;
     }
   }
   closeModals();
   if (errors.length) {
     showStatus(errors.join('; '), 'error');
+  } else if (skipped === selected.length) {
+    showStatus('Items are already in this folder', 'error');
   } else {
-    showStatus('Moved ' + selected.length + ' item(s)', 'success');
-    setTimeout(() => location.reload(), 500);
+    showStatus('Moved ' + moved + ' item(s)', 'success');
   }
+  setTimeout(() => location.reload(), 800);
 }
 
 async function doDelete() {

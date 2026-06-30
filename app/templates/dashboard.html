@@ -94,7 +94,7 @@
             <div class="sidebar-content collapsed">
                 {% set sanity_found = [] %}
                 {% for t in user_templates if t.name.startswith('Sanity') %}{% if sanity_found.append(1) %}{% endif %}
-                {% set disabled = 'HCP & ACM' in t.name %}
+                {% set disabled = false %}
                 <div style="display:flex;align-items:center;position:relative;{{ 'opacity:0.4;pointer-events:none;' if disabled }}" class="tmpl-row">
                     <a href="/job/configure?template={{ t.id }}" class="sidebar-item" style="display:flex;align-items:center;gap:6px;flex:1;overflow:hidden;" title="{{ t.description }}{{ ' (coming soon)' if disabled }}">
                         <span class="sidebar-icon">{{ t.icon }}</span>
@@ -125,7 +125,7 @@
             <div class="sidebar-content collapsed">
                 {% set full_found = [] %}
                 {% for t in user_templates if t.name.startswith('Full') %}{% if full_found.append(1) %}{% endif %}
-                {% set disabled = 'HCP & ACM' in t.name %}
+                {% set disabled = false %}
                 <div style="display:flex;align-items:center;position:relative;{{ 'opacity:0.4;pointer-events:none;' if disabled }}" class="tmpl-row">
                     <a href="/job/configure?template={{ t.id }}" class="sidebar-item" style="display:flex;align-items:center;gap:6px;flex:1;overflow:hidden;" title="{{ t.description }}{{ ' (coming soon)' if disabled }}">
                         <span class="sidebar-icon">{{ t.icon }}</span>

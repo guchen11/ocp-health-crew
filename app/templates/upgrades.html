@@ -348,6 +348,7 @@ function renderScanResults(data) {
             if (op.pending_plans && op.pending_plans.length) {
                 html += ' <span class="ug-badge yellow">' + op.pending_plans.length + ' pending</span>';
             }
+            html += ' <button class="btn-sm" onclick="triggerOlmUpgrade(\'' + op.name.replace(/'/g, "\\'") + '\',\'' + op.namespace.replace(/'/g, "\\'") + '\')" style="font-size:11px;margin-left:6px;">Upgrade</button>';
             html += '</div>';
         });
     } else { html += '<div class="meta">No pending OLM upgrades</div>'; }
@@ -368,6 +369,16 @@ function triggerCvoUpgrade(version) {
             location.reload();
         });
     });
+}
+
+function triggerOlmUpgrade(operator, namespace) {
+    if (!confirm('Upgrade ' + operator + ' in ' + namespace + '?')) return;
+    fetch('/api/upgrades/operator', {method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({operator: operator, namespace: namespace})
+    }).then(r => r.json()).then(run => {
+        if (run.error) return alert(run.error);
+        window.location.href = '/upgrade-run/' + run.id;
+    }).catch(e => alert('Upgrade failed: ' + e));
 }
 
 function onTypeChange() {

@@ -112,6 +112,33 @@ OPERATOR_CATALOG = {
         },
         'post_cr': None,
     },
+    'acm': {
+        'display': 'Advanced Cluster Management',
+        'icon': 'acm',
+        'description': 'Cluster lifecycle, governance, and HCP (installs MCE automatically)',
+        'package': 'advanced-cluster-management',
+        'namespace': 'open-cluster-management',
+        'channel': 'release-2.16',
+        'source': 'redhat-operators',
+        'source_namespace': 'openshift-marketplace',
+        'install_mode': 'AllNamespaces',
+        'parameters': [],
+        'cr': {
+            'apiVersion': 'operator.open-cluster-management.io/v1',
+            'kind': 'MultiClusterHub',
+            'metadata': {
+                'name': 'multiclusterhub',
+                'namespace': 'open-cluster-management',
+            },
+        },
+        'cr_wait': {
+            'resource': 'multiclusterhub/multiclusterhub',
+            'namespace': 'open-cluster-management',
+            'condition': "jsonpath='{.status.phase}'=Running",
+            'timeout': '900s',
+        },
+        'post_cr': None,
+    },
     'oadp': {
         'display': 'OADP',
         'icon': 'backup',

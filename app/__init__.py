@@ -47,6 +47,52 @@ def _seed_builtin_templates():
     db.session.commit()
 
 
+BUILTIN_DEPLOYER_CONFIGS = [
+    {
+        'name': 'Enable HyperShift in MCE',
+        'description': 'Patches MCE to enable HyperShift component and waits for operator pod',
+        'file': 'deployer-configs/hcp-enable-hypershift.yaml',
+    },
+    {
+        'name': 'Install hcp CLI',
+        'description': 'Extracts hcp CLI from hypershift operator pod to /usr/local/bin',
+        'file': 'deployer-configs/hcp-install-cli.yaml',
+    },
+    {
+        'name': 'HCP Sanity - Create Cluster (5 VMs)',
+        'description': 'Create 1 hosted cluster with 5 kubevirt workers, validate VMs running',
+        'file': 'deployer-configs/hcp-sanity-create.yaml',
+    },
+]
+
+
+def _seed_deployer_configs():
+    """Create built-in deployer configs if they don't exist yet."""
+    from app.models import User
+    from app.models_operators import DeployerConfig
+    admin = User.query.filter_by(role='admin').first()
+    if not admin:
+        return
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    for bc in BUILTIN_DEPLOYER_CONFIGS:
+        exists = DeployerConfig.query.filter_by(name=bc['name']).first()
+        if exists:
+            continue
+        yaml_path = os.path.join(base_dir, bc['file'])
+        if not os.path.exists(yaml_path):
+            continue
+        with open(yaml_path, 'r') as f:
+            yaml_content = f.read()
+        cfg = DeployerConfig(
+            name=bc['name'],
+            description=bc['description'],
+            config_yaml=yaml_content,
+            created_by=admin.id,
+        )
+        db.session.add(cfg)
+    db.session.commit()
+
+
 def create_app(config_object=None):
     """Application factory for creating Flask app instances."""
     
@@ -78,6 +124,9 @@ def create_app(config_object=None):
 
         # Seed built-in shared templates (idempotent)
         _seed_builtin_templates()
+
+        # Seed built-in deployer configs (idempotent)
+        _seed_deployer_configs()
 
         global _startup_recovery_done
         if not _startup_recovery_done:
