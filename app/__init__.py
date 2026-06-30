@@ -26,6 +26,20 @@ def load_user(user_id):
 from config.builtin_templates import BUILTIN_TEMPLATES  # noqa: F401
 
 
+def _ensure_upgrade_policy_columns():
+    """Add schedule_mode and schedule_dates columns if missing (SQLite-safe)."""
+    import sqlalchemy
+    for col_sql in [
+        "ALTER TABLE upgrade_policies ADD COLUMN schedule_mode VARCHAR(20) DEFAULT 'interval'",
+        "ALTER TABLE upgrade_policies ADD COLUMN schedule_dates TEXT",
+    ]:
+        try:
+            db.session.execute(sqlalchemy.text(col_sql))
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+
+
 def _seed_builtin_templates():
     """Create built-in shared templates if they don't exist yet."""
     from app.models import Template, User
@@ -121,6 +135,7 @@ def create_app(config_object=None):
         from app.models import User, Build, Schedule, Host, AuditLog, CustomCheck, Template, TestSuite, SuiteRun, UpgradePolicy, UpgradeRun  # noqa: F811
         from app.models_operators import OperatorInstall, DeployerConfig, DeployerRun  # noqa: F401
         db.create_all()
+        _ensure_upgrade_policy_columns()
 
         # Seed built-in shared templates (idempotent)
         _seed_builtin_templates()

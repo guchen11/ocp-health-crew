@@ -1,5 +1,6 @@
 """Upgrade policies and runs API routes."""
 import logging
+import re
 
 from flask import current_app, jsonify, request
 from flask_login import current_user, login_required
@@ -10,6 +11,9 @@ from app.models import UpgradePolicy, UpgradeRun, db
 from app.routes import dashboard_bp
 
 log = logging.getLogger(__name__)
+
+VALID_DAYS = {'mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'}
+_TIME_RE = re.compile(r'^([01]\d|2[0-3]):[0-5]\d$')
 
 VALID_STEP_TYPES = {
     'upgrade_olm', 'upgrade_cvo',
@@ -63,13 +67,43 @@ def api_upgrade_policies_create():
     if not data or not data.get('name'):
         return jsonify({'error': 'name is required'}), 400
 
+    auto_approve = bool(data.get('auto_approve', False))
+    sched_mode = 'interval'
+    sched_time = None
+    sched_days = None
+    sched_dates = None
+    if auto_approve:
+        sched_mode = data.get('schedule_mode', 'interval')
+        if sched_mode not in ('interval', 'daily', 'dates'):
+            sched_mode = 'interval'
+
+        sched_time = (data.get('schedule_time') or '').strip() or None
+        if sched_time and not _TIME_RE.match(sched_time):
+            return jsonify({'error': 'schedule_time must be HH:MM (24h)'}), 400
+
+        sched_days = data.get('schedule_days') or None
+        if sched_days is not None:
+            if not isinstance(sched_days, list):
+                return jsonify({'error': 'schedule_days must be a list'}), 400
+            sched_days = [d.lower() for d in sched_days if d.lower() in VALID_DAYS] or None
+
+        sched_dates = data.get('schedule_dates') or None
+        if sched_dates is not None:
+            if not isinstance(sched_dates, list):
+                return jsonify({'error': 'schedule_dates must be a list'}), 400
+            sched_dates = [d.strip() for d in sched_dates if d.strip()][:20] or None
+
     policy = UpgradePolicy(
         name=data['name'][:200],
         description=(data.get('description') or '')[:500],
         enabled=bool(data.get('enabled', True)),
-        auto_approve=bool(data.get('auto_approve', False)),
+        auto_approve=auto_approve,
         steps=_normalize_steps(data.get('steps', [])),
         scan_interval_minutes=max(5, int(data.get('scan_interval_minutes', 60))),
+        schedule_mode=sched_mode,
+        schedule_time=sched_time,
+        schedule_days=sched_days,
+        schedule_dates=sched_dates,
         created_by=current_user.id,
     )
     db.session.add(policy)
@@ -103,10 +137,37 @@ def api_upgrade_policies_update(pid):
             from datetime import datetime, timezone
             policy.last_scanned_at = datetime.now(timezone.utc)
         policy.auto_approve = new_auto
+        if not new_auto:
+            policy.schedule_time = None
+            policy.schedule_days = None
     if 'steps' in data:
         policy.steps = _normalize_steps(data['steps'])
     if 'scan_interval_minutes' in data:
         policy.scan_interval_minutes = max(5, int(data['scan_interval_minutes']))
+    if 'schedule_mode' in data:
+        sm = data['schedule_mode']
+        if sm in ('interval', 'daily', 'dates'):
+            policy.schedule_mode = sm
+    if policy.auto_approve:
+        if 'schedule_time' in data:
+            st = (data['schedule_time'] or '').strip() or None
+            if st and not _TIME_RE.match(st):
+                return jsonify({'error': 'schedule_time must be HH:MM (24h)'}), 400
+            policy.schedule_time = st
+        if 'schedule_days' in data:
+            sd = data['schedule_days'] or None
+            if sd is not None:
+                if not isinstance(sd, list):
+                    return jsonify({'error': 'schedule_days must be a list'}), 400
+                sd = [d.lower() for d in sd if d.lower() in VALID_DAYS] or None
+            policy.schedule_days = sd
+        if 'schedule_dates' in data:
+            sdt = data['schedule_dates'] or None
+            if sdt is not None:
+                if not isinstance(sdt, list):
+                    return jsonify({'error': 'schedule_dates must be a list'}), 400
+                sdt = [d.strip() for d in sdt if d.strip()][:20] or None
+            policy.schedule_dates = sdt
 
     db.session.commit()
     log_audit('upgrade_policy_update', target=f'Policy #{policy.id}: {policy.name}')

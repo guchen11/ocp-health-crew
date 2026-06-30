@@ -226,12 +226,91 @@ def _scanner_loop(app):
     log.info("[UpgradeScanner] Stopped")
 
 
+_DAY_MAP = {'mon': 0, 'tue': 1, 'wed': 2, 'thu': 3, 'fri': 4, 'sat': 5, 'sun': 6}
+
+
+def _is_schedule_due(policy, now):
+    """Return True if a time-of-day scheduled policy should fire now.
+
+    Matches when current UTC time is within 2 minutes after schedule_time
+    on the configured days (or any day if schedule_days is empty).
+    Uses last_scanned_at to prevent duplicate triggers on the same window.
+    """
+    try:
+        sched_hour, sched_min = int(policy.schedule_time[:2]), int(policy.schedule_time[3:])
+    except (ValueError, TypeError):
+        return False
+
+    if policy.schedule_days:
+        target_days = {_DAY_MAP[d] for d in policy.schedule_days if d in _DAY_MAP}
+        if target_days and now.weekday() not in target_days:
+            return False
+
+    current_minutes = now.hour * 60 + now.minute
+    target_minutes = sched_hour * 60 + sched_min
+    diff = current_minutes - target_minutes
+    if diff < 0 or diff > 2:
+        return False
+
+    if policy.last_scanned_at:
+        last = policy.last_scanned_at
+        if last.tzinfo is None:
+            last = last.replace(tzinfo=timezone.utc)
+        if last.date() == now.date() and (last.hour * 60 + last.minute) >= target_minutes:
+            return False
+
+    return True
+
+
+def _is_interval_due(policy, now):
+    """Return True if an interval-based policy should fire now."""
+    if not policy.last_scanned_at:
+        return True
+    last = policy.last_scanned_at
+    if last.tzinfo is None:
+        last = last.replace(tzinfo=timezone.utc)
+    elapsed = (now - last).total_seconds() / 60
+    return elapsed >= policy.scan_interval_minutes
+
+
+def _is_dates_due(policy, now):
+    """Return True if a specific-dates policy should fire now.
+
+    Checks schedule_dates list for any entry whose date+time is within
+    a 2-minute window of the current UTC time.
+    """
+    if not policy.schedule_dates:
+        return False
+    for dt_str in policy.schedule_dates:
+        try:
+            parts = dt_str.split('T')
+            date_part = parts[0]
+            time_part = parts[1] if len(parts) > 1 else '03:00'
+            y, m, d = int(date_part[:4]), int(date_part[5:7]), int(date_part[8:10])
+            hh, mm = int(time_part[:2]), int(time_part[3:5])
+            target = datetime(y, m, d, hh, mm, tzinfo=timezone.utc)
+        except (ValueError, IndexError):
+            continue
+        diff_seconds = (now - target).total_seconds()
+        if 0 <= diff_seconds <= 120:
+            if policy.last_scanned_at:
+                last = policy.last_scanned_at
+                if last.tzinfo is None:
+                    last = last.replace(tzinfo=timezone.utc)
+                if last >= target:
+                    continue
+            return True
+    return False
+
+
 def _check_policies(app):
     """Check all enabled auto-approve policies and trigger pipelines if due.
 
     Only policies with enabled=True AND auto_approve=True are considered.
-    A pipeline is triggered when scan_interval_minutes has elapsed since the
-    last run *and* no active run exists for the policy.
+    Uses schedule_mode to determine trigger logic:
+      - 'daily': triggers at schedule_time on schedule_days
+      - 'dates': triggers at specific schedule_dates entries
+      - 'interval' (default): triggers every scan_interval_minutes
     """
     from app.models import UpgradePolicy, UpgradeRun, db
 
@@ -239,13 +318,20 @@ def _check_policies(app):
     policies = UpgradePolicy.query.filter_by(enabled=True, auto_approve=True).all()
 
     for policy in policies:
-        if policy.last_scanned_at:
-            last = policy.last_scanned_at
-            if last.tzinfo is None:
-                last = last.replace(tzinfo=timezone.utc)
-            elapsed = (now - last).total_seconds() / 60
-            if elapsed < policy.scan_interval_minutes:
+        mode = getattr(policy, 'schedule_mode', None) or 'interval'
+        if mode == 'daily':
+            if not _is_schedule_due(policy, now):
                 continue
+        elif mode == 'dates':
+            if not _is_dates_due(policy, now):
+                continue
+        else:
+            if policy.schedule_time:
+                if not _is_schedule_due(policy, now):
+                    continue
+            else:
+                if not _is_interval_due(policy, now):
+                    continue
 
         enabled_steps = [s for s in (policy.steps or []) if s.get('enabled', True)]
         if not enabled_steps:
@@ -265,9 +351,10 @@ def _check_policies(app):
         policy.last_scanned_at = now
         db.session.commit()
 
+        trigger_desc = policy.schedule_time or f'{policy.scan_interval_minutes}m interval'
         log.info(
-            "[UpgradeScanner] Auto-triggering policy '%s' (%d steps)",
-            policy.name, len(enabled_steps),
+            "[UpgradeScanner] Auto-triggering policy '%s' (%d steps, schedule=%s)",
+            policy.name, len(enabled_steps), trigger_desc,
         )
         _trigger_pipeline(policy, app)
 

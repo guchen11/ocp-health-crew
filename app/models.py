@@ -1,13 +1,4 @@
-"""
-CNV Health Dashboard - Database Models
-
-SQLAlchemy models for multi-user support:
-  - User: authentication, roles, profiles
-  - Build: health check build records (replaces .builds.json)
-  - Schedule: scheduled tasks (replaces schedules.json)
-  - AuditLog: audit trail for team accountability
-  - Template: user-saved test configuration templates
-"""
+"""CNV Health Dashboard - Database Models."""
 
 from datetime import datetime, timezone
 from flask_sqlalchemy import SQLAlchemy
@@ -401,6 +392,10 @@ class UpgradePolicy(db.Model):
     auto_approve = db.Column(db.Boolean, default=False)
     steps = db.Column(db.JSON, default=list)
     scan_interval_minutes = db.Column(db.Integer, default=60)
+    schedule_mode = db.Column(db.String(20), default='interval')
+    schedule_time = db.Column(db.String(5), nullable=True)
+    schedule_days = db.Column(db.JSON, nullable=True)
+    schedule_dates = db.Column(db.JSON, nullable=True)
     last_scanned_at = db.Column(db.DateTime, nullable=True)
     created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
@@ -420,6 +415,10 @@ class UpgradePolicy(db.Model):
             'steps': self.steps or [],
             'step_count': len(self.steps or []),
             'scan_interval_minutes': self.scan_interval_minutes,
+            'schedule_mode': self.schedule_mode or 'interval',
+            'schedule_time': self.schedule_time or '',
+            'schedule_days': self.schedule_days or [],
+            'schedule_dates': self.schedule_dates or [],
             'last_scanned_at': self.last_scanned_at.strftime('%Y-%m-%d %H:%M') if self.last_scanned_at else '',
             'created_by': self.owner.username if self.owner else 'unknown',
             'created_by_id': self.created_by,

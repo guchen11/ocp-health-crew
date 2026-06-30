@@ -4,6 +4,12 @@
 
 {% block extra_css %}
 <style>
+:root {
+    --bg: var(--bg-tertiary);
+    --danger: var(--error);
+}
+body.modal-open { overflow:hidden; }
+body.modal-open .ug-container { visibility:hidden; }
 .ug-container { max-width:1200px; margin:0 auto; padding:24px; }
 .ug-section { background:var(--bg-card); border:1px solid var(--border); border-radius:12px; padding:20px; margin-bottom:20px; }
 .ug-section h2 { margin:0 0 16px 0; font-size:16px; display:flex; align-items:center; gap:8px; }
@@ -29,11 +35,41 @@
 .ug-table tr:last-child td { border-bottom:none; }
 .modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:1000; align-items:center; justify-content:center; }
 .modal-overlay.show { display:flex; }
-.modal { background:var(--bg-card); border-radius:12px; padding:24px; width:90%; max-width:550px; max-height:80vh; overflow-y:auto; }
-.modal h3 { margin:0 0 16px 0; }
-.modal label { display:block; font-size:13px; font-weight:600; margin-bottom:4px; margin-top:12px; }
-.modal input, .modal select, .modal textarea { width:100%; padding:8px 12px; border:1px solid var(--border); border-radius:6px; background:var(--bg); color:var(--text-primary); box-sizing:border-box; font-family:inherit; }
-.modal .actions { display:flex; gap:8px; justify-content:flex-end; margin-top:20px; }
+.modal { background:var(--bg-card); border-radius:12px; padding:28px; width:90%; max-width:580px; max-height:85vh; overflow-y:auto; }
+.modal h3 { margin:0 0 20px 0; font-size:18px; }
+.modal-section { background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:12px 14px; margin-bottom:12px; }
+.modal-section:last-of-type { margin-bottom:0; }
+.modal-section-title { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-secondary); margin:0 0 8px 0; }
+.modal-section .field-label { display:block; font-size:13px; font-weight:600; margin-bottom:6px; color:var(--text-primary); }
+.modal-section .field-label + input,
+.modal-section .field-label + select { margin-bottom:0; }
+.modal-section .field-hint { font-size:11px; color:var(--text-secondary); margin-top:6px; line-height:1.4; }
+.modal input, .modal select, .modal textarea { width:100%; padding:8px 12px; border:1px solid var(--border); border-radius:6px; background:var(--bg-card); color:var(--text-primary); box-sizing:border-box; font-family:inherit; font-size:13px; }
+.modal input[type="number"], .modal input[type="time"], .pol-schedule-input { background:#fff; color:var(--text-primary); }
+.modal input[type="number"] { -moz-appearance:textfield; appearance:textfield; }
+.modal input[type="number"]::-webkit-outer-spin-button,
+.modal input[type="number"]::-webkit-inner-spin-button { -webkit-appearance:none; margin:0; }
+.modal input[type="time"]::-webkit-calendar-picker-indicator { filter:invert(0.35); opacity:0.75; cursor:pointer; }
+.modal input:focus, .modal select:focus { outline:none; border-color:var(--accent); box-shadow:0 0 0 2px rgba(74,144,226,0.15); }
+.modal .actions { display:flex; gap:10px; justify-content:flex-end; margin-top:16px; padding-top:12px; border-top:1px solid var(--border); }
+.pol-trigger-row { display:flex; flex-direction:column; gap:6px; }
+.pol-trigger-row .field-label { margin:0; }
+.pol-schedule-section { overflow:hidden; max-height:220px; opacity:1; transition:max-height 0.35s ease, opacity 0.3s ease, margin 0.35s ease, padding 0.35s ease; }
+.pol-schedule-section.is-hidden { max-height:0; opacity:0; margin-bottom:0 !important; padding-top:0; padding-bottom:0; border-color:transparent; pointer-events:none; }
+.pol-schedule-timing-row { display:flex; gap:16px; align-items:center; flex-wrap:wrap; margin-top:4px; }
+.pol-schedule-timing-group { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.pol-schedule-timing-group .field-label { margin:0; font-size:12px; flex-shrink:0; white-space:nowrap; }
+.pol-schedule-interval { width:72px !important; flex-shrink:0; }
+.pol-schedule-time { width:118px !important; flex-shrink:0; }
+.pol-schedule-clear { font-size:11px; padding:4px 10px; flex-shrink:0; }
+.sched-date-entry { display:flex; align-items:center; gap:8px; padding:6px 8px; border:1px solid var(--border); border-radius:6px; margin-bottom:4px; font-size:13px; }
+.sched-date-entry span { flex:1; }
+.pol-days-grid { display:flex; gap:5px 8px; flex-wrap:wrap; margin-top:8px; align-items:center; }
+.pol-days-grid .day-label { margin:0; font-size:12px; font-weight:500; cursor:pointer; display:flex; align-items:center; gap:4px; padding:3px 7px; border-radius:4px; border:1px solid var(--border); background:var(--bg-card); transition:background 0.15s, border-color 0.15s; }
+.pol-days-grid .day-label:has(input:checked) { background:rgba(74,144,226,0.12); border-color:var(--accent); color:var(--accent); }
+.pol-days-grid .day-label input { width:auto; margin:0; }
+.pol-days-grid .field-label { margin:0; font-size:12px; flex-shrink:0; width:auto !important; }
+.pol-manual-hint { font-size:12px; color:var(--text-secondary); margin-top:8px; padding:8px 10px; background:rgba(128,128,128,0.08); border-radius:6px; line-height:1.4; }
 .toggle { position:relative; display:inline-block; width:40px; height:22px; }
 .toggle input { opacity:0; width:0; height:0; }
 .toggle .slider { position:absolute; inset:0; background:var(--border); border-radius:11px; cursor:pointer; transition:0.3s; }
@@ -67,14 +103,14 @@ h2.collapsed .collapse-icon { transform:rotate(-90deg); }
         </h2>
         <div class="ug-collapsible">
         <table class="ug-table" id="policiesTable">
-            <thead><tr><th>Name</th><th>Steps</th><th>Auto</th><th>Interval</th><th>Enabled</th><th></th></tr></thead>
+            <thead><tr><th>Name</th><th>Steps</th><th>Auto</th><th>Schedule</th><th>Enabled</th><th></th></tr></thead>
             <tbody>
             {% for p in policies %}
             <tr data-id="{{ p.id }}">
                 <td><strong>{{ p.name }}</strong><br><span style="font-size:11px;color:var(--text-secondary);">{{ p.description }}</span></td>
                 <td>{% for s in p.steps %}<span class="ug-badge {{ 'yellow' if s.type.startswith('upgrade') else 'green' if s.type == 'test_suite' else 'blue' if s.type == 'template' else 'gray' }}" style="margin:1px;{{ 'opacity:0.4;' if not s.enabled }}">{{ s.label or s.type }}</span> {% endfor %}{% if not p.steps %}<span style="color:var(--text-secondary);">empty</span>{% endif %}</td>
                 <td>{{ 'Auto' if p.auto_approve else 'Manual' }}</td>
-                <td>{{ p.scan_interval_minutes }}m</td>
+                <td>{% if not p.auto_approve %}<span style="color:var(--text-secondary);">-</span>{% elif p.schedule_mode == 'daily' %}{{ p.schedule_time or '03:00' }} UTC{% if p.schedule_days %} ({{ p.schedule_days|join(',') }}){% endif %}{% elif p.schedule_mode == 'dates' %}{{ (p.schedule_dates or [])|length }} date(s){% else %}every {{ p.scan_interval_minutes }}m{% endif %}</td>
                 <td><label class="toggle"><input type="checkbox" {{ 'checked' if p.enabled }} onchange="togglePolicy({{ p.id }}, this.checked)"><span class="slider"></span></label></td>
                 <td style="white-space:nowrap;">
                     <button class="btn-sm" onclick="editPolicy({{ p.id }})" title="Edit">✏️</button>
@@ -131,133 +167,101 @@ h2.collapsed .collapse-icon { transform:rotate(-90deg); }
     <div class="modal">
         <h3 id="policyModalTitle">Add Upgrade Policy</h3>
         <input type="hidden" id="policyEditId" value="">
-        <label>Name</label>
-        <input id="polName" placeholder="e.g. Full Upgrade Pipeline">
-        <label>Description</label>
-        <input id="polDesc" placeholder="Optional description">
-        <div style="display:flex;gap:16px;margin-top:12px;">
-            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;flex:1;">
-                <select id="polAutoApprove" style="width:auto;flex:1;"><option value="false" selected>Manual trigger only</option><option value="true">Auto-trigger when upgrades detected</option></select>
-            </label>
-            <label style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
-                Scan every <input id="polInterval" type="number" value="60" min="5" style="width:60px;"> min
-            </label>
+
+        <div class="modal-section">
+            <p class="modal-section-title">Basic Info</p>
+            <label class="field-label" for="polName">Name</label>
+            <input id="polName" placeholder="e.g. Full Upgrade Pipeline">
+            <label class="field-label" for="polDesc" style="margin-top:12px;">Description</label>
+            <input id="polDesc" placeholder="Optional description">
         </div>
-        <label style="margin-top:16px;">Pipeline Steps (run sequentially, top to bottom)</label>
-        <div id="actionsList" style="margin-bottom:8px;"></div>
-        <div style="display:flex;gap:8px;align-items:center;">
-            <select id="newActionType" style="flex:1;">
-                <option value="" disabled selected>+ Add step...</option>
-                <optgroup label="Upgrades">
-                    <option value="upgrade_olm">Upgrade OLM Operator(s)</option>
-                    <option value="upgrade_cvo">Upgrade Cluster (CVO)</option>
-                </optgroup>
-                <optgroup label="Tests">
-                    <option value="test_suite">Run Test Suite</option>
-                    <option value="template">Run Template</option>
-                    <option value="health_check">Run Health Check</option>
-                </optgroup>
+
+        <div class="modal-section">
+            <p class="modal-section-title">Trigger Mode</p>
+            <div class="pol-trigger-row">
+                <label class="field-label" for="polAutoApprove">When to run</label>
+                <select id="polAutoApprove">
+                    <option value="false" selected>Manual trigger only</option>
+                    <option value="true">Auto-trigger when upgrades detected</option>
+                </select>
+            </div>
+            <div id="polManualHint" class="pol-manual-hint">
+                This policy runs only when you click the play button. No background scanning or scheduled runs.
+            </div>
+        </div>
+
+        <div class="modal-section pol-schedule-section is-hidden" id="polScheduleSection">
+            <p class="modal-section-title">Schedule</p>
+            <label class="field-label" for="polScheduleMode">Schedule type</label>
+            <select id="polScheduleMode" onchange="toggleScheduleMode()">
+                <option value="interval">Scan every N minutes</option>
+                <option value="daily">Daily at UTC time</option>
+                <option value="dates">Specific UTC dates</option>
             </select>
-            <select id="newActionId" style="flex:2;display:none;"></select>
+
+            <div id="schedModeInterval" class="pol-schedule-mode-panel" style="margin-top:12px;">
+                <div class="pol-schedule-timing-row">
+                    <div class="pol-schedule-timing-group">
+                        <label class="field-label" for="polInterval">Scan every</label>
+                        <input id="polInterval" type="number" value="60" min="5" class="pol-schedule-input pol-schedule-interval">
+                        <span style="font-size:13px;color:var(--text-secondary);">minutes</span>
+                    </div>
+                </div>
+                <p class="field-hint">Periodically scans for available upgrades and triggers when found.</p>
+            </div>
+
+            <div id="schedModeDaily" class="pol-schedule-mode-panel" style="margin-top:12px;display:none;">
+                <div class="pol-schedule-timing-row">
+                    <div class="pol-schedule-timing-group">
+                        <label class="field-label" for="polScheduleTime">Time (UTC)</label>
+                        <input id="polScheduleTime" type="time" value="03:00" class="pol-schedule-input pol-schedule-time">
+                    </div>
+                </div>
+                <div class="pol-days-grid">
+                    <span class="field-label">Days</span>
+                    <label class="day-label"><input type="checkbox" class="sched-day" value="mon"> Mon</label>
+                    <label class="day-label"><input type="checkbox" class="sched-day" value="tue"> Tue</label>
+                    <label class="day-label"><input type="checkbox" class="sched-day" value="wed"> Wed</label>
+                    <label class="day-label"><input type="checkbox" class="sched-day" value="thu"> Thu</label>
+                    <label class="day-label"><input type="checkbox" class="sched-day" value="fri"> Fri</label>
+                    <label class="day-label"><input type="checkbox" class="sched-day" value="sat"> Sat</label>
+                    <label class="day-label"><input type="checkbox" class="sched-day" value="sun"> Sun</label>
+                </div>
+                <p class="field-hint">Runs daily at the specified UTC time. Check specific days to limit to those days only.</p>
+            </div>
+
+            <div id="schedModeDates" class="pol-schedule-mode-panel" style="margin-top:12px;display:none;">
+                <div id="schedDatesList"></div>
+                <div style="display:flex;gap:8px;align-items:center;margin-top:8px;">
+                    <input id="schedNewDate" type="date" class="pol-schedule-input" style="flex:1;">
+                    <input id="schedNewTime" type="time" value="03:00" class="pol-schedule-input pol-schedule-time">
+                    <button type="button" class="btn-sm btn-primary" onclick="addScheduleDate()">Add</button>
+                </div>
+                <p class="field-hint">Run at specific UTC dates and times. Add one or more date/time entries.</p>
+            </div>
         </div>
-        <script>
-        var _policyActions = [];
-        var _suites = {{ user_suites | tojson }};
-        var _templates = {{ user_templates | tojson }};
-        document.getElementById('newActionType').addEventListener('change', onStepTypeSelected);
-        document.getElementById('newActionId').addEventListener('change', onStepValueSelected);
 
-        function onStepTypeSelected() {
-            var type = document.getElementById('newActionType').value;
-            var sel = document.getElementById('newActionId');
-            sel.innerHTML = '';
-            sel.style.display = 'none';
-
-            if (type === 'health_check' || type === 'upgrade_cvo') {
-                addStepEntry(type, '', '');
-                return;
-            }
-            if (type === 'upgrade_olm') {
-                addStepEntry(type, '*', '');
-                return;
-            }
-            if (type === 'test_suite') {
-                sel.innerHTML = '<option value="" disabled selected>-- select suite --</option>';
-                _suites.forEach(function(s) { sel.innerHTML += '<option value="' + s.id + '">' + s.name + ' (' + s.item_count + ' items)</option>'; });
-                sel.style.display = '';
-            } else if (type === 'template') {
-                sel.innerHTML = '<option value="" disabled selected>-- select template --</option>';
-                _templates.forEach(function(t) { sel.innerHTML += '<option value="' + t.id + '">' + t.name + '</option>'; });
-                sel.style.display = '';
-            }
-        }
-
-        function onStepValueSelected() {
-            var type = document.getElementById('newActionType').value;
-            var sel = document.getElementById('newActionId');
-            var val = sel.value;
-            if (!val) return;
-            var label = sel.selectedOptions[0].text;
-            addStepEntry(type, val, label);
-        }
-
-        function addStepEntry(type, val, label) {
-            var entry = {type: type, id: null, label: '', target: '', enabled: true};
-            if (type === 'upgrade_olm') {
-                entry.target = val || '*';
-                entry.label = 'Upgrade OLM: ' + (entry.target === '*' ? 'all operators' : entry.target);
-            } else if (type === 'upgrade_cvo') {
-                entry.label = 'Upgrade Cluster (CVO)';
-            } else if (type === 'health_check') {
-                entry.label = 'Health Check (all)';
-            } else if (type === 'test_suite') {
-                entry.id = parseInt(val);
-                entry.label = label;
-            } else if (type === 'template') {
-                entry.id = parseInt(val);
-                entry.label = label;
-            }
-            _policyActions.push(entry);
-            renderActions();
-            document.getElementById('newActionType').value = '';
-            document.getElementById('newActionId').style.display = 'none';
-            document.getElementById('newActionId').innerHTML = '';
-        }
-
-        function removeAction(idx) { _policyActions.splice(idx, 1); renderActions(); }
-        function moveAction(idx, dir) {
-            var n = idx + dir;
-            if (n < 0 || n >= _policyActions.length) return;
-            var tmp = _policyActions[idx]; _policyActions[idx] = _policyActions[n]; _policyActions[n] = tmp;
-            renderActions();
-        }
-
-        function toggleStepEnabled(idx) {
-            _policyActions[idx].enabled = !_policyActions[idx].enabled;
-            renderActions();
-        }
-
-        function renderActions() {
-            var c = document.getElementById('actionsList');
-            if (!_policyActions.length) { c.innerHTML = '<div style="font-size:12px;color:var(--text-secondary);padding:4px 0;">No steps added yet. Add upgrades and tests below.</div>'; return; }
-            c.innerHTML = _policyActions.map(function(a, i) {
-                var enabled = a.enabled !== false;
-                var badge = a.type === 'test_suite' ? 'green' : a.type === 'template' ? 'blue' : (a.type.startsWith('upgrade') ? 'yellow' : 'gray');
-                var opacity = enabled ? '1' : '0.4';
-                return '<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;margin-bottom:4px;opacity:' + opacity + ';">' +
-                    '<label class="toggle" style="flex-shrink:0;"><input type="checkbox" ' + (enabled?'checked':'') + ' onchange="toggleStepEnabled(' + i + ')"><span class="slider"></span></label>' +
-                    '<span style="font-size:12px;font-weight:600;width:22px;text-align:center;">' + (i+1) + '</span>' +
-                    '<span class="ug-badge ' + badge + '">' + a.type.replace('_',' ') + '</span>' +
-                    '<span style="flex:1;font-size:13px;">' + (a.label || '') + '</span>' +
-                    '<button type="button" onclick="moveAction(' + i + ',-1)" style="border:none;background:none;cursor:pointer;font-size:12px;" ' + (i===0?'disabled':'') + '>↑</button>' +
-                    '<button type="button" onclick="moveAction(' + i + ',1)" style="border:none;background:none;cursor:pointer;font-size:12px;" ' + (i===_policyActions.length-1?'disabled':'') + '>↓</button>' +
-                    '<button type="button" onclick="removeAction(' + i + ')" style="border:none;background:none;cursor:pointer;color:var(--danger);font-size:14px;">✕</button>' +
-                    '</div>';
-            }).join('');
-        }
-        renderActions();
-        </script>
-        <div class="actions" style="margin-top:16px;">
+        <div class="modal-section">
+            <p class="modal-section-title">Pipeline Steps</p>
+            <p class="field-hint" style="margin-top:0;margin-bottom:10px;">Run sequentially, top to bottom</p>
+            <div id="actionsList" style="margin-bottom:10px;"></div>
+            <div style="display:flex;gap:8px;align-items:center;">
+                <select id="newActionType" style="flex:1;">
+                    <option value="" disabled selected>+ Add step...</option>
+                    <optgroup label="Upgrades">
+                        <option value="upgrade_olm">Upgrade OLM Operator(s)</option>
+                        <option value="upgrade_cvo">Upgrade Cluster (CVO)</option>
+                    </optgroup>
+                    <optgroup label="Tests">
+                        <option value="test_suite">Run Test Suite</option>
+                        <option value="template">Run Template</option>
+                        <option value="health_check">Run Health Check</option>
+                    </optgroup>
+                </select>
+                <select id="newActionId" style="flex:2;display:none;"></select>
+            </div>
+        </div>
+        <div class="actions">
             <button class="btn-sm" onclick="closePolicyModal()">Cancel</button>
             <button class="btn-sm btn-primary" onclick="savePolicy()">Save</button>
         </div>
@@ -275,182 +279,16 @@ h2.collapsed .collapse-icon { transform:rotate(-90deg); }
 
 {% block scripts %}
 <script>
-var ALL_POLICIES = {{ policies | tojson }};
-
-function toggleSection(h2) {
-    h2.classList.toggle('collapsed');
-    var content = h2.nextElementSibling;
-    if (content && content.classList.contains('ug-collapsible')) {
-        content.classList.toggle('collapsed');
-    }
-}
-
-function editPolicy(id) {
-    var p = ALL_POLICIES.find(function(x) { return x.id === id; });
-    if (!p) { fetch('/api/upgrades/policies/' + id).then(function(r){return r.json();}).then(function(data){ _loadPolicyIntoModal(data); }); return; }
-    _loadPolicyIntoModal(p);
-}
-
-function _loadPolicyIntoModal(p) {
-    document.getElementById('policyEditId').value = p.id;
-    document.getElementById('policyModalTitle').textContent = 'Edit Policy: ' + p.name;
-    document.getElementById('polName').value = p.name;
-    document.getElementById('polDesc').value = p.description || '';
-    document.getElementById('polAutoApprove').value = p.auto_approve ? 'true' : 'false';
-    document.getElementById('polInterval').value = p.scan_interval_minutes || 60;
-    _policyActions = (p.steps || []).map(function(s) {
-        return {type: s.type, id: s.id, target: s.target || '', enabled: s.enabled !== false, label: s.label || s.type, namespace: s.namespace || ''};
-    });
-    renderActions();
-    document.getElementById('policyModal').classList.add('show');
-}
-
-function scanNow() {
-    var sp = document.getElementById('scanSpinner');
-    sp.classList.add('active');
-    fetch('/api/upgrades/scan').then(r => r.json()).then(data => {
-        sp.classList.remove('active');
-        if (data.error) { document.getElementById('scanResults').innerHTML = '<div class="ug-warn">' + data.error + '</div>'; return; }
-        renderScanResults(data);
-    }).catch(() => sp.classList.remove('active'));
-}
-
-function renderScanResults(data) {
-    var html = '<div class="ug-grid">';
-    var cvo = data.cvo || {};
-    html += '<div class="ug-card"><h3>Cluster Version (CVO)</h3>';
-    html += '<div class="meta">Current: <strong>' + (cvo.current_version || 'N/A') + '</strong> | Channel: ' + (cvo.channel || 'N/A') + '</div>';
-    var updates = cvo.available_updates || [];
-    if (updates.length) {
-        html += '<div style="margin-top:8px;">';
-        updates.forEach(function(u) {
-            var blocked = !cvo.upgradeable;
-            html += '<div style="display:flex;align-items:center;gap:8px;margin:4px 0;">';
-            html += '<span class="ug-badge ' + (blocked ? 'red' : 'green') + '">' + u.version + '</span>';
-            if (!blocked) html += '<button class="btn-sm" onclick="triggerCvoUpgrade(\'' + u.version + '\')" style="font-size:11px;">Upgrade</button>';
-            else html += '<span style="font-size:11px;color:var(--danger);">blocked</span>';
-            html += '</div>';
-        });
-        html += '</div>';
-        if (cvo.warnings && cvo.warnings.length) {
-            cvo.warnings.forEach(function(w) { html += '<div class="ug-warn">' + w + '</div>'; });
-        }
-    } else { html += '<div class="meta" style="margin-top:8px;">No updates available</div>'; }
-    html += '</div>';
-
-    var olm = data.olm || [];
-    html += '<div class="ug-card"><h3>OLM Operators</h3>';
-    if (olm.length) {
-        olm.forEach(function(op) {
-            html += '<div style="margin:6px 0;padding:6px 0;border-bottom:1px solid var(--border);">';
-            html += '<strong>' + op.name + '</strong> <span class="meta">(' + op.namespace + ')</span><br>';
-            html += '<span class="meta">' + (op.installed_csv||'').substring(0,40) + ' → ' + (op.current_csv||'').substring(0,40) + '</span>';
-            if (op.pending_plans && op.pending_plans.length) {
-                html += ' <span class="ug-badge yellow">' + op.pending_plans.length + ' pending</span>';
-            }
-            html += ' <button class="btn-sm" onclick="triggerOlmUpgrade(\'' + op.name.replace(/'/g, "\\'") + '\',\'' + op.namespace.replace(/'/g, "\\'") + '\')" style="font-size:11px;margin-left:6px;">Upgrade</button>';
-            html += '</div>';
-        });
-    } else { html += '<div class="meta">No pending OLM upgrades</div>'; }
-    html += '</div></div>';
-    document.getElementById('scanResults').innerHTML = html;
-}
-
-function triggerCvoUpgrade(version) {
-    if (!confirm('Trigger cluster upgrade to ' + version + '?')) return;
-    fetch('/api/upgrades/policies', {method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({name:'Manual CVO ' + version, upgrade_type:'cvo', target_operator:'cluster', auto_approve:true, post_upgrade_action:'none', scan_interval_minutes:9999})
-    }).then(r => r.json()).then(p => {
-        if (p.error) return alert(p.error);
-        fetch('/api/upgrades/policies/' + p.id + '/trigger', {method:'POST', headers:{'Content-Type':'application/json'},
-            body: JSON.stringify({to_version: version})
-        }).then(r => r.json()).then(run => {
-            if (run.error) return alert(run.error);
-            location.reload();
-        });
-    });
-}
-
-function triggerOlmUpgrade(operator, namespace) {
-    if (!confirm('Upgrade ' + operator + ' in ' + namespace + '?')) return;
-    fetch('/api/upgrades/operator', {method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({operator: operator, namespace: namespace})
-    }).then(r => r.json()).then(run => {
-        if (run.error) return alert(run.error);
-        window.location.href = '/upgrade-run/' + run.id;
-    }).catch(e => alert('Upgrade failed: ' + e));
-}
-
-function onTypeChange() {
-    var t = document.getElementById('polType').value;
-    document.getElementById('olmFields').style.display = t === 'olm' ? '' : 'none';
-    if (t === 'cvo') { document.getElementById('polTarget').value = 'cluster'; document.getElementById('polNs').value = ''; }
-}
-function onActionChange() {
-    var a = document.getElementById('polAction').value;
-    document.getElementById('suiteField').style.display = a === 'test_suite' ? '' : 'none';
-    document.getElementById('templateField').style.display = a === 'template' ? '' : 'none';
-}
-function openPolicyModal() {
-    document.getElementById('policyEditId').value = '';
-    document.getElementById('policyModalTitle').textContent = 'Add Upgrade Policy';
-    document.getElementById('polName').value = '';
-    document.getElementById('polDesc').value = '';
-    document.getElementById('polAutoApprove').value = 'false';
-    document.getElementById('polInterval').value = '60';
-    _policyActions = [];
-    renderActions();
-    document.getElementById('policyModal').classList.add('show');
-}
-function closePolicyModal() { document.getElementById('policyModal').classList.remove('show'); }
-
-function savePolicy() {
-    var data = {
-        name: document.getElementById('polName').value.trim(),
-        description: document.getElementById('polDesc').value.trim(),
-        auto_approve: document.getElementById('polAutoApprove').value === 'true',
-        steps: _policyActions.map(function(a) {
-            return {type: a.type, id: a.id, target: a.target || '', enabled: a.enabled !== false, label: a.label || a.type};
-        }),
-        scan_interval_minutes: parseInt(document.getElementById('polInterval').value) || 60,
-    };
-    if (!data.name) return alert('Name is required');
-    var editId = document.getElementById('policyEditId').value;
-    var url = editId ? '/api/upgrades/policies/' + editId : '/api/upgrades/policies';
-    var method = editId ? 'PUT' : 'POST';
-    fetch(url, {method, headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)})
-        .then(r => { if (!r.ok && r.status === 302 || r.redirected) { location.href = '/login'; return; } return r.json(); })
-        .then(p => { if (!p) return; if (p.error) return alert(p.error); closePolicyModal(); location.reload(); })
-        .catch(e => alert('Save failed: ' + e));
-}
-
-function togglePolicy(id, enabled) {
-    fetch('/api/upgrades/policies/' + id, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({enabled})});
-}
-function deletePolicy(id) {
-    if (!confirm('Delete this policy?')) return;
-    fetch('/api/upgrades/policies/' + id, {method:'DELETE'}).then(() => location.reload());
-}
-function triggerPolicy(id) {
-    if (!confirm('Trigger this upgrade policy now?')) return;
-    fetch('/api/upgrades/policies/' + id + '/trigger', {method:'POST'}).then(r => r.json()).then(run => {
-        if (run.no_upgrades) {
-            alert('No upgrades available. Tests will not run.');
-            return;
-        }
-        if (run.error) return alert(run.error);
-        window.location.href = '/upgrade-run/' + run.id;
-    });
-}
-function showRunLog(id) {
-    fetch('/api/upgrades/runs/' + id).then(r => r.json()).then(run => {
-        document.getElementById('logContent').textContent = run.log || 'No log entries';
-        document.getElementById('logModal').classList.add('show');
-    });
-}
-function abortRun(id) {
-    if (!confirm('Abort this upgrade run?')) return;
-    fetch('/api/upgrades/runs/' + id + '/abort', {method:'POST'}).then(() => location.reload());
-}
+window.ALL_POLICIES = {{ policies | tojson }};
+window._suites = {{ user_suites | tojson }};
+window._templates = {{ user_templates | tojson }};
+</script>
+<script src="{{ url_for('static', filename='js/upgrades.js') }}"></script>
+<script>
+document.getElementById('newActionType').addEventListener('change', onStepTypeSelected);
+document.getElementById('newActionId').addEventListener('change', onStepValueSelected);
+document.getElementById('polAutoApprove').addEventListener('change', toggleScheduleSection);
+renderActions();
+toggleScheduleSection();
 </script>
 {% endblock %}
