@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CNV-75797 Tier 0 Smoke Test Results (10 VMs, Alpine)</title>
+<style>
+body{font-family:'Segoe UI',Roboto,Arial,sans-serif;color:#1a1a2e;margin:0;padding:20px;background:#f5f5f5}
+h1{color:#0d47a1;border-bottom:3px solid #1565c0;padding-bottom:10px;font-size:24px;margin-bottom:4px}
+h2{color:#1565c0;margin-top:32px;font-size:17px;border-left:4px solid #1565c0;padding-left:10px}
+.container{max-width:960px;margin:0 auto;background:#fff;padding:32px;border-radius:10px;box-shadow:0 3px 12px rgba(0,0,0,0.08)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:13px}
+th{background:#1565c0;color:#fff;padding:9px 12px;text-align:left;font-weight:600}
+td{padding:8px 12px;border-bottom:1px solid #e0e0e0}
+tr:nth-child(even){background:#f8f9fa}
+tr:hover{background:#e3f2fd}
+.status-box{background:linear-gradient(135deg,#0d47a1 0%,#1565c0 40%,#1976d2 100%);color:#fff;border-radius:10px;padding:22px 24px;margin:20px 0 16px 0;text-align:center;box-shadow:0 4px 14px rgba(21,101,192,0.25)}
+.status-box .status-title{font-size:22px;font-weight:700;letter-spacing:0.5px}
+.status-box .status-sub{font-size:14px;margin-top:6px;opacity:0.92}
+.metrics-grid{display:flex;flex-wrap:wrap;gap:10px;margin:16px 0}
+.metric-card{flex:1;min-width:130px;background:linear-gradient(135deg,#e3f2fd,#f5f9ff);border:1px solid #90caf9;border-radius:8px;padding:14px 16px;text-align:center;box-shadow:0 1px 4px rgba(0,0,0,0.06)}
+.metric-card .value{font-size:22px;font-weight:700;color:#0d47a1}
+.metric-card .label{font-size:11px;color:#546e7a;margin-top:5px;text-transform:uppercase;letter-spacing:0.3px}
+.takeaways{background:linear-gradient(135deg,#e8f5e9,#f1f8e9);border:2px solid #81c784;border-radius:8px;padding:16px 20px;margin:18px 0}
+.takeaways h3{color:#2e7d32;margin:0 0 10px 0;font-size:15px}
+.takeaways ul{margin:0;padding-left:20px;line-height:1.8;font-size:13px}
+.note{background:#fff3e0;border-left:4px solid #ff9800;padding:10px 15px;margin:12px 0;font-size:13px;border-radius:0 4px 4px 0;line-height:1.6}
+.footer{margin-top:30px;padding-top:15px;border-top:2px solid #e0e0e0;font-size:12px;color:#78909c}
+</style>
+</head>
+<body>
+<div class="container">
+
+<h1>CNV-75797 Tier 0 Smoke Test Results (10 VMs, Alpine)</h1>
+<p style="color:#546e7a;margin-top:0;font-size:14px">IP Address Specification for VMs on Primary UDN - 10 VM Smoke Test</p>
+
+<h2>Test Goals</h2>
+<table>
+<tr><th>#</th><th>Goal</th><th>Status</th></tr>
+<tr><td>1</td><td>Validate annotation correctly assigns requested IP on Primary UDN</td><td><span style="background:#e8f5e9;color:#2e7d32;font-weight:700;padding:2px 8px;border-radius:4px;font-size:11px">ACHIEVED</span></td></tr>
+<tr><td>2</td><td>Confirm naming rule (network/interface/annotation key must match UDN name)</td><td><span style="background:#e8f5e9;color:#2e7d32;font-weight:700;padding:2px 8px;border-radius:4px;font-size:11px">ACHIEVED</span></td></tr>
+<tr><td>3</td><td>Verify IPAMClaim objects created correctly</td><td><span style="background:#e8f5e9;color:#2e7d32;font-weight:700;padding:2px 8px;border-radius:4px;font-size:11px">ACHIEVED</span></td></tr>
+<tr><td>4</td><td>Identify reserved IPs in UDN subnet</td><td><span style="background:#e8f5e9;color:#2e7d32;font-weight:700;padding:2px 8px;border-radius:4px;font-size:11px">ACHIEVED</span> (IPs .1 and .2 reserved by OVN)</td></tr>
+<tr><td>5</td><td>Validate end-to-end test mechanics before scaling up</td><td><span style="background:#e8f5e9;color:#2e7d32;font-weight:700;padding:2px 8px;border-radius:4px;font-size:11px">ACHIEVED</span></td></tr>
+</table>
+
+<div class="status-box">
+<div class="status-title">P0 PASS RATE: 100% (10/10)</div>
+<div class="status-sub">All VMs received their requested IP addresses on the Primary UDN</div>
+</div>
+
+<div class="takeaways">
+<h3>Key Takeaways</h3>
+<ul>
+<li>IP specification via annotation works reliably on Primary UDN with Alpine container-disk VMs</li>
+<li>IPs .1 and .2 in UDN subnet are reserved by OVN (gateway/router) - start allocations from .3</li>
+<li>Batch creation is fast (~24s for 8 VMs) - throughput extrapolates to ~1,200 VMs/hour</li>
+<li>IPAMClaim objects are created with SuccessfulAllocation for all 10 VMs</li>
+<li>P1 (guest-OS DHCP pickup) not testable with Alpine - requires Cirros or Fedora image</li>
+</ul>
+</div>
+
+<div class="note">
+<strong>Note:</strong> IPs .1 and .2 are reserved by OVN for gateway and router functions. VMs requesting these IPs will fail to start. Always begin IP allocation from .3 in the UDN subnet.
+</div>
+
+<h2>Metrics</h2>
+<div class="metrics-grid">
+<div class="metric-card"><div class="value">10/10</div><div class="label">VMs Created</div></div>
+<div class="metric-card"><div class="value">100%</div><div class="label">P0 Pass Rate</div></div>
+<div class="metric-card"><div class="value">24s</div><div class="label">Batch 1 (8 VMs)</div></div>
+<div class="metric-card"><div class="value">20s</div><div class="label">Batch 2 (2 VMs)</div></div>
+<div class="metric-card"><div class="value">~1,200</div><div class="label">VMs/Hour</div></div>
+</div>
+
+<h2>Test Environment</h2>
+<table>
+<tr><th>Parameter</th><th>Value</th></tr>
+<tr><td>OpenShift Version</td><td>4.22.0-ec.5</td></tr>
+<tr><td>CNV Version</td><td>4.22.0-190</td></tr>
+<tr><td>Cluster Nodes</td><td>42</td></tr>
+<tr><td>Network Plugin</td><td>OVN-Kubernetes</td></tr>
+<tr><td>Storage</td><td>OCS/ODF</td></tr>
+<tr><td>VM Image</td><td>Alpine (quay.io/kubevirt/alpine-container-disk-demo:v1.2.0)</td></tr>
+<tr><td>Namespace</td><td>vm-ip-scale-test</td></tr>
+<tr><td>UDN Name</td><td>scale-test-udn</td></tr>
+<tr><td>UDN Type</td><td>Layer2 Primary Persistent IPAM</td></tr>
+<tr><td>Subnet</td><td>172.16.0.0/16</td></tr>
+<tr><td>Interface Binding</td><td>l2bridge</td></tr>
+<tr><td>Test Date</td><td>2026-05-31</td></tr>
+</table>
+
+<h2>Validation Summary</h2>
+<table>
+<tr><th>Check</th><th>Result</th><th>Details</th></tr>
+<tr><td>IP Assignment (annotation &rarr; interface)</td><td><span style="background:#e8f5e9;color:#2e7d32;font-weight:700;padding:2px 8px;border-radius:4px;font-size:11px">PASS</span></td><td>10/10 VMs received requested IP</td></tr>
+<tr><td>Guest OS IP (ovn-udn1 interface)</td><td><span style="background:#e8f5e9;color:#2e7d32;font-weight:700;padding:2px 8px;border-radius:4px;font-size:11px">PASS</span></td><td>10/10 confirmed via console</td></tr>
+<tr><td>IPAMClaim Status</td><td><span style="background:#e8f5e9;color:#2e7d32;font-weight:700;padding:2px 8px;border-radius:4px;font-size:11px">PASS</span></td><td>10/10 SuccessfulAllocation</td></tr>
+<tr><td>P1: DHCP Auto-Pickup</td><td>N/A</td><td>Not tested (Alpine has no DHCP client on boot)</td></tr>
+</table>
+
+<h2>Per-VM Results</h2>
+<table>
+<tr><th>VM Name</th><th>Requested IP</th><th>Assigned IP</th><th>Guest OS IP</th><th>Node</th><th>Status</th></tr>
+<tr><td>vm-ip-t0-1</td><td>172.16.0.11</td><td>172.16.0.11</td><td>172.16.0.11/16</td><td>e24-h05</td><td><span style="background:#e8f5e9;color:#2e7d32;font-weight:700;padding:2px 8px;border-radius:4px;font-size:11px">PASS</span></td></tr>
+<tr><td>vm-ip-t0-2</td><td>172.16.0.12</td><td>172.16.0.12</td><td>172.16.0.12/16</td><td>e24-h01</td><td><span style="background:#e8f5e9;color:#2e7d32;font-weight:700;padding:2px 8px;border-radius:4px;font-size:11px">PASS</span></td></tr>
+<tr><td>vm-ip-t0-3</td><td>172.16.0.3</td><td>172.16.0.3</td><td>172.16.0.3/16</td><td>f21-h19</td><td><span style="background:#e8f5e9;color:#2e7d32;font-weight:700;padding:2px 8px;border-radius:4px;font-size:11px">PASS</span></td></tr>
+<tr><td>vm-ip-t0-4</td><td>172.16.0.4</td><td>172.16.0.4</td><td>172.16.0.4/16</td><td>e24-h03</td><td><span style="background:#e8f5e9;color:#2e7d32;font-weight:700;padding:2px 8px;border-radius:4px;font-size:11px">PASS</span></td></tr>
+<tr><td>vm-ip-t0-5</td><td>172.16.0.5</td><td>172.16.0.5</td><td>172.16.0.5/16</td><td>f21-h18</td><td><span style="background:#e8f5e9;color:#2e7d32;font-weight:700;padding:2px 8px;border-radius:4px;font-size:11px">PASS</span></td></tr>
+<tr><td>vm-ip-t0-6</td><td>172.16.0.6</td><td>172.16.0.6</td><td>172.16.0.6/16</td><td>e24-h03</td><td><span style="background:#e8f5e9;color:#2e7d32;font-weight:700;padding:2px 8px;border-radius:4px;font-size:11px">PASS</span></td></tr>
+<tr><td>vm-ip-t0-7</td><td>172.16.0.7</td><td>172.16.0.7</td><td>172.16.0.7/16</td><td>e24-h03</td><td><span style="background:#e8f5e9;color:#2e7d32;font-weight:700;padding:2px 8px;border-radius:4px;font-size:11px">PASS</span></td></tr>
+<tr><td>vm-ip-t0-8</td><td>172.16.0.8</td><td>172.16.0.8</td><td>172.16.0.8/16</td><td>e24-h07</td><td><span style="background:#e8f5e9;color:#2e7d32;font-weight:700;padding:2px 8px;border-radius:4px;font-size:11px">PASS</span></td></tr>
+<tr><td>vm-ip-t0-9</td><td>172.16.0.9</td><td>172.16.0.9</td><td>172.16.0.9/16</td><td>f21-h17</td><td><span style="background:#e8f5e9;color:#2e7d32;font-weight:700;padding:2px 8px;border-radius:4px;font-size:11px">PASS</span></td></tr>
+<tr><td>vm-ip-t0-10</td><td>172.16.0.10</td><td>172.16.0.10</td><td>172.16.0.10/16</td><td>e24-h01</td><td><span style="background:#e8f5e9;color:#2e7d32;font-weight:700;padding:2px 8px;border-radius:4px;font-size:11px">PASS</span></td></tr>
+</table>
+
+<h2>Node Distribution</h2>
+<table>
+<tr><th>Node</th><th>VMs</th><th>Count</th></tr>
+<tr><td>e24-h03</td><td>vm-ip-t0-4, vm-ip-t0-6, vm-ip-t0-7</td><td>3</td></tr>
+<tr><td>e24-h01</td><td>vm-ip-t0-2, vm-ip-t0-10</td><td>2</td></tr>
+<tr><td>e24-h05</td><td>vm-ip-t0-1</td><td>1</td></tr>
+<tr><td>e24-h07</td><td>vm-ip-t0-8</td><td>1</td></tr>
+<tr><td>f21-h17</td><td>vm-ip-t0-9</td><td>1</td></tr>
+<tr><td>f21-h18</td><td>vm-ip-t0-5</td><td>1</td></tr>
+<tr><td>f21-h19</td><td>vm-ip-t0-3</td><td>1</td></tr>
+</table>
+
+<div class="footer">
+CNV-75797 | Tier 0 Smoke Test | Alpine container-disk | 2026-05-31 | OCP 4.22.0-ec.5 / CNV 4.22.0-190
+</div>
+
+</div>
+</body>
+</html>

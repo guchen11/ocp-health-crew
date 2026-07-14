@@ -1,9 +1,4 @@
-"""Background execution for operator install and remove operations.
-
-All shell commands are constructed from the hardcoded OPERATOR_CATALOG
-(SEC-001: no user input in shell commands). Separated from operators_api.py
-to keep both files under the 500-line limit (REQ-3).
-"""
+"""Background execution for operator install/remove (SEC-001: catalog-only commands)."""
 
 import re
 import threading
@@ -267,7 +262,8 @@ def _create_cr(client, kubeconfig, record, cat):
             f'oc wait --for={wait["condition"]} '
             f'{wait["resource"]} {wait_ns} '
             f'--timeout={wait["timeout"]}',
-            kubeconfig=kubeconfig, timeout=330,
+            kubeconfig=kubeconfig,
+            timeout=int(wait['timeout'].rstrip('s')) + 30,
         )
         record.append_log(_sanitize_log(stdout or stderr),
                           'ok' if 'met' in (stdout or '') else 'fail')
@@ -333,6 +329,15 @@ def run_remove(app, record_id, operator_key):
 
 def _do_remove(client, kubeconfig, record, ns, pkg, cat):
     """Execute the operator removal steps over SSH."""
+    for step in cat.get('pre_remove', []):
+        record.append_log(step['description'], 'phase')
+        stdout, stderr = ssh_exec(
+            client, step['command'],
+            kubeconfig=kubeconfig, timeout=step.get('timeout', 30),
+        )
+        record.append_log(_sanitize_log(stdout or stderr), 'info')
+        db.session.commit()
+
     if cat.get('post_cr'):
         for resource in reversed(cat['post_cr']):
             desc = resource.get('description', 'post-CR resource')
@@ -364,7 +369,7 @@ def _do_remove(client, kubeconfig, record, ns, pkg, cat):
         stdout, stderr = ssh_exec(
             client,
             f'oc delete {cr["kind"].lower()} {quote(cr["metadata"]["name"])} '
-            f'{cr_ns} --ignore-not-found',
+            f'{cr_ns} --ignore-not-found --wait=false',
             kubeconfig=kubeconfig, timeout=60,
         )
         record.append_log(_sanitize_log(stdout or stderr), 'info')
@@ -400,24 +405,96 @@ def _do_remove(client, kubeconfig, record, ns, pkg, cat):
     record.append_log(_sanitize_log(stdout or stderr), 'info')
     db.session.commit()
 
-    record.append_log('Deleting CRDs', 'phase')
-    stdout, stderr = ssh_exec(
-        client,
-        f'oc get crd -o name | grep -i {quote(pkg.split("-")[0])} | '
-        f'xargs -r oc delete --ignore-not-found',
-        kubeconfig=kubeconfig, timeout=60,
-    )
-    record.append_log(_sanitize_log(stdout or stderr), 'info')
-    db.session.commit()
+    _remove_crds(client, kubeconfig, record, pkg, cat)
 
     record.append_log(f'Deleting namespace {ns}', 'phase')
     stdout, stderr = ssh_exec(
         client,
-        f'oc delete namespace {quote(ns)} --ignore-not-found',
+        f'oc delete namespace {quote(ns)} --ignore-not-found --wait=false',
         kubeconfig=kubeconfig, timeout=120,
     )
     record.append_log(_sanitize_log(stdout or stderr), 'info')
+    db.session.commit()
+
+    for extra_ns in cat.get('extra_remove_namespaces', []):
+        record.append_log(f'Deleting namespace {extra_ns}', 'phase')
+        stdout, stderr = ssh_exec(
+            client,
+            f'oc delete namespace {quote(extra_ns)} --ignore-not-found --wait=false',
+            kubeconfig=kubeconfig, timeout=60,
+        )
+        record.append_log(_sanitize_log(stdout or stderr), 'info')
+        db.session.commit()
+
+    _force_finalize_namespaces(client, kubeconfig, record, ns, cat)
 
     record.status = 'removed'
     record.append_log('Operator removal complete', 'ok')
+    db.session.commit()
+
+
+def _remove_crds(client, kubeconfig, record, pkg, cat):
+    """Delete CRDs matching the operator package or extra patterns."""
+    patterns = cat.get('extra_remove_crd_patterns', [pkg.split("-")[0]])
+    grep_pattern = '|'.join(patterns)
+    record.append_log('Deleting CRDs', 'phase')
+    stdout, stderr = ssh_exec(
+        client,
+        f'oc get crd -o name | grep -iE {quote(grep_pattern)} | '
+        f'xargs -r oc delete --wait=false --ignore-not-found',
+        kubeconfig=kubeconfig, timeout=120,
+    )
+    record.append_log(_sanitize_log(stdout or stderr), 'info')
+    db.session.commit()
+
+    stdout, _ = ssh_exec(
+        client,
+        f'oc get crd -o name | grep -iE {quote(grep_pattern)}',
+        kubeconfig=kubeconfig, timeout=15,
+    )
+    if stdout and stdout.strip():
+        record.append_log('Removing finalizers from stuck CRDs', 'phase')
+        ssh_exec(
+            client,
+            f'oc get crd -o name | grep -iE {quote(grep_pattern)} |'
+            f' xargs -r -I{{}} oc patch {{}} --type=json'
+            f' -p \'[{{"op":"remove","path":"/metadata/finalizers"}}]\''
+            f' --ignore-not-found',
+            kubeconfig=kubeconfig, timeout=60,
+        )
+        record.append_log('Stuck CRD finalizers removed', 'info')
+        db.session.commit()
+
+
+def _force_finalize_namespaces(client, kubeconfig, record, ns, cat):
+    """Force-finalize namespaces stuck in Terminating state."""
+    all_ns = [ns] + cat.get('extra_remove_namespaces', [])
+    stdout, _ = ssh_exec(
+        client,
+        'oc get ns --no-headers -o custom-columns=NAME:.metadata.name,STATUS:.status.phase'
+        ' | grep Terminating',
+        kubeconfig=kubeconfig, timeout=15,
+    )
+    if not stdout or not stdout.strip():
+        return
+
+    stuck = {line.split()[0] for line in stdout.strip().splitlines() if line.split()}
+    targets = [n for n in all_ns if n in stuck]
+    if not targets:
+        return
+
+    record.append_log(
+        f'Force-finalizing stuck namespaces: {", ".join(targets)}', 'phase',
+    )
+    for target_ns in targets:
+        ssh_exec(
+            client,
+            f'oc get ns {quote(target_ns)} -o json 2>/dev/null'
+            f' | python3 -c "import sys,json;'
+            f" o=json.load(sys.stdin); o['spec']['finalizers']=[];"
+            f' print(json.dumps(o))"'
+            f' | oc replace --raw /api/v1/namespaces/{target_ns}/finalize -f -',
+            kubeconfig=kubeconfig, timeout=15,
+        )
+    record.append_log('Namespace finalization complete', 'info')
     db.session.commit()

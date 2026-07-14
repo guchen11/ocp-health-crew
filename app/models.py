@@ -406,14 +406,21 @@ class UpgradePolicy(db.Model):
     runs = db.relationship('UpgradeRun', backref='policy', lazy='dynamic')
 
     def to_dict(self):
+        steps = list(self.steps or [])
+        for step in steps:
+            if step.get('type') == 'test_suite' and step.get('action_id'):
+                suite = TestSuite.query.get(step['action_id'])
+                if suite:
+                    count = len(suite.items or [])
+                    step['label'] = f"{suite.name} ({count} items)"
         return {
             'id': self.id,
             'name': self.name,
             'description': self.description or '',
             'enabled': self.enabled,
             'auto_approve': self.auto_approve,
-            'steps': self.steps or [],
-            'step_count': len(self.steps or []),
+            'steps': steps,
+            'step_count': len(steps),
             'scan_interval_minutes': self.scan_interval_minutes,
             'schedule_mode': self.schedule_mode or 'interval',
             'schedule_time': self.schedule_time or '',

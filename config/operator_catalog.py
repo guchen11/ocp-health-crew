@@ -121,7 +121,7 @@ OPERATOR_CATALOG = {
         'channel': 'release-2.16',
         'source': 'redhat-operators',
         'source_namespace': 'openshift-marketplace',
-        'install_mode': 'AllNamespaces',
+        'install_mode': 'OwnNamespace',
         'parameters': [],
         'cr': {
             'apiVersion': 'operator.open-cluster-management.io/v1',
@@ -138,6 +138,52 @@ OPERATOR_CATALOG = {
             'timeout': '900s',
         },
         'post_cr': None,
+        'pre_remove': [
+            {
+                'description': 'Deleting ACM/MCE webhooks',
+                'command': (
+                    'oc get validatingwebhookconfigurations -o name'
+                    ' | grep -iE "open-cluster-management|multicluster|ocm|hive"'
+                    ' | xargs -r oc delete --ignore-not-found;'
+                    ' oc get mutatingwebhookconfigurations -o name'
+                    ' | grep -iE "open-cluster-management|multicluster|ocm|hive"'
+                    ' | xargs -r oc delete --ignore-not-found'
+                ),
+                'timeout': 30,
+            },
+            {
+                'description': 'Deleting ManagedCluster resources',
+                'command': (
+                    'oc get managedcluster --no-headers -o name 2>/dev/null'
+                    ' | xargs -r oc delete --wait=false --ignore-not-found'
+                ),
+                'timeout': 60,
+            },
+            {
+                'description': 'Removing MultiClusterHub finalizers',
+                'command': (
+                    'oc patch multiclusterhub multiclusterhub'
+                    ' -n open-cluster-management --type=json'
+                    ' -p \'[{"op":"remove","path":"/metadata/finalizers"}]\''
+                    ' --ignore-not-found'
+                ),
+                'timeout': 15,
+            },
+        ],
+        'extra_remove_namespaces': [
+            'open-cluster-management-agent',
+            'open-cluster-management-agent-addon',
+            'open-cluster-management-global-set',
+            'open-cluster-management-hub',
+            'open-cluster-management-policies',
+            'hive',
+            'multicluster-engine',
+        ],
+        'extra_remove_crd_patterns': [
+            'open-cluster-management',
+            'multicluster',
+            'hive',
+        ],
     },
     'oadp': {
         'display': 'OADP',

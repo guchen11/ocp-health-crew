@@ -101,6 +101,8 @@ def _execute_build(job_id, checks, options, user_id=None):
         cmd.extend(['--mode', options.get('scenario_mode', 'sanity')])
         if options.get('scenario_parallel'):
             cmd.append('--parallel')
+        if options.get('scenario_os'):
+            cmd.extend(['--os', options['scenario_os']])
         if options.get('cnv_path'):
             cmd.extend(['--cnv-path', options['cnv_path']])
         if options.get('env_vars'):

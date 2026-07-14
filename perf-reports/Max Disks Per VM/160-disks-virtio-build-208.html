@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>CNV Scenarios Report — Build #210</title>
+<style>
+:root {
+    --bg-canvas: #111217;
+    --bg-primary: #181b1f;
+    --bg-secondary: #22252b;
+    --border: #2c3235;
+    --text-primary: #d8d9da;
+    --text-secondary: #8e8e8e;
+    --green: #73BF69;
+    --yellow: #FF9830;
+    --red: #F2495C;
+    --blue: #5794F2;
+    --purple: #B877D9;
+    --orange: #FF6B35;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg-canvas); color: var(--text-primary); min-height: 100vh; }
+
+/* Top Navigation */
+.navbar { background: var(--bg-primary); border-bottom: 1px solid var(--border); padding: 0 24px; height: 52px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; }
+.navbar-brand { display: flex; align-items: center; gap: 12px; }
+.navbar-logo { width: 32px; height: 32px; background: linear-gradient(135deg, #FF6B35 0%, #F7931E 100%); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: 700; color: white; font-size: 18px; }
+.navbar-title { font-size: 18px; font-weight: 600; color: var(--text-primary); }
+.navbar-title span { color: var(--orange); }
+.navbar-status { display: flex; align-items: center; gap: 8px; padding: 6px 16px; border-radius: 16px; font-size: 13px; font-weight: 500; background: rgba(115,191,105,0.15); color: #73BF69; }
+.navbar-status::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: #73BF69; animation: pulse 2s infinite; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+/* Dashboard Container */
+.dashboard { padding: 24px; max-width: 1800px; margin: 0 auto; }
+
+/* Dashboard Header */
+.dash-header { margin-bottom: 24px; }
+.dash-header h1 { font-size: 24px; font-weight: 600; margin-bottom: 8px; }
+.dash-meta { display: flex; gap: 24px; flex-wrap: wrap; color: var(--text-secondary); font-size: 13px; }
+.dash-meta span { display: flex; align-items: center; gap: 6px; }
+
+/* Grid Layout */
+.grid { display: grid; gap: 16px; }
+.grid-4 { grid-template-columns: repeat(4, 1fr); }
+.grid-3 { grid-template-columns: repeat(3, 1fr); }
+.grid-2 { grid-template-columns: repeat(2, 1fr); }
+.grid-full { grid-template-columns: 1fr; }
+@media (max-width: 1400px) { .grid-4 { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 900px) { .grid-4, .grid-3, .grid-2 { grid-template-columns: 1fr; } }
+
+/* Panel Base */
+.panel { background: var(--bg-primary); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.panel-title { font-size: 12px; font-weight: 500; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; padding: 12px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; }
+
+/* Stat Panels */
+.stat-panel { text-align: center; padding-bottom: 16px; }
+.stat-panel.ok { border-top: 3px solid var(--green); }
+.stat-panel.error { border-top: 3px solid var(--red); }
+.stat-panel.warn { border-top: 3px solid var(--yellow); }
+.stat-value { font-size: 42px; font-weight: 700; padding: 20px 16px 8px; font-variant-numeric: tabular-nums; }
+.stat-subtitle { font-size: 13px; color: var(--text-secondary); }
+
+/* Gauge Panels */
+.gauge-panel { text-align: center; padding-bottom: 16px; }
+.gauge-container { position: relative; padding: 16px; }
+.gauge-svg { width: 120px; height: 70px; }
+.gauge-fill { transition: stroke-dasharray 0.5s ease; }
+.gauge-value { font-size: 28px; font-weight: 700; margin-top: -10px; }
+.gauge-max { font-size: 16px; color: var(--text-secondary); font-weight: 400; }
+.gauge-label { font-size: 12px; color: var(--text-secondary); margin-top: 4px; }
+
+/* Check Grid */
+.check-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px; padding: 16px; }
+.check-card { background: var(--bg-secondary); border-radius: 6px; padding: 0; display: flex; flex-direction: column; transition: background 0.2s; cursor: pointer; overflow: hidden; }
+.check-card:hover { background: #2a2d33; }
+.check-card-row { display: flex; align-items: center; gap: 12px; padding: 14px 16px; }
+.check-icon { font-size: 20px; }
+.check-info { flex: 1; min-width: 0; }
+.check-name { font-size: 13px; font-weight: 500; margin-bottom: 2px; }
+.check-result { font-size: 12px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.check-status { font-size: 18px; }
+.check-cmd { display: none; padding: 12px 16px 16px; border-top: 1px solid var(--border); }
+.check-cmd.show { display: block; }
+.check-card.open .check-cmd { display: block; }
+.check-cmd-label { font-size: 10px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; font-weight: 600; }
+.check-expand { font-size: 10px; color: var(--text-secondary); margin-left: auto; transition: transform 0.2s; }
+.check-card.open .check-expand { transform: rotate(180deg); }
+.check-section-title { grid-column: 1 / -1; font-size: 11px; font-weight: 600; color: var(--orange); text-transform: uppercase; letter-spacing: 1px; padding: 8px 0 4px; border-bottom: 1px solid var(--border); margin-top: 8px; }
+
+/* Output Panel */
+.output-body { padding: 16px; font-family: 'SF Mono', 'Consolas', 'Courier New', monospace; font-size: 12px; line-height: 1.6; color: var(--text-secondary); max-height: 500px; overflow-y: auto; background: var(--bg-canvas); }
+
+/* Footer */
+.dash-footer { margin-top: 32px; padding: 24px; text-align: center; color: var(--text-secondary); font-size: 12px; border-top: 1px solid var(--border); }
+.dash-footer-status { font-size: 14px; font-weight: 600; color: #73BF69; margin-bottom: 8px; }
+
+/* Collapsible */
+.collapsible-toggle { cursor: pointer; user-select: none; }
+.collapsible-content { display: none; }
+.collapsible-content.show { display: block; }
+</style>
+</head>
+<body>
+
+<nav class="navbar">
+    <div class="navbar-brand">
+        <div class="navbar-logo">🔥</div>
+        <div class="navbar-title">CNV <span>Scenarios</span></div>
+    </div>
+    <div class="navbar-status">ALL PASSED</div>
+</nav>
+
+<div class="dashboard">
+    <div class="dash-header">
+        <h1>CNV Scenarios Report — Full - Maximum number of disks per virtual machine (Cloud 18)</h1>
+        <div class="dash-meta">
+            <span>🔢 Build #210</span>
+            <span>🖥️ f04-h10-000-r640.rdu2.scalelab.redhat.com</span>
+            <span>📅 2026-06-25 23:19:43</span>
+            <span>⏱️ 13m 14s</span>
+            <span>🎯 FULL mode</span>
+            <span>🔥 1 Scenarios</span>
+        </div>
+    </div>
+
+    <!-- Main Stats Row -->
+    <div class="grid grid-4" style="margin-bottom:16px;">
+        <!-- Pass Rate Gauge -->
+        <div class="panel gauge-panel">
+            <div class="panel-title">📊 Pass Rate</div>
+            <div class="gauge-container">
+                <svg viewBox="0 0 120 70" class="gauge-svg">
+                    <path d="M 10 60 A 50 50 0 0 1 110 60" fill="none" stroke="#2c3235" stroke-width="8" stroke-linecap="round"/>
+                    <path d="M 10 60 A 50 50 0 0 1 110 60" fill="none" stroke="#73BF69" stroke-width="8" stroke-linecap="round"
+                          stroke-dasharray="157.0 157" class="gauge-fill"/>
+                </svg>
+                <div class="gauge-value" style="color:#73BF69">100<span class="gauge-max">%</span></div>
+            </div>
+            <div class="gauge-label">1/1 Passed</div>
+        </div>
+
+        <!-- Passed -->
+        <div class="panel stat-panel ok">
+            <div class="panel-title">✅ Passed</div>
+            <div class="stat-value" style="color:var(--green)">1</div>
+            <div class="stat-subtitle">Scenarios</div>
+        </div>
+
+        <!-- Failed -->
+        <div class="panel stat-panel ok">
+            <div class="panel-title">✅ Failed</div>
+            <div class="stat-value" style="color:var(--green)">0</div>
+            <div class="stat-subtitle">Scenarios</div>
+        </div>
+
+        <!-- Duration -->
+        <div class="panel stat-panel ok">
+            <div class="panel-title">⏱️ Duration</div>
+            <div class="stat-value" style="color:var(--blue);font-size:32px;">13m 1s</div>
+            <div class="stat-subtitle">Total Runtime</div>
+        </div>
+    </div>
+
+    <!-- Executive Summary -->
+    
+    <div class="panel" style="margin-bottom:16px;">
+        <div class="panel-title">📋 Test Scope</div>
+        <div style="overflow-x:auto;">
+        <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+            <tr style="border-bottom:1px solid var(--border);">
+                <th style="padding:10px 14px;text-align:left;font-size:10px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;">Scenario</th>
+                <th style="padding:10px 14px;text-align:left;font-size:10px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;">Objective</th>
+                <th style="padding:10px 14px;text-align:center;font-size:10px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;">Status</th>
+                <th style="padding:10px 14px;text-align:right;font-size:10px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;">Duration</th>
+            </tr>
+            
+        <tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:10px 14px;font-size:13px;white-space:nowrap;">💿 Disk Limits</td>
+            <td style="padding:10px 14px;font-size:12px;color:var(--text-secondary);max-width:400px;">Test disk count and sizes per VM with OS-level verification (lsblk)</td>
+            <td style="padding:10px 14px;text-align:center;">
+                <span style="display:inline-block;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700;background:#73BF6922;color:#73BF69;">✅ PASSED</span>
+            </td>
+            <td style="padding:10px 14px;text-align:right;font-size:12px;color:var(--text-secondary);">13m 1s</td>
+        </tr>
+        </table>
+        </div>
+    </div>
+    <div class="panel" style="margin-bottom:16px;">
+        <div class="panel-title">🏗️ Cluster Environment</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;padding:16px;">
+            
+            <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:8px;padding:14px 16px;">
+                <div style="font-size:10px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">🔴 OCP Version</div>
+                <div style="font-size:16px;font-weight:600;color:var(--text-primary);">4.22.0-ec.5</div>
+            </div>
+            <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:8px;padding:14px 16px;">
+                <div style="font-size:10px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">🖥️ CNV Version</div>
+                <div style="font-size:16px;font-weight:600;color:var(--text-primary);">4.22.2-5</div>
+            </div>
+            <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:8px;padding:14px 16px;">
+                <div style="font-size:10px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">💿 ODF Version</div>
+                <div style="font-size:16px;font-weight:600;color:var(--text-primary);">4.21.8-rhodf</div>
+            </div>
+            <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:8px;padding:14px 16px;">
+                <div style="font-size:10px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">🌐 Network</div>
+                <div style="font-size:16px;font-weight:600;color:var(--text-primary);">OVNKubernetes</div>
+            </div>
+            <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:8px;padding:14px 16px;">
+                <div style="font-size:10px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">🖧 Nodes</div>
+                <div style="font-size:16px;font-weight:600;color:var(--text-primary);">42 (39w / 3m)</div>
+            </div>
+            <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:8px;padding:14px 16px;">
+                <div style="font-size:10px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">💾 Storage (Ceph)</div>
+                <div style="font-size:16px;font-weight:600;color:var(--text-primary);">0.4 / 58.2 TiB (0%)</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Configuration Parameters -->
+    
+    <div class="panel" style="margin-bottom:16px;">
+        <div class="panel-title collapsible-toggle" onclick="this.nextElementSibling.classList.toggle('show'); this.querySelector('.arrow').textContent = this.nextElementSibling.classList.contains('show') ? '▲' : '▼'">
+            ⚙️ Configuration Parameters <span class="arrow" style="margin-left:auto;font-size:10px;">▼</span>
+        </div>
+        <div class="collapsible-content">
+            
+        <div style="padding:16px 16px 8px;">
+            <div style="font-size:10px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;">🔧 Run Settings</div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;">
+                
+            <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:8px;padding:12px 14px;">
+                <div style="font-size:10px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:5px;">🎯 Mode</div>
+                <div style="font-size:13px;font-weight:600;color:var(--text-primary);word-break:break-all;">FULL</div>
+            </div>
+            <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:8px;padding:12px 14px;">
+                <div style="font-size:10px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:5px;">⚡ Parallel</div>
+                <div style="font-size:13px;font-weight:600;color:var(--text-primary);word-break:break-all;">No</div>
+            </div>
+            <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:8px;padding:12px 14px;">
+                <div style="font-size:10px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:5px;">📂 CNV Path</div>
+                <div style="font-size:13px;font-weight:600;color:var(--text-primary);word-break:break-all;">/home/kni/git/cnv-scenarios</div>
+            </div>
+            <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:8px;padding:12px 14px;">
+                <div style="font-size:10px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:5px;">⏱️ Timeout</div>
+                <div style="font-size:13px;font-weight:600;color:var(--text-primary);word-break:break-all;">4h</div>
+            </div>
+            <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:8px;padding:12px 14px;">
+                <div style="font-size:10px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:5px;">🖥️ Server</div>
+                <div style="font-size:13px;font-weight:600;color:var(--text-primary);word-break:break-all;">f04-h10-000-r640.rdu2.scalelab.redhat.com</div>
+            </div>
+            </div>
+        </div>
+            
+        <div style="padding:12px 16px 8px;">
+            <div style="font-size:10px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;">⚙️ Global Parameters</div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;">
+                
+            <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:8px;padding:12px 14px;">
+                <div style="font-size:10px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:5px;">💿 Storage Class</div>
+                <div style="font-size:13px;font-weight:600;color:var(--text-primary);word-break:break-all;">ocs-storagecluster-ceph-rbd-virtualization</div>
+            </div>
+            <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:8px;padding:12px 14px;">
+                <div style="font-size:10px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:5px;">🎯 Node Selector</div>
+                <div style="font-size:13px;font-weight:600;color:var(--text-primary);word-break:break-all;">e.g. node-role.kubernetes.io/worker=</div>
+            </div>
+            <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:8px;padding:12px 14px;">
+                <div style="font-size:10px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:5px;">⏱️ Max Wait Timeout<span style="font-size:9px;color:var(--blue);margin-left:6px;">CUSTOM</span></div>
+                <div style="font-size:13px;font-weight:600;color:var(--blue);word-break:break-all;">60m</div>
+            </div>
+            <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:8px;padding:12px 14px;">
+                <div style="font-size:10px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:5px;">⏸️ Job Pause<span style="font-size:9px;color:var(--blue);margin-left:6px;">CUSTOM</span></div>
+                <div style="font-size:13px;font-weight:600;color:var(--blue);word-break:break-all;">2m</div>
+            </div>
+            <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:8px;padding:12px 14px;">
+                <div style="font-size:10px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:5px;">🧹 Cleanup After Test<span style="font-size:9px;color:var(--blue);margin-left:6px;">CUSTOM</span></div>
+                <div style="font-size:13px;font-weight:600;color:var(--blue);word-break:break-all;">Enabled</div>
+            </div>
+            <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:8px;padding:12px 14px;">
+                <div style="font-size:10px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:5px;">🔍 Elasticsearch Server</div>
+                <div style="font-size:13px;font-weight:600;color:var(--text-primary);word-break:break-all;">http://f01-h08-000-1029u.rdu2.scalelab.redhat.com:9200</div>
+            </div>
+            </div>
+        </div>
+            
+        <div style="padding:12px 16px 16px;">
+            <div style="font-size:10px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;">🧪 Test-Specific Parameters</div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;">
+                
+            <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:8px;overflow:hidden;">
+                <div style="padding:10px 14px;border-bottom:1px solid var(--border);font-size:12px;font-weight:600;color:var(--text-primary);">💿 Disk Limits</div>
+                <div style="padding:8px 14px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);">
+                    <span style="font-size:12px;color:var(--text-secondary);">Disk Count</span>
+                    <span style="font-size:12px;font-weight:600;font-family:monospace;color:var(--blue);">160 <span style="font-size:9px;color:var(--blue);">●</span></span>
+                </div>
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);">
+                    <span style="font-size:12px;color:var(--text-secondary);">Disk Size</span>
+                    <span style="font-size:12px;font-weight:600;font-family:monospace;color:var(--blue);">1Gi <span style="font-size:9px;color:var(--blue);">●</span></span>
+                </div>
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);">
+                    <span style="font-size:12px;color:var(--text-secondary);">VM Count</span>
+                    <span style="font-size:12px;font-weight:600;font-family:monospace;color:var(--text-primary);">1</span>
+                </div>
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);">
+                    <span style="font-size:12px;color:var(--text-secondary);">CPU Cores</span>
+                    <span style="font-size:12px;font-weight:600;font-family:monospace;color:var(--blue);">16 <span style="font-size:9px;color:var(--blue);">●</span></span>
+                </div>
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);">
+                    <span style="font-size:12px;color:var(--text-secondary);">Memory per VM</span>
+                    <span style="font-size:12px;font-weight:600;font-family:monospace;color:var(--blue);">32Gi <span style="font-size:9px;color:var(--blue);">●</span></span>
+                </div>
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);">
+                    <span style="font-size:12px;color:var(--text-secondary);">Volume Mode</span>
+                    <span style="font-size:12px;font-weight:600;font-family:monospace;color:var(--text-primary);">Block</span>
+                </div></div>
+            </div>
+            </div>
+        </div>
+        </div>
+    </div>
+
+    <!-- Scenario Results -->
+    <div class="panel" style="margin-bottom:16px;">
+        <div class="panel-title">🔥 Scenario Results</div>
+        <div class="check-grid">
+            
+        <div class="check-section-title">📏 Resource Limits</div>
+        <div class="check-card" onclick="this.classList.toggle('open')">
+            <div class="check-card-row">
+                <span class="check-icon">💿</span>
+                <div class="check-info">
+                    <div class="check-name">Disk Limits</div>
+                    <div class="check-result">disk-limits &middot; SUCCESS</div>
+                </div>
+                <div style="display:flex;align-items:center;gap:12px;">
+                    <div style="text-align:right;">
+                        <div style="font-size:12px;font-weight:600;color:#73BF69;">PASSED</div>
+                        <div style="font-size:11px;color:var(--text-secondary);">13m 1s</div>
+                    </div>
+                    <span class="check-status">✅</span>
+                    <span class="check-expand">▼</span>
+                </div>
+            </div>
+            <div class="check-cmd">
+                <div class="check-cmd-label">Description</div>
+                <div style="font-size:12px;color:var(--text-secondary);margin-bottom:8px;line-height:1.5;">Test disk count and sizes per VM with OS-level verification (lsblk)</div>
+                <div style="display:flex;gap:16px;margin-bottom:8px;">
+                    <div>
+                        <div class="check-cmd-label">Validation</div>
+                        <div style="font-size:13px;color:var(--text-primary);font-weight:500;">SUCCESS</div>
+                    </div>
+                    <div>
+                        <div class="check-cmd-label">Duration</div>
+                        <div style="font-size:13px;color:var(--text-primary);font-weight:500;">13m 1s</div>
+                    </div>
+                    <div>
+                        <div class="check-cmd-label">Category</div>
+                        <div style="font-size:13px;color:var(--text-primary);font-weight:500;">Resource Limits</div>
+                    </div>
+                </div>
+                <div class="check-cmd-label">Duration Bar</div>
+                <div style="height:6px;background:var(--bg-canvas);border-radius:3px;overflow:hidden;margin-top:4px;">
+                    <div style="height:100%;width:100%;background:#73BF69;border-radius:3px;"></div>
+                </div>
+            </div>
+        </div>
+        </div>
+    </div>
+
+    <!-- Detailed Results (Latency, PVC, Validation) -->
+    
+    <div class="panel" style="margin-bottom:16px;">
+        <div class="panel-title collapsible-toggle" onclick="this.nextElementSibling.classList.toggle('show'); this.querySelector('.arrow').textContent = this.nextElementSibling.classList.contains('show') ? '▲' : '▼'">
+            💿 Disk Limits — Detailed Results <span class="arrow" style="margin-left:auto;font-size:10px;">▼</span>
+        </div>
+        <div class="collapsible-content show" style="padding:16px;">
+            
+                <div style="margin-bottom:16px;">
+                    <div style="font-size:11px;font-weight:600;color:var(--orange);text-transform:uppercase;letter-spacing:1px;padding:8px 0 8px;border-bottom:1px solid var(--border);">🏎️ VM Boot Latency</div>
+                    <div style="padding:8px 0;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+        <tr style="border-bottom:1px solid var(--border);">
+            <th style="padding:10px 14px;text-align:left;font-size:10px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;">Boot Stage</th>
+            <th style="padding:10px 14px;text-align:right;font-size:10px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;">P50</th>
+            <th style="padding:10px 14px;text-align:right;font-size:10px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;">P95</th>
+            <th style="padding:10px 14px;text-align:right;font-size:10px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;">P99</th>
+            <th style="padding:10px 14px;text-align:right;font-size:10px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;">Avg</th>
+            <th style="padding:10px 14px;text-align:right;font-size:10px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;">Min</th>
+            <th style="padding:10px 14px;text-align:right;font-size:10px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;">Max</th>
+            <th style="padding:10px 14px;font-size:10px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;"></th>
+        </tr>
+        
+        <tr>
+            <td style="padding:10px 14px;font-size:13px;white-space:nowrap;">🆕 VMI Created</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;color:#F2495C;font-weight:600;">4m 17s</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;">4m 17s</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;font-weight:600;">4m 17s</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;">4m 17s</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;font-size:11px;color:var(--text-secondary);">4m 17s</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;font-size:11px;color:var(--text-secondary);">4m 17s</td>
+            <td style="padding:10px 14px;width:120px;">
+                <div style="height:6px;background:var(--bg-canvas);border-radius:3px;overflow:hidden;">
+                    <div style="height:100%;width:50%;background:#F2495C;border-radius:3px;"></div>
+                </div>
+            </td>
+        </tr>
+        <tr>
+            <td style="padding:10px 14px;font-size:13px;white-space:nowrap;">⏳ VMI Pending</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;color:#F2495C;font-weight:600;">4m 17s</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;">4m 17s</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;font-weight:600;">4m 17s</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;">4m 17s</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;font-size:11px;color:var(--text-secondary);">4m 17s</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;font-size:11px;color:var(--text-secondary);">4m 17s</td>
+            <td style="padding:10px 14px;width:120px;">
+                <div style="height:6px;background:var(--bg-canvas);border-radius:3px;overflow:hidden;">
+                    <div style="height:100%;width:50%;background:#F2495C;border-radius:3px;"></div>
+                </div>
+            </td>
+        </tr>
+        <tr>
+            <td style="padding:10px 14px;font-size:13px;white-space:nowrap;">📋 VMI Scheduling</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;color:#F2495C;font-weight:600;">4m 17s</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;">4m 17s</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;font-weight:600;">4m 17s</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;">4m 17s</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;font-size:11px;color:var(--text-secondary);">4m 17s</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;font-size:11px;color:var(--text-secondary);">4m 17s</td>
+            <td style="padding:10px 14px;width:120px;">
+                <div style="height:6px;background:var(--bg-canvas);border-radius:3px;overflow:hidden;">
+                    <div style="height:100%;width:50%;background:#F2495C;border-radius:3px;"></div>
+                </div>
+            </td>
+        </tr>
+        <tr>
+            <td style="padding:10px 14px;font-size:13px;white-space:nowrap;">📌 VMI Scheduled</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;color:#F2495C;font-weight:600;">8m 4s</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;">8m 4s</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;font-weight:600;">8m 4s</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;">8m 4s</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;font-size:11px;color:var(--text-secondary);">8m 4s</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;font-size:11px;color:var(--text-secondary);">8m 4s</td>
+            <td style="padding:10px 14px;width:120px;">
+                <div style="height:6px;background:var(--bg-canvas);border-radius:3px;overflow:hidden;">
+                    <div style="height:100%;width:95%;background:#F2495C;border-radius:3px;"></div>
+                </div>
+            </td>
+        </tr>
+        <tr>
+            <td style="padding:10px 14px;font-size:13px;white-space:nowrap;">📦 Pod Created</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;color:#F2495C;font-weight:600;">4m 17s</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;">4m 17s</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;font-weight:600;">4m 17s</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;">4m 17s</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;font-size:11px;color:var(--text-secondary);">4m 17s</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;font-size:11px;color:var(--text-secondary);">4m 17s</td>
+            <td style="padding:10px 14px;width:120px;">
+                <div style="height:6px;background:var(--bg-canvas);border-radius:3px;overflow:hidden;">
+                    <div style="height:100%;width:50%;background:#F2495C;border-radius:3px;"></div>
+                </div>
+            </td>
+        </tr>
+        <tr>
+            <td style="padding:10px 14px;font-size:13px;white-space:nowrap;">🎯 Pod Scheduled</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;color:#F2495C;font-weight:600;">4m 17s</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;">4m 17s</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;font-weight:600;">4m 17s</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;">4m 17s</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;font-size:11px;color:var(--text-secondary);">4m 17s</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;font-size:11px;color:var(--text-secondary);">4m 17s</td>
+            <td style="padding:10px 14px;width:120px;">
+                <div style="height:6px;background:var(--bg-canvas);border-radius:3px;overflow:hidden;">
+                    <div style="height:100%;width:50%;background:#F2495C;border-radius:3px;"></div>
+                </div>
+            </td>
+        </tr>
+        <tr>
+            <td style="padding:10px 14px;font-size:13px;white-space:nowrap;">🔧 Pod Initialized</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;color:#F2495C;font-weight:600;">8m 3s</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;">8m 3s</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;font-weight:600;">8m 3s</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;">8m 3s</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;font-size:11px;color:var(--text-secondary);">8m 3s</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;font-size:11px;color:var(--text-secondary);">8m 3s</td>
+            <td style="padding:10px 14px;width:120px;">
+                <div style="height:6px;background:var(--bg-canvas);border-radius:3px;overflow:hidden;">
+                    <div style="height:100%;width:95%;background:#F2495C;border-radius:3px;"></div>
+                </div>
+            </td>
+        </tr>
+        <tr>
+            <td style="padding:10px 14px;font-size:13px;white-space:nowrap;">✅ Containers Ready</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;color:#F2495C;font-weight:600;">8m 4s</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;">8m 4s</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;font-weight:600;">8m 4s</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;">8m 4s</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;font-size:11px;color:var(--text-secondary);">8m 4s</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;font-size:11px;color:var(--text-secondary);">8m 4s</td>
+            <td style="padding:10px 14px;width:120px;">
+                <div style="height:6px;background:var(--bg-canvas);border-radius:3px;overflow:hidden;">
+                    <div style="height:100%;width:95%;background:#F2495C;border-radius:3px;"></div>
+                </div>
+            </td>
+        </tr>
+        <tr>
+            <td style="padding:10px 14px;font-size:13px;white-space:nowrap;">🟢 VMI Running</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;color:#F2495C;font-weight:600;">8m 24s</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;">8m 24s</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;font-weight:600;">8m 24s</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;">8m 24s</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;font-size:11px;color:var(--text-secondary);">8m 24s</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;font-size:11px;color:var(--text-secondary);">8m 24s</td>
+            <td style="padding:10px 14px;width:120px;">
+                <div style="height:6px;background:var(--bg-canvas);border-radius:3px;overflow:hidden;">
+                    <div style="height:100%;width:99%;background:#F2495C;border-radius:3px;"></div>
+                </div>
+            </td>
+        </tr>
+        <tr>
+            <td style="padding:10px 14px;font-size:13px;white-space:nowrap;">🏁 VM Ready</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;color:#F2495C;font-weight:600;">8m 24s</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;">8m 24s</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;font-weight:600;">8m 24s</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;">8m 24s</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;font-size:11px;color:var(--text-secondary);">8m 24s</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;font-size:11px;color:var(--text-secondary);">8m 24s</td>
+            <td style="padding:10px 14px;width:120px;">
+                <div style="height:6px;background:var(--bg-canvas);border-radius:3px;overflow:hidden;">
+                    <div style="height:100%;width:100%;background:#F2495C;border-radius:3px;"></div>
+                </div>
+            </td>
+        </tr>
+        <tr>
+            <td style="padding:10px 14px;font-size:13px;white-space:nowrap;">⚙️ PodPodReadyToStartContainers</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;color:#F2495C;font-weight:600;">8m 3s</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;">8m 3s</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;font-weight:600;">8m 3s</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;">8m 3s</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;font-size:11px;color:var(--text-secondary);">8m 3s</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;font-size:11px;color:var(--text-secondary);">8m 3s</td>
+            <td style="padding:10px 14px;width:120px;">
+                <div style="height:6px;background:var(--bg-canvas);border-radius:3px;overflow:hidden;">
+                    <div style="height:100%;width:95%;background:#F2495C;border-radius:3px;"></div>
+                </div>
+            </td>
+        </tr>
+    </table></div>
+                </div>
+                <div style="margin-bottom:16px;">
+                    <div style="font-size:11px;font-weight:600;color:var(--orange);text-transform:uppercase;letter-spacing:1px;padding:8px 0 8px;border-bottom:1px solid var(--border);">💾 PVC Latency</div>
+                    <div style="padding:8px 0;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+        <tr style="border-bottom:1px solid var(--border);">
+            <th style="padding:10px 14px;text-align:left;font-size:10px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;">Phase</th>
+            <th style="padding:10px 14px;text-align:right;font-size:10px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;">P50</th>
+            <th style="padding:10px 14px;text-align:right;font-size:10px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;">P95</th>
+            <th style="padding:10px 14px;text-align:right;font-size:10px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;">P99</th>
+            <th style="padding:10px 14px;text-align:right;font-size:10px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;">Avg</th>
+            <th style="padding:10px 14px;text-align:right;font-size:10px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;">Min</th>
+            <th style="padding:10px 14px;text-align:right;font-size:10px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;">Max</th>
+        </tr>
+        
+        <tr>
+            <td style="padding:10px 14px;font-size:13px;white-space:nowrap;">❌ Lost</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;color:#F2495C;font-weight:600;">—</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;">—</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;font-weight:600;">—</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;">—</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;font-size:11px;color:var(--text-secondary);">—</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;font-size:11px;color:var(--text-secondary);">—</td>
+        </tr>
+        <tr>
+            <td style="padding:10px 14px;font-size:13px;white-space:nowrap;">📦 Resize</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;color:#F2495C;font-weight:600;">—</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;">—</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;font-weight:600;">—</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;">—</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;font-size:11px;color:var(--text-secondary);">—</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;font-size:11px;color:var(--text-secondary);">—</td>
+        </tr>
+        <tr>
+            <td style="padding:10px 14px;font-size:13px;white-space:nowrap;">⏳ Pending</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;color:#FF9830;font-weight:600;">4ms</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;">6ms</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;font-weight:600;">7ms</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;">4ms</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;font-size:11px;color:var(--text-secondary);">2ms</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;font-size:11px;color:var(--text-secondary);">9ms</td>
+        </tr>
+        <tr>
+            <td style="padding:10px 14px;font-size:13px;white-space:nowrap;">🔗 Bound</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;color:#73BF69;font-weight:600;">3m 11s</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;">3m 41s</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;font-weight:600;">3m 45s</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;">2m 31s</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;font-size:11px;color:var(--text-secondary);">28.0s</td>
+            <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;font-size:11px;color:var(--text-secondary);">3m 46s</td>
+        </tr>
+    </table></div>
+                </div>
+                <div style="margin-bottom:16px;">
+                    <div style="font-size:11px;font-weight:600;color:var(--orange);text-transform:uppercase;letter-spacing:1px;padding:8px 0 8px;border-bottom:1px solid var(--border);">🔍 Validation Details</div>
+                    <div style="padding:8px 0;">
+    <div style="margin-bottom:12px;border:1px solid var(--border);border-radius:8px;overflow:hidden;background:var(--bg-secondary);">
+        <div style="padding:12px 16px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border);">
+            <div>
+                <span style="font-size:14px;font-weight:600;color:var(--text-primary);">✅ SUCCESS</span>
+                <span style="font-size:11px;color:var(--text-secondary);">ns: cnv-disk-limits</span> <span style="font-size:11px;color:var(--text-secondary);">• check_disk_limits</span>
+            </div>
+            <span style="font-size:11px;color:var(--text-secondary);">2026-06-25T23:17:33+00:00</span>
+        </div>
+        <div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;flex-wrap:wrap;gap:2px;"><span style="display:inline-block;padding:3px 10px;background:var(--bg-canvas);border-radius:4px;font-size:11px;margin:2px 4px;border:1px solid var(--border);"><b style="color:var(--text-secondary);">label_key:</b> <span style="color:var(--text-primary);">cnv-disk-limits.kube-burner.io/counter</span></span><span style="display:inline-block;padding:3px 10px;background:var(--bg-canvas);border-radius:4px;font-size:11px;margin:2px 4px;border:1px solid var(--border);"><b style="color:var(--text-secondary);">label_value:</b> <span style="color:var(--text-primary);">counter-1</span></span><span style="display:inline-block;padding:3px 10px;background:var(--bg-canvas);border-radius:4px;font-size:11px;margin:2px 4px;border:1px solid var(--border);"><b style="color:var(--text-secondary);">expected_disk_count:</b> <span style="color:var(--text-primary);">160</span></span><span style="display:inline-block;padding:3px 10px;background:var(--bg-canvas);border-radius:4px;font-size:11px;margin:2px 4px;border:1px solid var(--border);"><b style="color:var(--text-secondary);">expected_disk_size:</b> <span style="color:var(--text-primary);">1Gi</span></span><span style="display:inline-block;padding:3px 10px;background:var(--bg-canvas);border-radius:4px;font-size:11px;margin:2px 4px;border:1px solid var(--border);"><b style="color:var(--text-secondary);">vm_count:</b> <span style="color:var(--text-primary);">1</span></span><span style="display:inline-block;padding:3px 10px;background:var(--bg-canvas);border-radius:4px;font-size:11px;margin:2px 4px;border:1px solid var(--border);"><b style="color:var(--text-secondary);">ssh_validation_enabled:</b> <span style="color:var(--text-primary);">True</span></span><span style="display:inline-block;padding:3px 10px;background:var(--bg-canvas);border-radius:4px;font-size:11px;margin:2px 4px;border:1px solid var(--border);"><b style="color:var(--text-secondary);">total_duration_seconds:</b> <span style="color:var(--text-primary);">135</span></span></div>
+        
+        <div style="display:flex;align-items:flex-start;gap:12px;padding:10px 16px;border-bottom:1px solid var(--border);">
+            <span style="font-size:16px;margin-top:2px;">✅</span>
+            <div style="flex:1;">
+                <div style="font-size:13px;font-weight:500;color:var(--text-primary);">Vm Discovery</div>
+                <div style="font-size:11px;color:var(--text-secondary);">Found 1 VMs</div>
+                <div style="font-family:monospace;font-size:10px;color:var(--text-muted);margin-top:3px;padding:2px 6px;background:var(--bg-canvas);border-radius:3px;display:inline-block;">$ oc get vmi -n <ns> --no-headers | wc -l</div>
+            </div>
+            <span style="padding:3px 10px;border-radius:12px;font-size:10px;font-weight:700;background:#73BF6922;color:#73BF69;margin-top:2px;">PASS</span>
+        </div>
+        <div style="display:flex;align-items:flex-start;gap:12px;padding:10px 16px;border-bottom:1px solid var(--border);">
+            <span style="font-size:16px;margin-top:2px;">✅</span>
+            <div style="flex:1;">
+                <div style="font-size:13px;font-weight:500;color:var(--text-primary);">Vm Spec Disk Count</div>
+                <div style="font-size:11px;color:var(--text-secondary);">VM spec disk count validation (160 disks)</div>
+                <div style="font-family:monospace;font-size:10px;color:var(--text-muted);margin-top:3px;padding:2px 6px;background:var(--bg-canvas);border-radius:3px;display:inline-block;">$ virtctl ssh <vm> -- lsblk --noheadings | wc -l</div>
+            </div>
+            <span style="padding:3px 10px;border-radius:12px;font-size:10px;font-weight:700;background:#73BF6922;color:#73BF69;margin-top:2px;">PASS</span>
+        </div>
+        <div style="display:flex;align-items:flex-start;gap:12px;padding:10px 16px;border-bottom:1px solid var(--border);">
+            <span style="font-size:16px;margin-top:2px;">✅</span>
+            <div style="flex:1;">
+                <div style="font-size:13px;font-weight:500;color:var(--text-primary);">Vm Spec Disk Size</div>
+                <div style="font-size:11px;color:var(--text-secondary);">VM spec disk size validation (1Gi)</div>
+                <div style="font-family:monospace;font-size:10px;color:var(--text-muted);margin-top:3px;padding:2px 6px;background:var(--bg-canvas);border-radius:3px;display:inline-block;">$ virtctl ssh <vm> -- lsblk -b --noheadings</div>
+            </div>
+            <span style="padding:3px 10px;border-radius:12px;font-size:10px;font-weight:700;background:#73BF6922;color:#73BF69;margin-top:2px;">PASS</span>
+        </div>
+        <div style="display:flex;align-items:flex-start;gap:12px;padding:10px 16px;border-bottom:1px solid var(--border);">
+            <span style="font-size:16px;margin-top:2px;">✅</span>
+            <div style="flex:1;">
+                <div style="font-size:13px;font-weight:500;color:var(--text-primary);">Guest Os Disk Count</div>
+                <div style="font-size:11px;color:var(--text-secondary);">Guest OS disk count validation</div>
+                <div style="font-family:monospace;font-size:10px;color:var(--text-muted);margin-top:3px;padding:2px 6px;background:var(--bg-canvas);border-radius:3px;display:inline-block;">$ virtctl ssh <vm> -- lsblk --noheadings | wc -l</div>
+            </div>
+            <span style="padding:3px 10px;border-radius:12px;font-size:10px;font-weight:700;background:#73BF6922;color:#73BF69;margin-top:2px;">PASS</span>
+        </div>
+        <div style="display:flex;align-items:flex-start;gap:12px;padding:10px 16px;border-bottom:1px solid var(--border);">
+            <span style="font-size:16px;margin-top:2px;">✅</span>
+            <div style="flex:1;">
+                <div style="font-size:13px;font-weight:500;color:var(--text-primary);">Guest Os Disk Size</div>
+                <div style="font-size:11px;color:var(--text-secondary);">Guest OS disk size validation</div>
+                <div style="font-family:monospace;font-size:10px;color:var(--text-muted);margin-top:3px;padding:2px 6px;background:var(--bg-canvas);border-radius:3px;display:inline-block;">$ virtctl ssh <vm> -- lsblk -b --noheadings</div>
+            </div>
+            <span style="padding:3px 10px;border-radius:12px;font-size:10px;font-weight:700;background:#73BF6922;color:#73BF69;margin-top:2px;">PASS</span>
+        </div>
+    </div></div>
+                </div>
+        </div>
+    </div>
+
+    <!-- Output Excerpt -->
+    <div class="panel" style="margin-bottom:16px;">
+        <div class="panel-title collapsible-toggle" onclick="this.nextElementSibling.classList.toggle('show'); this.querySelector('.arrow').textContent = this.nextElementSibling.classList.contains('show') ? '▲' : '▼'">
+            📋 Console Output <span class="arrow" style="margin-left:auto;font-size:10px;">▼</span>
+        </div>
+        <div class="output-body collapsible-content">
+            [23:19:39] <br>======================================================================<br>[23:19:39] CNV Scenarios — Results Summary<br>[23:19:39] ======================================================================<br>[23:19:39] Test                           Status       Validation   Duration<br>[23:19:39] ----------------------------------------------------------------------<br>[23:19:39]   disk-limits                  PASS        SUCCESS      13m 1s<br>[23:19:39] ======================================================================<br>[23:19:39] Collecting cluster environment info...<br>[23:19:43] Cluster info collected: OCP 4.22.0-ec.5, CNV 4.22.2-5, 42 nodes<br><br>[23:19:43] CNV Scenarios complete — ALL PASSED (13m 14s)<br>[23:19:43] PASSED: 1 | FAILED: 0 | TOTAL: 1<br>[23:19:43] CNV Scenarios finished
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="dash-footer">
+        <div class="dash-footer-status">ALL PASSED</div>
+        Generated by CNV HealthCrew &middot; 2026-06-25 23:19:43
+    </div>
+</div>
+
+</body>
+</html>

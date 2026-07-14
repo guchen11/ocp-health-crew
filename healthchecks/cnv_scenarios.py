@@ -79,6 +79,8 @@ def parse_args():
     parser.add_argument("--lab-name", default="", help="Lab name for display")
     parser.add_argument("--log-level", default="", help="kube-burner log level (debug, info, warn, error)")
     parser.add_argument("--timeout", default="", help="kube-burner timeout (e.g. 1h, 2h)")
+    parser.add_argument("--os", default="", choices=["", "linux", "windows", "both"],
+                        help="Guest OS for test VMs (linux, windows, both)")
     parser.add_argument("--cleanup-only", action="store_true",
                         help="Skip running tests; only clean up resources from a previous run (re-runs workloads with cleanup=true)")
     return parser.parse_args()
@@ -193,6 +195,9 @@ def build_remote_command(args):
             runner += f" {tests}"
 
         runner += f" --mode {args.mode}"
+
+        if getattr(args, 'os', '') and args.os:
+            runner += f" --os {args.os}"
 
         if args.parallel:
             runner += " --parallel"

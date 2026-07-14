@@ -6,26 +6,8 @@ Each scenario has a sanity (quick validation) and full (regression) variant.
 Values for full templates sourced from the CNV 4.22 regression test report.
 """
 
-
-def _tpl(name, description, icon, mode, tests, env_vars,
-         timeout='2h', parallel=False, email=True):
-    """Build a template dict with standard structure."""
-    return {
-        'name': name,
-        'description': description,
-        'icon': icon,
-        'config': {
-            'task_type': 'cnv_scenarios',
-            'run_name': name,
-            'scenario_mode': mode,
-            'scenario_tests': tests,
-            'scenario_parallel': parallel,
-            'kb_timeout': timeout,
-            'kb_log_level': '',
-            'email': email,
-            'env_vars': env_vars,
-        },
-    }
+from config.template_builder import build_template as _tpl
+from config.windows_templates import WINDOWS_TEMPLATES
 
 
 BUILTIN_TEMPLATES = [
@@ -82,59 +64,55 @@ BUILTIN_TEMPLATES = [
     # ─── Minimum memory per virtual machine ──────────────────────────────
     _tpl(
         name='Sanity - Minimum memory per virtual machine',
-        description='256 MiB per VM with alpine OS verification.',
+        description='256 MiB per VM with Fedora OS verification.',
         icon='💾', mode='sanity', tests=['memory-limits'], timeout='30m',
         env_vars={
             'memory_limits.memorySize': '256Mi',
             'memory_limits.cpuCores': '1',
-            'memory_limits.storage': '256Mi',
+            'memory_limits.storage': '10Gi',
         },
     ),
     _tpl(
         name='Full - Minimum memory per virtual machine',
-        description='256 MiB per VM with alpine OS and stress-ng verification.',
+        description='256 MiB per VM with Fedora OS and stress-ng verification.',
         icon='💾', mode='full', tests=['memory-limits'], timeout='1h',
         env_vars={
             'memory_limits.memorySize': '256Mi',
             'memory_limits.cpuCores': '1',
-            'memory_limits.storage': '256Mi',
+            'memory_limits.storage': '10Gi',
         },
     ),
 
     # ─── Minimum CPU per virtual machine ─────────────────────────────────
     _tpl(
         name='Sanity - Minimum CPU per virtual machine',
-        description='256m CPU with alpine OS verification.',
+        description='1 vCPU with Fedora OS verification.',
         icon='🔥', mode='sanity', tests=['cpu-limits'], timeout='30m',
         env_vars={
             'cpu_limits.cpuCores': '1',
             'cpu_limits.cpuSockets': '1',
             'cpu_limits.cpuMaxSockets': '1',
-            'cpu_limits.cpuRequest': '256m',
-            'cpu_limits.bootloaderEfi': 'true',
             'cpu_limits.memory': '256Mi',
-            'cpu_limits.storage': '256Mi',
+            'cpu_limits.storage': '10Gi',
         },
     ),
     _tpl(
         name='Full - Minimum CPU per virtual machine',
-        description='256m CPU with alpine OS and stress-ng verification.',
+        description='1 vCPU with Fedora OS and stress-ng verification.',
         icon='🔥', mode='full', tests=['cpu-limits'], timeout='1h',
         env_vars={
             'cpu_limits.cpuCores': '1',
             'cpu_limits.cpuSockets': '1',
             'cpu_limits.cpuMaxSockets': '1',
-            'cpu_limits.cpuRequest': '256m',
-            'cpu_limits.bootloaderEfi': 'true',
             'cpu_limits.memory': '256Mi',
-            'cpu_limits.storage': '256Mi',
+            'cpu_limits.storage': '10Gi',
         },
     ),
 
     # ─── Minimum disk per virtual machine ────────────────────────────────
     _tpl(
         name='Sanity - Minimum disk per virtual machine',
-        description='256 MiB disk with alpine OS and lsblk verification.',
+        description='256 MiB disk with Fedora OS and lsblk verification.',
         icon='💿', mode='sanity', tests=['disk-limits'], timeout='30m',
         env_vars={
             'disk_limits.diskCount': '1',
@@ -145,7 +123,7 @@ BUILTIN_TEMPLATES = [
     ),
     _tpl(
         name='Full - Minimum disk per virtual machine',
-        description='256 MiB disk with alpine OS and lsblk verification.',
+        description='256 MiB disk with Fedora OS and lsblk verification.',
         icon='💿', mode='full', tests=['disk-limits'], timeout='1h',
         env_vars={
             'disk_limits.diskCount': '1',
@@ -410,4 +388,4 @@ BUILTIN_TEMPLATES = [
             'hcp.workerRootVolume': '16Gi',
         },
     ),
-]
+] + WINDOWS_TEMPLATES

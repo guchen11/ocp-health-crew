@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>PVC Bypass 10K VM Scale Test Results</title>
+<style>
+body{font-family:'Segoe UI',Roboto,Arial,sans-serif;color:#1a1a2e;margin:0;padding:20px;background:#f5f5f5}
+h1{color:#0d47a1;border-bottom:3px solid #1565c0;padding-bottom:10px;font-size:24px;margin-bottom:4px}
+h2{color:#1565c0;margin-top:32px;font-size:17px;border-left:4px solid #1565c0;padding-left:10px}
+h3{color:#37474f;font-size:15px;margin-top:20px}
+.container{max-width:960px;margin:0 auto;background:#fff;padding:32px;border-radius:10px;box-shadow:0 3px 12px rgba(0,0,0,0.08)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:13px}
+th{background:#1565c0;color:#fff;padding:9px 12px;text-align:left;font-weight:600}
+td{padding:8px 12px;border-bottom:1px solid #e0e0e0}
+tr:nth-child(even){background:#f8f9fa}
+tr:hover{background:#e3f2fd}
+.status-box{background:linear-gradient(135deg,#e8f5e9,#f1f8e9);border:2px solid #81c784;border-radius:10px;padding:22px 24px;margin:20px 0 16px 0;text-align:center;box-shadow:0 4px 14px rgba(76,175,80,0.15)}
+.status-box .status-title{font-size:22px;font-weight:700;color:#2e7d32}
+.status-box .status-sub{font-size:14px;margin-top:6px;color:#388e3c}
+.metrics-grid{display:flex;flex-wrap:wrap;gap:10px;margin:16px 0}
+.metric-card{flex:1;min-width:130px;background:linear-gradient(135deg,#e3f2fd,#f5f9ff);border:1px solid #90caf9;border-radius:8px;padding:14px 16px;text-align:center;box-shadow:0 1px 4px rgba(0,0,0,0.06)}
+.metric-card .value{font-size:22px;font-weight:700;color:#0d47a1}
+.metric-card .label{font-size:11px;color:#546e7a;margin-top:5px;text-transform:uppercase;letter-spacing:0.3px}
+.takeaways{background:linear-gradient(135deg,#fff8e1,#fffde7);border:2px solid #ffd54f;border-radius:8px;padding:16px 20px;margin:18px 0}
+.takeaways h3{color:#f57f17;margin:0 0 10px 0;font-size:15px}
+.takeaways ul{margin:0;padding-left:20px;line-height:1.8;font-size:13px}
+.takeaways li{margin-bottom:2px}
+.goal-box{background:linear-gradient(135deg,#e3f2fd,#f5f9ff);border:1px solid #90caf9;border-radius:8px;padding:14px 18px;margin:16px 0 8px 0;font-size:14px;line-height:1.5}
+.insight-box{background:linear-gradient(135deg,#e8eaf6,#f3e5f5);border:1px solid #b39ddb;border-radius:8px;padding:14px 18px;margin:14px 0;font-size:13px;line-height:1.6}
+.callout{border-radius:8px;padding:16px 20px;margin:14px 0;font-size:13px;line-height:1.7}
+.callout h3{margin:0 0 8px 0;font-size:15px}
+.callout-green{background:linear-gradient(135deg,#e8f5e9,#f1f8e9);border:2px solid #81c784}
+.callout-green h3{color:#2e7d32}
+.callout-blue{background:linear-gradient(135deg,#e3f2fd,#f0f7ff);border:2px solid #64b5f6}
+.callout-blue h3{color:#1565c0}
+.callout-yellow{background:linear-gradient(135deg,#fff8e1,#fffde7);border:2px solid #ffd54f}
+.callout-yellow h3{color:#f57f17}
+.callout-orange{background:linear-gradient(135deg,#fff3e0,#fbe9e7);border:2px solid #ffb74d}
+.callout-orange h3{color:#e65100}
+.callout-red{background:linear-gradient(135deg,#ffebee,#fce4ec);border:2px solid #ef9a9a}
+.callout-red h3{color:#c62828}
+.degradation-high{color:#f44336;font-weight:600}
+.degradation-med{color:#ff9800;font-weight:600}
+.degradation-low{color:#4caf50;font-weight:600}
+.better{color:#2e7d32;font-weight:700}
+.worse{color:#c62828;font-weight:700}
+.same{color:#546e7a;font-weight:600}
+.section{margin-bottom:28px}
+.footer{margin-top:30px;padding-top:15px;border-top:2px solid #e0e0e0;font-size:12px;color:#78909c}
+.bar-chart{background:#f8f9ff;border:1px solid #e0e0e0;border-radius:8px;padding:16px 18px;margin:12px 0}
+.bar-row{display:flex;margin:4px 0;align-items:center}
+.bar-label{width:70px;font-weight:600;font-size:12px}
+.bar-baseline{height:20px;border-radius:3px;margin-right:4px;opacity:0.4}
+.bar-bypass{height:20px;border-radius:3px;margin-right:8px}
+.bar-value{font-size:12px;color:#546e7a}
+.legend{display:flex;gap:20px;margin:8px 0 4px 70px;font-size:11px;color:#546e7a}
+.legend-item{display:flex;align-items:center;gap:4px}
+.legend-box{width:12px;height:12px;border-radius:2px}
+.note{background:#fff3e0;border-left:4px solid #ff9800;padding:10px 15px;margin:12px 0;font-size:13px;border-radius:0 4px 4px 0;line-height:1.6}
+@media print{
+  *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  table,.metrics-grid,.status-box,.takeaways,.insight-box,.callout,.section{page-break-inside:avoid!important;break-inside:avoid!important}
+  tr{page-break-inside:avoid!important}
+  thead{display:table-header-group}
+  h2,h3{page-break-after:avoid!important}
+}
+</style>
+</head>
+<body>
+<div class="container" draggable="true">
+
+<h1 draggable="true">PVC Bypass 10K VM Scale Test</h1>
+<p style="color:#546e7a;margin-top:0;font-size:15px">Bypassing CDI eliminates the provisioning bottleneck - flat batch times from 0 to 10,000 VMs</p>
+
+<div class="status-box" draggable="true">
+<div class="status-title" draggable="true">✓ 10,000 / 10,000 VMs - 100% Success</div>
+<div class="status-sub" draggable="true">10 namespaces × 1,000 VMs | 5h 25m total | 8.8x faster than CDI's 47h 30m</div>
+</div>
+
+<div style="background:linear-gradient(135deg,#fff3e0,#fbe9e7);border:2px solid #ffb74d;border-radius:8px;padding:16px 20px;margin:16px 0">
+<h3 style="color:#e65100;margin:0 0 10px 0;font-size:15px">Bug Filed</h3>
+<p style="font-size:13px;line-height:1.6;margin:0"><strong><a href="https://redhat.atlassian.net/browse/CNV-90050" style="color:#1565c0">CNV-90050</a></strong> - CDI DataVolume clone throughput degrades 7.7x at 10K scale due to single-controller serialization (47h vs 5h without CDI)</p>
+<p style="font-size:12px;color:#546e7a;margin:8px 0 0 0">Related: <a href="https://redhat.atlassian.net/browse/CNV-87719" style="color:#1565c0">CNV-87719</a>, <a href="https://redhat.atlassian.net/browse/CNV-89644" style="color:#1565c0">CNV-89644</a>, <a href="https://redhat.atlassian.net/browse/DFBUGS-5575" style="color:#1565c0">DFBUGS-5575</a>, <a href="https://redhat.atlassian.net/browse/DFBUGS-6159" style="color:#1565c0">DFBUGS-6159</a></p>
+</div>
+
+<div class="metrics-grid" draggable="true">
+<div class="metric-card" draggable="true"><div class="value" draggable="true">10,000</div><div class="label" draggable="true">VMs Created</div></div>
+<div class="metric-card" draggable="true"><div class="value" draggable="true">5h 25m</div><div class="label" draggable="true">Total Duration</div></div>
+<div class="metric-card" draggable="true"><div class="value" draggable="true">83s</div><div class="label" draggable="true">Final Batch Time</div></div>
+<div class="metric-card" draggable="true"><div class="value" draggable="true">16.7x</div><div class="label" draggable="true">Speedup at 10K</div></div>
+<div class="metric-card" draggable="true"><div class="value" draggable="true">1,119Mi</div><div class="label" draggable="true">CSI Peak Memory</div></div>
+<div class="metric-card" draggable="true"><div class="value" draggable="true">0</div><div class="label" draggable="true">Failures</div></div>
+</div>
+
+<div class="section" draggable="true">
+<h2 draggable="true">The Result: 47h 30m to 5h 25m</h2>
+<table draggable="true">
+<tbody><tr><th>Metric</th><th>CDI (dataVolumeTemplates)</th><th>PVC Bypass (no CDI)</th></tr>
+<tr><td style="font-weight:600">Total time for 10K VMs</td><td class="degradation-high">47h 30m</td><td class="better">5h 25m</td></tr>
+<tr><td style="font-weight:600">Batch time at 10K</td><td class="degradation-high">1,388s (and growing)</td><td class="better">83s (flat)</td></tr>
+<tr><td style="font-weight:600">PVC clone time</td><td class="degradation-high">121s to 1,300s+ (degrades)</td><td class="better">37-44s (flat)</td></tr>
+<tr><td style="font-weight:600">Throughput</td><td>129 VMs/hr (at end)</td><td class="better">~1,850 VMs/hr (constant)</td></tr>
+<tr><td style="font-weight:600">API calls per batch of 50</td><td class="degradation-high">600-800 (sequential)</td><td class="better">2 (bulk)</td></tr>
+<tr><td style="font-weight:600">Objects per VM</td><td>~6 (VM, VMI, DV, PVC, PV, Pod)</td><td class="better">~4 (VM, VMI, PVC/PV, Pod)</td></tr>
+<tr><td style="font-weight:600">Cluster health at 10K</td><td>etcd 3.2GB, CSI 1.5Gi</td><td class="better">etcd 1.2GB, CSI 1.1Gi</td></tr>
+</tbody></table>
+</div>
+
+<div class="section" draggable="true">
+<h2 draggable="true">Why CDI is Slow</h2>
+<div style="display:flex;gap:12px;flex-wrap:wrap" draggable="true">
+<div class="callout callout-red" style="flex:1;min-width:300px" draggable="true">
+<h3 draggable="true">CDI Path (47h 30m for 10K)</h3>
+<ol style="padding-left:20px;line-height:1.8;font-size:12px" draggable="true">
+<li>VM controller creates DataVolume</li>
+<li>CDI detects DV, creates temp VolumeSnapshot</li>
+<li>CDI polls snapshot readiness (~5s intervals)</li>
+<li>CDI creates target PVC from snapshot</li>
+<li>CDI polls PVC status (~5s intervals)</li>
+<li>CDI updates DV status (4-6 PATCH calls)</li>
+<li>CDI cleans up temp snapshot</li>
+<li>VM controller detects DV=Succeeded, VMI boots</li>
+</ol>
+<p style="margin-top:8px">Steps 2-7: <strong>single CDI controller pod</strong>, ~12-16 API calls per DV, processed one at a time. 50 DVs = 600-800 sequential API calls.</p>
+</div>
+<div class="callout callout-green" style="flex:1;min-width:300px" draggable="true">
+<h3 draggable="true">PVC Bypass (5h 25m for 10K)</h3>
+<ol style="padding-left:20px;line-height:1.8;font-size:12px" draggable="true">
+<li>Create VolumeSnapshot from golden image (once)</li>
+<li>Bulk create 50 PVCs from snapshot (one oc apply)</li>
+<li>Bulk create 50 VMs with persistentVolumeClaim (one oc apply)</li>
+<li>VMIs scheduled and boot</li>
+</ol>
+<p style="margin-top:8px"><strong>CDI completely bypassed.</strong> CSI driver clones directly with Ceph in parallel. 2 API calls per batch regardless of scale.</p>
+</div>
+</div>
+</div>
+
+<div class="section" draggable="true">
+<h2 draggable="true">How We Proved It: Evidence Chain</h2>
+<table draggable="true">
+<tbody><tr><th>Test</th><th>Finding</th><th>What it Rules Out</th></tr>
+<tr><td style="font-weight:600">Original 10K (CDI)</td><td>181s to 1,388s per batch</td><td>Established the degradation problem</td></tr>
+<tr><td style="font-weight:600">Namespace sharding (3K, 3 NS)</td><td>~30% improvement, erodes by 3K</td><td>Not namespace-scoped LIST operations</td></tr>
+<tr><td style="font-weight:600">etcd defrag (at 3K)</td><td>Zero improvement</td><td>Not etcd DB bloat</td></tr>
+<tr><td style="font-weight:600">Fresh namespace (at 3K)</td><td>Still slow (501s first batch)</td><td>Not per-namespace object count</td></tr>
+<tr><td style="font-weight:600">Ceph diagnostics (at 4K)</td><td>&lt;2% OSD, 0 slow ops</td><td>Not storage backend</td></tr>
+<tr style="background:#e8f5e9"><td style="font-weight:700">PVC bypass (10K, no CDI)</td><td style="font-weight:700">Flat 83s at 10K</td><td style="font-weight:700;color:#2e7d32">CDI is the sole bottleneck</td></tr>
+</tbody></table>
+</div>
+
+<div class="section" draggable="true">
+<h2 draggable="true">Batch Time Comparison by Milestone</h2>
+<p style="font-size:13px;color:#546e7a">CDI baseline from the original 10K test vs PVC bypass.</p>
+
+<h3 style="margin-bottom:10px" draggable="true">Visual: CDI vs PVC Bypass</h3>
+<style>.bar-chart{background:#181b1f;border:1px solid #2a2d35;border-radius:8px;padding:24px 28px 20px;margin-top:16px;box-shadow:0 2px 12px rgba(0,0,0,0.4);position:relative}.bar-chart .chart-title{color:#d8dee9;font-size:14px;font-weight:600;margin-bottom:4px;letter-spacing:0.3px}.bar-chart .chart-subtitle{color:#6c7a89;font-size:11px;margin-bottom:18px}.legend{display:flex;gap:20px;margin-bottom:16px;padding-left:70px}.legend-item{display:flex;align-items:center;gap:7px;color:#b0bec5;font-size:12px;font-weight:500}.legend-box{width:14px;height:4px;border-radius:2px}.bar-row{display:flex;margin:5px 0;align-items:center;position:relative}.bar-row::after{content:"";position:absolute;left:70px;right:0;top:50%;border-top:1px solid rgba(255,255,255,0.04);z-index:0;pointer-events:none}.bar-label{width:70px;font-weight:600;font-size:13px;flex-shrink:0;color:#c9d1d9;letter-spacing:0.5px;z-index:1}.bar-stack{position:relative;height:34px;flex:1;z-index:1}.bar-stack .bar-baseline{position:absolute;top:0;left:0;height:100%;border-radius:4px;display:flex;align-items:center;justify-content:flex-end;padding-right:10px;font-size:11px;font-weight:600;color:rgba(255,255,255,0.9);box-sizing:border-box;text-shadow:0 1px 3px rgba(0,0,0,0.5)}.bar-stack .bar-bypass{position:absolute;top:0;left:0;height:100%;border-radius:4px;display:flex;align-items:center;font-size:11px;font-weight:700;color:#fff;z-index:1;box-sizing:border-box;overflow:visible;white-space:nowrap;text-shadow:0 1px 3px rgba(0,0,0,0.5)}.bar-stack .bar-bypass span{padding-left:8px}</style><div class="bar-chart" draggable="true"><div class="chart-title" draggable="true">Batch Time at Each Milestone</div><div class="chart-subtitle" draggable="true">CDI baseline vs PVC bypass - last batch of each 1K milestone</div><div class="legend" draggable="true"><div class="legend-item" draggable="true"><div class="legend-box" style="background: rgb(255, 214, 0); opacity: 0.85;" draggable="true"></div> CDI Baseline</div><div class="legend-item" draggable="true"><div class="legend-box" style="background:#73BF69" draggable="true"></div> PVC Bypass</div></div><div class="bar-row" draggable="true"><div class="bar-label" draggable="true">1K</div><div class="bar-stack" draggable="true"><div class="bar-baseline" style="background: rgb(255, 214, 0); width: 65px; color: rgb(26, 26, 46); opacity: 0.85;" draggable="true">181s</div><div class="bar-bypass" style="background:#73BF69;width:27px;box-shadow:0 0 8px rgba(115,191,105,0.3)" draggable="true"><span>74s</span></div></div></div><div class="bar-row" draggable="true"><div class="bar-label" draggable="true">2K</div><div class="bar-stack" draggable="true"><div class="bar-baseline" style="background: rgb(255, 214, 0); width: 174px; color: rgb(26, 26, 46); opacity: 0.85;" draggable="true">482s</div><div class="bar-bypass" style="background:#73BF69;width:29px;box-shadow:0 0 8px rgba(115,191,105,0.3)" draggable="true"><span>79s</span></div></div></div><div class="bar-row" draggable="true"><div class="bar-label" draggable="true">3K</div><div class="bar-stack" draggable="true"><div class="bar-baseline" style="background: rgb(255, 214, 0); width: 196px; color: rgb(26, 26, 46); opacity: 0.85;" draggable="true">543s</div><div class="bar-bypass" style="background:#73BF69;width:29px;box-shadow:0 0 8px rgba(115,191,105,0.3)" draggable="true"><span>80s</span></div></div></div><div class="bar-row" draggable="true"><div class="bar-label" draggable="true">5K</div><div class="bar-stack" draggable="true"><div class="bar-baseline" style="background: rgb(255, 214, 0); width: 338px; color: rgb(26, 26, 46); opacity: 0.85;" draggable="true">~936s</div><div class="bar-bypass" style="background:#73BF69;width:29px;box-shadow:0 0 8px rgba(115,191,105,0.3)" draggable="true"><span>80s</span></div></div></div><div class="bar-row" draggable="true"><div class="bar-label" draggable="true">7K</div><div class="bar-stack" draggable="true"><div class="bar-baseline" style="background: rgb(255, 214, 0); width: 415px; color: rgb(26, 26, 46); opacity: 0.85;" draggable="true">~1150s</div><div class="bar-bypass" style="background:#73BF69;width:27px;box-shadow:0 0 8px rgba(115,191,105,0.3)" draggable="true"><span>76s</span></div></div></div><div class="bar-row" draggable="true"><div class="bar-label" draggable="true">10K</div><div class="bar-stack" draggable="true"><div class="bar-baseline" style="background: rgb(255, 214, 0); width: 500px; color: rgb(26, 26, 46); opacity: 0.85;" draggable="true">1388s</div><div class="bar-bypass" style="background:#73BF69;width:30px;box-shadow:0 0 8px rgba(115,191,105,0.3)" draggable="true"><span>83s</span></div></div></div></div>
+</div>
+
+<div class="section" draggable="true">
+<h2 draggable="true">Batch Time Progression by 1K Tier</h2>
+<p style="font-size:13px;color:#546e7a">Average batch time per 1K VM tier. PVC time = CSI snapshot clone, VM time = scheduling + boot.</p>
+
+<table draggable="true">
+<tbody><tr><th>VM Range</th><th>Avg Total</th><th>Avg PVC</th><th>Avg VM</th><th>CDI Equiv.</th><th>Speedup</th></tr>
+<tr><td style="font-weight:600">0 - 1K</td><td class="degradation-low">93s</td><td>38s</td><td>55s</td><td>~210s</td><td class="better">2.3x</td></tr>
+<tr><td style="font-weight:600">1K - 2K</td><td class="degradation-low">93s</td><td>39s</td><td>54s</td><td>~304s</td><td class="better">3.3x</td></tr>
+<tr><td style="font-weight:600">2K - 3K</td><td class="degradation-low">91s</td><td>38s</td><td>53s</td><td>~406s</td><td class="better">4.5x</td></tr>
+<tr><td style="font-weight:600">3K - 4K</td><td class="degradation-low">97s</td><td>38s</td><td>59s</td><td>~500s</td><td class="better">5.2x</td></tr>
+<tr><td style="font-weight:600">4K - 5K</td><td class="degradation-low">93s</td><td>38s</td><td>54s</td><td>~700s</td><td class="better">7.5x</td></tr>
+<tr><td style="font-weight:600">5K - 6K</td><td class="degradation-low">92s</td><td>38s</td><td>54s</td><td>~900s</td><td class="better">9.8x</td></tr>
+<tr><td style="font-weight:600">6K - 7K</td><td class="degradation-low">94s</td><td>37s</td><td>56s</td><td>~1,050s</td><td class="better">11.2x</td></tr>
+<tr><td style="font-weight:600">7K - 8K</td><td class="degradation-low">100s</td><td>38s</td><td>62s</td><td>~1,150s</td><td class="better">11.5x</td></tr>
+<tr><td style="font-weight:600">8K - 9K</td><td class="degradation-low">95s</td><td>37s</td><td>58s</td><td>~1,250s</td><td class="better">13.2x</td></tr>
+<tr><td style="font-weight:600">9K - 10K</td><td class="degradation-low">97s</td><td>38s</td><td>59s</td><td>~1,388s</td><td class="better">14.3x</td></tr>
+</tbody></table>
+
+<div class="insight-box" draggable="true">
+<strong>The data speaks for itself:</strong> Average batch time is 91-100s at every single tier from 0 to 10K. The variation between tiers is &lt;10%. Meanwhile, CDI batch times grow from 210s to 1,388s (6.6x degradation). The PVC bypass approach has <strong>completely eliminated the degradation curve</strong>.
+</div>
+</div>
+
+
+<div class="section" draggable="true">
+<h2 draggable="true">PVC Time vs VM Time</h2>
+<table draggable="true">
+<tbody><tr><th>Component</th><th>Min</th><th>Median</th><th>Max</th><th>Trend</th></tr>
+<tr>
+  <td style="font-weight:600">PVC creation (50 from snapshot)</td>
+  <td>32s</td><td>38s</td><td>44s</td>
+  <td class="degradation-low">Flat across all 200 batches</td>
+</tr>
+<tr>
+  <td style="font-weight:600">VM startup (50 VMs)</td>
+  <td>37s</td><td>44s</td><td>167s</td>
+  <td class="degradation-low">Flat with periodic scheduling spikes</td>
+</tr>
+</tbody></table>
+
+<div class="callout callout-blue" draggable="true">
+<h3 draggable="true">VM Scheduling Spikes</h3>
+<p>Approximately 1 in 7 batches shows a VM startup time of 110-170s instead of the typical 38-50s. These occur roughly every 7 batches across the entire run and are periodic, not correlated with VM count. They appear to be caused by the virt-controller processing a burst of VirtualMachine objects. PVC creation is <strong>never</strong> affected by these spikes.</p>
+</div>
+</div>
+
+<div class="section" draggable="true">
+<h2 draggable="true">Cluster Health at 10K VMs</h2>
+<table draggable="true">
+<tbody><tr><th>Metric</th><th>Pre-test</th><th>3K</th><th>5K</th><th>10K</th><th>Assessment</th></tr>
+<tr>
+  <td style="font-weight:600">Ceph</td>
+  <td>HEALTH_OK</td><td>HEALTH_OK</td><td>HEALTH_OK</td><td>HEALTH_OK</td>
+  <td class="degradation-low">Healthy throughout</td>
+</tr>
+<tr>
+  <td style="font-weight:600">etcd DB</td>
+  <td>449MB</td><td>711MB</td><td>~800MB</td><td>1,206MB</td>
+  <td class="degradation-low">Linear, well within limits</td>
+</tr>
+<tr>
+  <td style="font-weight:600">Ceph objects</td>
+  <td>24.8K</td><td>36.9K</td><td>~45K</td><td>64.9K</td>
+  <td class="degradation-low">~4 objects per VM</td>
+</tr>
+<tr>
+  <td style="font-weight:600">Ceph usage</td>
+  <td>176 GiB</td><td>183 GiB</td><td>~184 GiB</td><td>185 GiB</td>
+  <td class="degradation-low">&lt;0.3% of 58 TiB</td>
+</tr>
+<tr>
+  <td style="font-weight:600">CSI memory</td>
+  <td>220Mi</td><td>503Mi</td><td>~640Mi</td><td>1,119Mi</td>
+  <td class="degradation-low">~0.09Mi/VM, no restarts</td>
+</tr>
+</tbody></table>
+<p style="font-size:12px;color:#546e7a">The original CDI 10K test had etcd DB at 3.2GB and CSI memory at 1.5Gi. PVC bypass produces less cluster overhead (fewer objects per VM).</p>
+</div>
+
+<div class="section" draggable="true">
+<h2 draggable="true">Resource Configuration and Utilization</h2>
+<table draggable="true"><tbody><tr><th>Component</th><th>Default</th><th>Applied</th><th>RAM at 10K</th><th>CPU at 10K</th></tr><tr><td>resourceProfile</td><td>balanced</td><td style="color:#2e7d32;font-weight:600">performance</td><td>-</td><td>-</td></tr><tr><td>Clone strategy</td><td>csi-clone</td><td style="color:#2e7d32;font-weight:600">snapshot</td><td>-</td><td>-</td></tr><tr><td>Ceph MON (x5)</td><td>3 MONs</td><td style="color:#2e7d32;font-weight:600">5 MONs</td><td>1.7-1.9Gi each</td><td>25-41m each</td></tr><tr><td>Ceph OSD (x21)</td><td>5Gi / 2 cores</td><td style="color:#2e7d32;font-weight:600">24Gi / 5 cores</td><td>10.4-12.4Gi</td><td>387-564m</td></tr><tr><td>csi-rbdplugin ctrlplugin (x2)</td><td>1Gi</td><td style="color:#2e7d32;font-weight:600">1Gi</td><td>1,119Mi</td><td>5-31m</td></tr><tr><td>csi-addons-controller (per node)</td><td>512Mi</td><td style="color:#2e7d32;font-weight:600">2Gi</td><td>22-28Mi</td><td>0-1m</td></tr><tr><td>Ceph MGR (x2)</td><td>operator default</td><td>operator default</td><td>501-776Mi</td><td>35-116m</td></tr><tr><td>csi-rbdplugin nodeplugin (per node)</td><td>operator default</td><td>operator default</td><td>473-494Mi</td><td>222-391m</td></tr><tr><td>KubeletConfig: maxPods</td><td>250</td><td style="color:#2e7d32;font-weight:600">1000</td><td>-</td><td>-</td></tr></tbody></table>
+</div>
+
+<div class="section" draggable="true">
+<h2 draggable="true">Setup Details</h2>
+<table draggable="true">
+<tbody><tr><th>Step</th><th>Duration</th><th>Notes</th></tr>
+<tr><td style="font-weight:600">Create 10 namespaces</td><td>1s</td><td>pvc-bypass-1 through pvc-bypass-10</td></tr>
+<tr><td style="font-weight:600">CDI clone golden PVC</td><td>10s</td><td>Single DV from vm-ip-scale-test/golden-alpine</td></tr>
+<tr><td style="font-weight:600">Test cross-NS snapshot</td><td>60s</td><td>Failed (expected - VolumeSnapshot is namespace-scoped)</td></tr>
+<tr><td style="font-weight:600">CDI clone into 10 NS</td><td>12s</td><td>10 parallel DataVolume clones</td></tr>
+<tr><td style="font-weight:600">Create 10 snapshots</td><td>7s</td><td>One VolumeSnapshot per namespace</td></tr>
+<tr style="background:#e8f5e9"><td style="font-weight:700">Total setup</td><td style="font-weight:700">108s</td><td>One-time cost, reusable for any number of batches</td></tr>
+</tbody></table>
+</div>
+
+<div class="section" draggable="true">
+<h2 draggable="true">Recommendations</h2>
+
+<div class="callout callout-green" draggable="true">
+<h3 draggable="true">1. Adopt PVC bypass as the standard pattern for scale testing</h3>
+<p>The evidence is conclusive: PVC bypass eliminates the provisioning bottleneck at all scales. For any future VM scale test, pre-create PVCs from VolumeSnapshot instead of using DataVolume templates. The one-time setup (108s) is negligible compared to the 8.8x overall runtime improvement.</p>
+</div>
+
+<div class="callout callout-blue" draggable="true">
+<h3 draggable="true">2. Report CDI bottleneck findings to the CNV team</h3>
+<p>The single CDI controller pod is the root cause of VM provisioning degradation at scale. This impacts production workloads that use DataVolume. Key recommendations for CDI:</p>
+<ul style="padding-left:20px;line-height:1.8" draggable="true">
+<li>Increase CDI controller worker concurrency</li>
+<li>Shard CDI controllers (per-namespace or hash-based)</li>
+<li>Optimize DV status reconciliation loop at high object counts</li>
+<li>Consider direct CSI snapshot clone path for simple clone operations</li>
+</ul>
+</div>
+
+<div class="callout callout-yellow" draggable="true">
+<h3 draggable="true">3. Extend to 20K+ VMs if needed</h3>
+<p>Based on the flat performance curve and healthy cluster metrics at 10K (etcd 1.2GB, CSI 1.1Gi, Ceph healthy), there is significant headroom to push higher. The cluster has 39 workers, 21 OSDs, and 58 TiB storage. The PVC bypass approach should scale linearly until node resources (CPU/memory for virt-launcher pods) become the limiting factor.</p>
+</div>
+</div>
+
+<div class="section" draggable="true">
+<h2 draggable="true">Namespace Distribution (Final)</h2>
+<table draggable="true">
+<tbody><tr><th>Namespace</th><th>Batches</th><th>VMs</th><th>Status</th></tr>
+<tr><td style="font-weight:600">pvc-bypass-1</td><td>20</td><td>1,000</td><td class="degradation-low">1,000 Running</td></tr>
+<tr><td style="font-weight:600">pvc-bypass-2</td><td>20</td><td>1,000</td><td class="degradation-low">1,000 Running</td></tr>
+<tr><td style="font-weight:600">pvc-bypass-3</td><td>20</td><td>1,000</td><td class="degradation-low">1,000 Running</td></tr>
+<tr><td style="font-weight:600">pvc-bypass-4</td><td>20</td><td>1,000</td><td class="degradation-low">1,000 Running</td></tr>
+<tr><td style="font-weight:600">pvc-bypass-5</td><td>20</td><td>1,000</td><td class="degradation-low">1,000 Running</td></tr>
+<tr><td style="font-weight:600">pvc-bypass-6</td><td>20</td><td>1,000</td><td class="degradation-low">1,000 Running</td></tr>
+<tr><td style="font-weight:600">pvc-bypass-7</td><td>20</td><td>1,000</td><td class="degradation-low">1,000 Running</td></tr>
+<tr><td style="font-weight:600">pvc-bypass-8</td><td>20</td><td>1,000</td><td class="degradation-low">1,000 Running</td></tr>
+<tr><td style="font-weight:600">pvc-bypass-9</td><td>20</td><td>1,000</td><td class="degradation-low">1,000 Running</td></tr>
+<tr><td style="font-weight:600">pvc-bypass-10</td><td>20</td><td>1,000</td><td class="degradation-low">1,000 Running</td></tr>
+</tbody></table>
+</div>
+
+<div class="section" draggable="true">
+<h2 draggable="true">Raw Data - Key Batches</h2>
+<p style="font-size:13px;color:#546e7a">Every 10th batch showing progression across the full 10K run.</p>
+<table style="font-size:12px" draggable="true">
+<tbody><tr><th>#</th><th>NS</th><th>PVC(s)</th><th>VM(s)</th><th>Total(s)</th><th>NS VMs</th><th>Total VMs</th><th>CSI(Mi)</th></tr>
+<tr><td>1</td><td>bypass-1</td><td>36</td><td>37</td><td>74</td><td>50</td><td>50</td><td>251</td></tr>
+<tr><td>10</td><td>bypass-10</td><td>37</td><td>47</td><td>84</td><td>50</td><td>500</td><td>294</td></tr>
+<tr style="background:#e3f2fd"><td><strong>20</strong></td><td>bypass-10</td><td>37</td><td>37</td><td><strong>74</strong></td><td>100</td><td><strong>1,000</strong></td><td>332</td></tr>
+<tr><td>30</td><td>bypass-10</td><td>37</td><td>37</td><td>75</td><td>150</td><td>1,500</td><td>381</td></tr>
+<tr style="background:#e3f2fd"><td><strong>40</strong></td><td>bypass-10</td><td>42</td><td>37</td><td><strong>79</strong></td><td>200</td><td><strong>2,000</strong></td><td>445</td></tr>
+<tr><td>50</td><td>bypass-10</td><td>42</td><td>125</td><td>169</td><td>250</td><td>2,500</td><td>461</td></tr>
+<tr style="background:#e3f2fd"><td><strong>60</strong></td><td>bypass-10</td><td>37</td><td>43</td><td><strong>80</strong></td><td>300</td><td><strong>3,000</strong></td><td>503</td></tr>
+<tr><td>70</td><td>bypass-10</td><td>37</td><td>38</td><td>75</td><td>350</td><td>3,500</td><td>595</td></tr>
+<tr style="background:#e3f2fd"><td><strong>80</strong></td><td>bypass-10</td><td>37</td><td>116</td><td><strong>154</strong></td><td>400</td><td><strong>4,000</strong></td><td>579</td></tr>
+<tr><td>90</td><td>bypass-10</td><td>37</td><td>43</td><td>80</td><td>450</td><td>4,500</td><td>668</td></tr>
+<tr style="background:#e3f2fd"><td><strong>100</strong></td><td>bypass-10</td><td>37</td><td>43</td><td><strong>80</strong></td><td>500</td><td><strong>5,000</strong></td><td>644</td></tr>
+<tr><td>110</td><td>bypass-10</td><td>37</td><td>38</td><td>76</td><td>550</td><td>5,500</td><td>663</td></tr>
+<tr style="background:#e3f2fd"><td><strong>120</strong></td><td>bypass-10</td><td>37</td><td>38</td><td><strong>76</strong></td><td>600</td><td><strong>6,000</strong></td><td>702</td></tr>
+<tr><td>130</td><td>bypass-10</td><td>37</td><td>39</td><td>76</td><td>650</td><td>6,500</td><td>773</td></tr>
+<tr style="background:#e3f2fd"><td><strong>140</strong></td><td>bypass-10</td><td>37</td><td>39</td><td><strong>76</strong></td><td>700</td><td><strong>7,000</strong></td><td>781</td></tr>
+<tr><td>150</td><td>bypass-10</td><td>37</td><td>38</td><td>76</td><td>750</td><td>7,500</td><td>805</td></tr>
+<tr style="background:#e3f2fd"><td><strong>160</strong></td><td>bypass-10</td><td>38</td><td>161</td><td><strong>199</strong></td><td>800</td><td><strong>8,000</strong></td><td>826</td></tr>
+<tr><td>170</td><td>bypass-10</td><td>38</td><td>44</td><td>82</td><td>850</td><td>8,500</td><td>859</td></tr>
+<tr style="background:#e3f2fd"><td><strong>180</strong></td><td>bypass-10</td><td>37</td><td>45</td><td><strong>83</strong></td><td>900</td><td><strong>9,000</strong></td><td>877</td></tr>
+<tr><td>190</td><td>bypass-10</td><td>38</td><td>44</td><td>82</td><td>950</td><td>9,500</td><td>912</td></tr>
+<tr style="background:#e3f2fd"><td><strong>200</strong></td><td>bypass-10</td><td>38</td><td>45</td><td><strong>83</strong></td><td>1,000</td><td><strong>10,000</strong></td><td>1,119</td></tr>
+</tbody></table>
+</div>
+
+
+<div class="footer" draggable="true">
+<p>Cluster: f04-h10-000-r640.rdu2.scalelab.redhat.com | 42 nodes, 39 workers, 21 OSDs, ODF 4.21.6, CNV 4.22.0</p>
+<p>Phase 1: 2026-06-09 20:50-22:25 UTC | Phase 2: 22:28-23:32 UTC | Phase 3: 23:35-02:15 UTC</p>
+<p>Method: PVC bypass (PVCs from VolumeSnapshot, no CDI DataVolumes), 10 NS round-robin, 50 VMs/batch</p>
+<p>Data: /tmp/pvc-bypass-3k-results.csv (200 rows), /tmp/pvc-bypass-3k-test.log, /tmp/pvc-bypass-health-checks.log</p>
+</div>
+
+</div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+</body>
+</html>

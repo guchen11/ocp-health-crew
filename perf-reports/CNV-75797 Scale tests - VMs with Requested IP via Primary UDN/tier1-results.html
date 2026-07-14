@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CNV-75797 Tier 1 Scale Test Results - 100 VMs</title>
+<style>
+body{font-family:'Segoe UI',Roboto,Arial,sans-serif;color:#1a1a2e;margin:0;padding:20px;background:#f5f5f5}
+h1{color:#0d47a1;border-bottom:3px solid #1565c0;padding-bottom:10px;font-size:24px;margin-bottom:4px}
+h2{color:#1565c0;margin-top:32px;font-size:17px;border-left:4px solid #1565c0;padding-left:10px}
+.container{max-width:960px;margin:0 auto;background:#fff;padding:32px;border-radius:10px;box-shadow:0 3px 12px rgba(0,0,0,0.08)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:13px}
+th{background:#1565c0;color:#fff;padding:9px 12px;text-align:left;font-weight:600}
+td{padding:8px 12px;border-bottom:1px solid #e0e0e0}
+tr:nth-child(even){background:#f8f9fa}
+tr:hover{background:#e3f2fd}
+.status-box{background:linear-gradient(135deg,#0d47a1 0%,#1565c0 40%,#1976d2 100%);color:#fff;border-radius:10px;padding:22px 24px;margin:20px 0 16px 0;text-align:center;box-shadow:0 4px 14px rgba(21,101,192,0.25)}
+.status-box .status-title{font-size:22px;font-weight:700;letter-spacing:0.5px}
+.status-box .status-sub{font-size:14px;margin-top:6px;opacity:0.92}
+.metrics-grid{display:flex;flex-wrap:wrap;gap:10px;margin:16px 0}
+.metric-card{flex:1;min-width:130px;background:linear-gradient(135deg,#e3f2fd,#f5f9ff);border:1px solid #90caf9;border-radius:8px;padding:14px 16px;text-align:center;box-shadow:0 1px 4px rgba(0,0,0,0.06)}
+.metric-card .value{font-size:22px;font-weight:700;color:#0d47a1}
+.metric-card .label{font-size:11px;color:#546e7a;margin-top:5px;text-transform:uppercase;letter-spacing:0.3px}
+.takeaways{background:linear-gradient(135deg,#e8f5e9,#f1f8e9);border:2px solid #81c784;border-radius:8px;padding:16px 20px;margin:18px 0}
+.takeaways h3{color:#2e7d32;margin:0 0 10px 0;font-size:15px}
+.takeaways ul{margin:0;padding-left:20px;line-height:1.8;font-size:13px}
+.note{background:#fff3e0;border-left:4px solid #ff9800;padding:10px 15px;margin:12px 0;font-size:13px;border-radius:0 4px 4px 0;line-height:1.6}
+.footer{margin-top:30px;padding-top:15px;border-top:2px solid #e0e0e0;font-size:12px;color:#78909c}
+.pass{background:#e8f5e9;color:#2e7d32;font-weight:700;padding:2px 8px;border-radius:4px;font-size:11px}
+.fail{background:#ffebee;color:#c62828;font-weight:700;padding:2px 8px;border-radius:4px;font-size:11px}
+</style>
+</head>
+<body>
+<div class="container">
+
+<h1>CNV-75797 Tier 1 Scale Test Results</h1>
+<p style="color:#546e7a;margin-top:0;font-size:14px">100 VMs with Requested IPs via Primary UDN - 2026-05-31</p>
+
+<div class="status-box">
+<div class="status-title">TIER 1 SCALE TEST: ALL PASS</div>
+<div class="status-sub">100/100 VMs created and validated - IP assignment, IPAMClaim, and Guest OS IP all correct</div>
+</div>
+
+<div class="takeaways">
+<h3>Key Findings</h3>
+<ul>
+<li><strong>100% pass rate</strong> - All 100 VMs got their requested IPs via <code>network.kubevirt.io/addresses</code> annotation on Primary UDN</li>
+<li><strong>Fast creation</strong> - All 100 VMs reached Running state in 122 seconds (2 min 2 sec), yielding ~2,951 VMs/hour</li>
+<li><strong>Good node distribution</strong> - VMs spread across 15 worker nodes (range: 1-14 VMs per node)</li>
+<li><strong>IPAMClaims healthy</strong> - All 100 IPAMClaims created with SuccessfulAllocation status and correct IPs</li>
+<li><strong>Guest OS validation</strong> - All 11 sampled VMs confirmed ovn-udn1 interface IP matches requested address</li>
+</ul>
+</div>
+
+<div class="metrics-grid">
+<div class="metric-card"><div class="value">100</div><div class="label">Total VMs</div></div>
+<div class="metric-card"><div class="value">100%</div><div class="label">Pass Rate</div></div>
+<div class="metric-card"><div class="value">2m 02s</div><div class="label">Creation Time</div></div>
+<div class="metric-card"><div class="value">~2,951</div><div class="label">VMs / Hour</div></div>
+<div class="metric-card"><div class="value">100%</div><div class="label">IP Match Rate</div></div>
+</div>
+
+<h2>Test Environment</h2>
+<table>
+<tr><th>Parameter</th><th>Value</th></tr>
+<tr><td>Jira Ticket</td><td>CNV-75797</td></tr>
+<tr><td>Test Tier</td><td>Tier 1 (100 VMs)</td></tr>
+<tr><td>OCP Version</td><td>4.22.0-ec.5</td></tr>
+<tr><td>CNV Version</td><td>4.22.0-190 (OpenShift Virtualization)</td></tr>
+<tr><td>Kubernetes</td><td>v1.35.3</td></tr>
+<tr><td>Namespace</td><td>vm-ip-scale-test</td></tr>
+<tr><td>UDN Name</td><td>scale-test-udn (Layer2, Primary, 172.16.0.0/16)</td></tr>
+<tr><td>IPAM Lifecycle</td><td>Persistent</td></tr>
+<tr><td>IP Range</td><td>172.16.0.3 - 172.16.0.102 (skipping .1/.2 reserved by OVN)</td></tr>
+<tr><td>VM Image</td><td>golden-alpine (1Gi, RBD block)</td></tr>
+<tr><td>Storage Class</td><td>ocs-storagecluster-ceph-rbd-virtualization</td></tr>
+<tr><td>Worker Nodes</td><td>15</td></tr>
+<tr><td>Apply Timestamp</td><td>2026-05-31T17:03:02Z</td></tr>
+<tr><td>All Running At</td><td>2026-05-31T17:05:20Z</td></tr>
+<tr><td>Bastion Host</td><td>f04-h10-000-r640.rdu2.scalelab.redhat.com</td></tr>
+</table>
+
+<h2>P0 Validation Results - All 100 VMs</h2>
+<table>
+<tr><th>#</th><th>VM Name</th><th>Requested IP</th><th>Assigned IP</th><th>IPAMClaim</th><th>Node</th><th>Result</th></tr>
+<tr><td>1</td><td>vm-ip-t1-1</td><td>172.16.0.3</td><td>172.16.0.3</td><td><span class="pass">PASS</span></td><td>f30-h21-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>2</td><td>vm-ip-t1-2</td><td>172.16.0.4</td><td>172.16.0.4</td><td><span class="pass">PASS</span></td><td>e24-h05-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>3</td><td>vm-ip-t1-3</td><td>172.16.0.5</td><td>172.16.0.5</td><td><span class="pass">PASS</span></td><td>e24-h01-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>4</td><td>vm-ip-t1-4</td><td>172.16.0.6</td><td>172.16.0.6</td><td><span class="pass">PASS</span></td><td>f21-h05-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>5</td><td>vm-ip-t1-5</td><td>172.16.0.7</td><td>172.16.0.7</td><td><span class="pass">PASS</span></td><td>f21-h19-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>6</td><td>vm-ip-t1-6</td><td>172.16.0.8</td><td>172.16.0.8</td><td><span class="pass">PASS</span></td><td>e24-h03-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>7</td><td>vm-ip-t1-7</td><td>172.16.0.9</td><td>172.16.0.9</td><td><span class="pass">PASS</span></td><td>e24-h03-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>8</td><td>vm-ip-t1-8</td><td>172.16.0.10</td><td>172.16.0.10</td><td><span class="pass">PASS</span></td><td>e24-h03-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>9</td><td>vm-ip-t1-9</td><td>172.16.0.11</td><td>172.16.0.11</td><td><span class="pass">PASS</span></td><td>e24-h03-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>10</td><td>vm-ip-t1-10</td><td>172.16.0.12</td><td>172.16.0.12</td><td><span class="pass">PASS</span></td><td>f21-h06-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>11</td><td>vm-ip-t1-11</td><td>172.16.0.13</td><td>172.16.0.13</td><td><span class="pass">PASS</span></td><td>f21-h18-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>12</td><td>vm-ip-t1-12</td><td>172.16.0.14</td><td>172.16.0.14</td><td><span class="pass">PASS</span></td><td>f21-h05-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>13</td><td>vm-ip-t1-13</td><td>172.16.0.15</td><td>172.16.0.15</td><td><span class="pass">PASS</span></td><td>e24-h01-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>14</td><td>vm-ip-t1-14</td><td>172.16.0.16</td><td>172.16.0.16</td><td><span class="pass">PASS</span></td><td>f21-h17-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>15</td><td>vm-ip-t1-15</td><td>172.16.0.17</td><td>172.16.0.17</td><td><span class="pass">PASS</span></td><td>f21-h06-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>16</td><td>vm-ip-t1-16</td><td>172.16.0.18</td><td>172.16.0.18</td><td><span class="pass">PASS</span></td><td>f21-h05-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>17</td><td>vm-ip-t1-17</td><td>172.16.0.19</td><td>172.16.0.19</td><td><span class="pass">PASS</span></td><td>f21-h18-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>18</td><td>vm-ip-t1-18</td><td>172.16.0.20</td><td>172.16.0.20</td><td><span class="pass">PASS</span></td><td>f21-h06-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>19</td><td>vm-ip-t1-19</td><td>172.16.0.21</td><td>172.16.0.21</td><td><span class="pass">PASS</span></td><td>f21-h05-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>20</td><td>vm-ip-t1-20</td><td>172.16.0.22</td><td>172.16.0.22</td><td><span class="pass">PASS</span></td><td>e24-h07-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>21</td><td>vm-ip-t1-21</td><td>172.16.0.23</td><td>172.16.0.23</td><td><span class="pass">PASS</span></td><td>f21-h05-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>22</td><td>vm-ip-t1-22</td><td>172.16.0.24</td><td>172.16.0.24</td><td><span class="pass">PASS</span></td><td>f21-h06-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>23</td><td>vm-ip-t1-23</td><td>172.16.0.25</td><td>172.16.0.25</td><td><span class="pass">PASS</span></td><td>f21-h05-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>24</td><td>vm-ip-t1-24</td><td>172.16.0.26</td><td>172.16.0.26</td><td><span class="pass">PASS</span></td><td>e24-h01-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>25</td><td>vm-ip-t1-25</td><td>172.16.0.27</td><td>172.16.0.27</td><td><span class="pass">PASS</span></td><td>e24-h07-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>26</td><td>vm-ip-t1-26</td><td>172.16.0.28</td><td>172.16.0.28</td><td><span class="pass">PASS</span></td><td>f21-h06-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>27</td><td>vm-ip-t1-27</td><td>172.16.0.29</td><td>172.16.0.29</td><td><span class="pass">PASS</span></td><td>e24-h01-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>28</td><td>vm-ip-t1-28</td><td>172.16.0.30</td><td>172.16.0.30</td><td><span class="pass">PASS</span></td><td>f21-h06-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>29</td><td>vm-ip-t1-29</td><td>172.16.0.31</td><td>172.16.0.31</td><td><span class="pass">PASS</span></td><td>f21-h06-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>30</td><td>vm-ip-t1-30</td><td>172.16.0.32</td><td>172.16.0.32</td><td><span class="pass">PASS</span></td><td>e24-h07-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>31</td><td>vm-ip-t1-31</td><td>172.16.0.33</td><td>172.16.0.33</td><td><span class="pass">PASS</span></td><td>e24-h07-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>32</td><td>vm-ip-t1-32</td><td>172.16.0.34</td><td>172.16.0.34</td><td><span class="pass">PASS</span></td><td>e24-h07-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>33</td><td>vm-ip-t1-33</td><td>172.16.0.35</td><td>172.16.0.35</td><td><span class="pass">PASS</span></td><td>e24-h07-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>34</td><td>vm-ip-t1-34</td><td>172.16.0.36</td><td>172.16.0.36</td><td><span class="pass">PASS</span></td><td>e24-h07-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>35</td><td>vm-ip-t1-35</td><td>172.16.0.37</td><td>172.16.0.37</td><td><span class="pass">PASS</span></td><td>f21-h05-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>36</td><td>vm-ip-t1-36</td><td>172.16.0.38</td><td>172.16.0.38</td><td><span class="pass">PASS</span></td><td>e24-h05-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>37</td><td>vm-ip-t1-37</td><td>172.16.0.39</td><td>172.16.0.39</td><td><span class="pass">PASS</span></td><td>e24-h09-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>38</td><td>vm-ip-t1-38</td><td>172.16.0.40</td><td>172.16.0.40</td><td><span class="pass">PASS</span></td><td>f21-h05-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>39</td><td>vm-ip-t1-39</td><td>172.16.0.41</td><td>172.16.0.41</td><td><span class="pass">PASS</span></td><td>e24-h05-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>40</td><td>vm-ip-t1-40</td><td>172.16.0.42</td><td>172.16.0.42</td><td><span class="pass">PASS</span></td><td>e24-h05-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>41</td><td>vm-ip-t1-41</td><td>172.16.0.43</td><td>172.16.0.43</td><td><span class="pass">PASS</span></td><td>f21-h19-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>42</td><td>vm-ip-t1-42</td><td>172.16.0.44</td><td>172.16.0.44</td><td><span class="pass">PASS</span></td><td>f21-h05-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>43</td><td>vm-ip-t1-43</td><td>172.16.0.45</td><td>172.16.0.45</td><td><span class="pass">PASS</span></td><td>f21-h06-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>44</td><td>vm-ip-t1-44</td><td>172.16.0.46</td><td>172.16.0.46</td><td><span class="pass">PASS</span></td><td>e24-h05-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>45</td><td>vm-ip-t1-45</td><td>172.16.0.47</td><td>172.16.0.47</td><td><span class="pass">PASS</span></td><td>e24-h05-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>46</td><td>vm-ip-t1-46</td><td>172.16.0.48</td><td>172.16.0.48</td><td><span class="pass">PASS</span></td><td>e24-h05-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>47</td><td>vm-ip-t1-47</td><td>172.16.0.49</td><td>172.16.0.49</td><td><span class="pass">PASS</span></td><td>e24-h05-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>48</td><td>vm-ip-t1-48</td><td>172.16.0.50</td><td>172.16.0.50</td><td><span class="pass">PASS</span></td><td>e24-h03-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>49</td><td>vm-ip-t1-49</td><td>172.16.0.51</td><td>172.16.0.51</td><td><span class="pass">PASS</span></td><td>e24-h03-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>50</td><td>vm-ip-t1-50</td><td>172.16.0.52</td><td>172.16.0.52</td><td><span class="pass">PASS</span></td><td>f21-h10-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>51</td><td>vm-ip-t1-51</td><td>172.16.0.53</td><td>172.16.0.53</td><td><span class="pass">PASS</span></td><td>f21-h10-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>52</td><td>vm-ip-t1-52</td><td>172.16.0.54</td><td>172.16.0.54</td><td><span class="pass">PASS</span></td><td>f21-h06-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>53</td><td>vm-ip-t1-53</td><td>172.16.0.55</td><td>172.16.0.55</td><td><span class="pass">PASS</span></td><td>e24-h03-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>54</td><td>vm-ip-t1-54</td><td>172.16.0.56</td><td>172.16.0.56</td><td><span class="pass">PASS</span></td><td>f21-h06-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>55</td><td>vm-ip-t1-55</td><td>172.16.0.57</td><td>172.16.0.57</td><td><span class="pass">PASS</span></td><td>e24-h10-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>56</td><td>vm-ip-t1-56</td><td>172.16.0.58</td><td>172.16.0.58</td><td><span class="pass">PASS</span></td><td>f30-h19-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>57</td><td>vm-ip-t1-57</td><td>172.16.0.59</td><td>172.16.0.59</td><td><span class="pass">PASS</span></td><td>e24-h01-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>58</td><td>vm-ip-t1-58</td><td>172.16.0.60</td><td>172.16.0.60</td><td><span class="pass">PASS</span></td><td>f21-h06-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>59</td><td>vm-ip-t1-59</td><td>172.16.0.61</td><td>172.16.0.61</td><td><span class="pass">PASS</span></td><td>e24-h03-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>60</td><td>vm-ip-t1-60</td><td>172.16.0.62</td><td>172.16.0.62</td><td><span class="pass">PASS</span></td><td>f21-h19-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>61</td><td>vm-ip-t1-61</td><td>172.16.0.63</td><td>172.16.0.63</td><td><span class="pass">PASS</span></td><td>f21-h06-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>62</td><td>vm-ip-t1-62</td><td>172.16.0.64</td><td>172.16.0.64</td><td><span class="pass">PASS</span></td><td>f21-h17-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>63</td><td>vm-ip-t1-63</td><td>172.16.0.65</td><td>172.16.0.65</td><td><span class="pass">PASS</span></td><td>e24-h03-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>64</td><td>vm-ip-t1-64</td><td>172.16.0.66</td><td>172.16.0.66</td><td><span class="pass">PASS</span></td><td>e24-h07-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>65</td><td>vm-ip-t1-65</td><td>172.16.0.67</td><td>172.16.0.67</td><td><span class="pass">PASS</span></td><td>f21-h05-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>66</td><td>vm-ip-t1-66</td><td>172.16.0.68</td><td>172.16.0.68</td><td><span class="pass">PASS</span></td><td>e24-h03-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>67</td><td>vm-ip-t1-67</td><td>172.16.0.69</td><td>172.16.0.69</td><td><span class="pass">PASS</span></td><td>e24-h07-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>68</td><td>vm-ip-t1-68</td><td>172.16.0.70</td><td>172.16.0.70</td><td><span class="pass">PASS</span></td><td>f21-h17-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>69</td><td>vm-ip-t1-69</td><td>172.16.0.71</td><td>172.16.0.71</td><td><span class="pass">PASS</span></td><td>e24-h03-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>70</td><td>vm-ip-t1-70</td><td>172.16.0.72</td><td>172.16.0.72</td><td><span class="pass">PASS</span></td><td>f30-h19-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>71</td><td>vm-ip-t1-71</td><td>172.16.0.73</td><td>172.16.0.73</td><td><span class="pass">PASS</span></td><td>f21-h19-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>72</td><td>vm-ip-t1-72</td><td>172.16.0.74</td><td>172.16.0.74</td><td><span class="pass">PASS</span></td><td>e24-h10-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>73</td><td>vm-ip-t1-73</td><td>172.16.0.75</td><td>172.16.0.75</td><td><span class="pass">PASS</span></td><td>f21-h19-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>74</td><td>vm-ip-t1-74</td><td>172.16.0.76</td><td>172.16.0.76</td><td><span class="pass">PASS</span></td><td>e24-h01-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>75</td><td>vm-ip-t1-75</td><td>172.16.0.77</td><td>172.16.0.77</td><td><span class="pass">PASS</span></td><td>e24-h01-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>76</td><td>vm-ip-t1-76</td><td>172.16.0.78</td><td>172.16.0.78</td><td><span class="pass">PASS</span></td><td>f21-h05-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>77</td><td>vm-ip-t1-77</td><td>172.16.0.79</td><td>172.16.0.79</td><td><span class="pass">PASS</span></td><td>f21-h17-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>78</td><td>vm-ip-t1-78</td><td>172.16.0.80</td><td>172.16.0.80</td><td><span class="pass">PASS</span></td><td>f21-h17-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>79</td><td>vm-ip-t1-79</td><td>172.16.0.81</td><td>172.16.0.81</td><td><span class="pass">PASS</span></td><td>e24-h01-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>80</td><td>vm-ip-t1-80</td><td>172.16.0.82</td><td>172.16.0.82</td><td><span class="pass">PASS</span></td><td>f21-h18-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>81</td><td>vm-ip-t1-81</td><td>172.16.0.83</td><td>172.16.0.83</td><td><span class="pass">PASS</span></td><td>f21-h05-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>82</td><td>vm-ip-t1-82</td><td>172.16.0.84</td><td>172.16.0.84</td><td><span class="pass">PASS</span></td><td>f30-h21-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>83</td><td>vm-ip-t1-83</td><td>172.16.0.85</td><td>172.16.0.85</td><td><span class="pass">PASS</span></td><td>e24-h07-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>84</td><td>vm-ip-t1-84</td><td>172.16.0.86</td><td>172.16.0.86</td><td><span class="pass">PASS</span></td><td>f21-h19-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>85</td><td>vm-ip-t1-85</td><td>172.16.0.87</td><td>172.16.0.87</td><td><span class="pass">PASS</span></td><td>f21-h17-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>86</td><td>vm-ip-t1-86</td><td>172.16.0.88</td><td>172.16.0.88</td><td><span class="pass">PASS</span></td><td>f30-h19-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>87</td><td>vm-ip-t1-87</td><td>172.16.0.89</td><td>172.16.0.89</td><td><span class="pass">PASS</span></td><td>f21-h06-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>88</td><td>vm-ip-t1-88</td><td>172.16.0.90</td><td>172.16.0.90</td><td><span class="pass">PASS</span></td><td>f21-h18-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>89</td><td>vm-ip-t1-89</td><td>172.16.0.91</td><td>172.16.0.91</td><td><span class="pass">PASS</span></td><td>f21-h01-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>90</td><td>vm-ip-t1-90</td><td>172.16.0.92</td><td>172.16.0.92</td><td><span class="pass">PASS</span></td><td>f21-h01-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>91</td><td>vm-ip-t1-91</td><td>172.16.0.93</td><td>172.16.0.93</td><td><span class="pass">PASS</span></td><td>f21-h05-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>92</td><td>vm-ip-t1-92</td><td>172.16.0.94</td><td>172.16.0.94</td><td><span class="pass">PASS</span></td><td>f21-h01-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>93</td><td>vm-ip-t1-93</td><td>172.16.0.95</td><td>172.16.0.95</td><td><span class="pass">PASS</span></td><td>f30-h21-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>94</td><td>vm-ip-t1-94</td><td>172.16.0.96</td><td>172.16.0.96</td><td><span class="pass">PASS</span></td><td>f21-h19-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>95</td><td>vm-ip-t1-95</td><td>172.16.0.97</td><td>172.16.0.97</td><td><span class="pass">PASS</span></td><td>f30-h21-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>96</td><td>vm-ip-t1-96</td><td>172.16.0.98</td><td>172.16.0.98</td><td><span class="pass">PASS</span></td><td>f21-h18-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>97</td><td>vm-ip-t1-97</td><td>172.16.0.99</td><td>172.16.0.99</td><td><span class="pass">PASS</span></td><td>f21-h17-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>98</td><td>vm-ip-t1-98</td><td>172.16.0.100</td><td>172.16.0.100</td><td><span class="pass">PASS</span></td><td>f21-h06-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>99</td><td>vm-ip-t1-99</td><td>172.16.0.101</td><td>172.16.0.101</td><td><span class="pass">PASS</span></td><td>f30-h21-000-r640</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>100</td><td>vm-ip-t1-100</td><td>172.16.0.102</td><td>172.16.0.102</td><td><span class="pass">PASS</span></td><td>f21-h01-000-r640</td><td><span class="pass">PASS</span></td></tr>
+</table>
+
+<h2>Validation Summary</h2>
+<table>
+<tr><th>Check Type</th><th>Scope</th><th>Pass</th><th>Fail</th><th>Result</th></tr>
+<tr><td>VMI Status IP matches Annotation</td><td>All 100 VMs</td><td>100</td><td>0</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>IPAMClaim IP + SuccessfulAllocation</td><td>All 100 VMs</td><td>100</td><td>0</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>Guest OS ovn-udn1 IP matches</td><td>11 sampled VMs</td><td>11</td><td>0</td><td><span class="pass">PASS</span></td></tr>
+</table>
+
+<h2>Guest OS IP Validation (Sample)</h2>
+<table>
+<tr><th>VM Name</th><th>Expected IP</th><th>ovn-udn1 IP</th><th>Result</th></tr>
+<tr><td>vm-ip-t1-1</td><td>172.16.0.3</td><td>172.16.0.3</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>vm-ip-t1-10</td><td>172.16.0.12</td><td>172.16.0.12</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>vm-ip-t1-20</td><td>172.16.0.22</td><td>172.16.0.22</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>vm-ip-t1-30</td><td>172.16.0.32</td><td>172.16.0.32</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>vm-ip-t1-40</td><td>172.16.0.42</td><td>172.16.0.42</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>vm-ip-t1-50</td><td>172.16.0.52</td><td>172.16.0.52</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>vm-ip-t1-60</td><td>172.16.0.62</td><td>172.16.0.62</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>vm-ip-t1-70</td><td>172.16.0.72</td><td>172.16.0.72</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>vm-ip-t1-80</td><td>172.16.0.82</td><td>172.16.0.82</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>vm-ip-t1-90</td><td>172.16.0.92</td><td>172.16.0.92</td><td><span class="pass">PASS</span></td></tr>
+<tr><td>vm-ip-t1-100</td><td>172.16.0.102</td><td>172.16.0.102</td><td><span class="pass">PASS</span></td></tr>
+</table>
+
+<h2>Node Distribution</h2>
+<table>
+<tr><th>Node</th><th>VM Count</th><th>% of Total</th></tr>
+<tr><td>f21-h06-000-r640</td><td>14</td><td>14%</td></tr>
+<tr><td>f21-h05-000-r640</td><td>13</td><td>13%</td></tr>
+<tr><td>e24-h03-000-r640</td><td>11</td><td>11%</td></tr>
+<tr><td>e24-h07-000-r640</td><td>10</td><td>10%</td></tr>
+<tr><td>e24-h01-000-r640</td><td>8</td><td>8%</td></tr>
+<tr><td>e24-h05-000-r640</td><td>8</td><td>8%</td></tr>
+<tr><td>f21-h17-000-r640</td><td>7</td><td>7%</td></tr>
+<tr><td>f21-h19-000-r640</td><td>7</td><td>7%</td></tr>
+<tr><td>f21-h18-000-r640</td><td>5</td><td>5%</td></tr>
+<tr><td>f30-h21-000-r640</td><td>5</td><td>5%</td></tr>
+<tr><td>f21-h01-000-r640</td><td>4</td><td>4%</td></tr>
+<tr><td>f30-h19-000-r640</td><td>3</td><td>3%</td></tr>
+<tr><td>f21-h10-000-r640</td><td>2</td><td>2%</td></tr>
+<tr><td>e24-h10-000-r640</td><td>2</td><td>2%</td></tr>
+<tr><td>e24-h09-000-r640</td><td>1</td><td>1%</td></tr>
+<tr style="font-weight:700;background:#e3f2fd"><td>Total</td><td>100</td><td>100%</td></tr>
+</table>
+
+<div class="note">
+<strong>Note:</strong> VMs are distributed across 15 worker nodes. The scheduler placed between 1-14 VMs per node, with a moderate spread. Average: 6.7 VMs/node.
+</div>
+
+<div class="footer">
+<strong>CNV-75797</strong> - Tier 1 Scale Test (100 VMs with Requested IPs on Primary UDN)<br>
+Cluster: OCP 4.22.0-ec.5 / CNV 4.22.0-190 / K8s v1.35.3<br>
+Bastion: f04-h10-000-r640.rdu2.scalelab.redhat.com<br>
+Test Date: 2026-05-31 | Report generated at 2026-05-31T17:05Z
+</div>
+
+</div>
+</body>
+</html>

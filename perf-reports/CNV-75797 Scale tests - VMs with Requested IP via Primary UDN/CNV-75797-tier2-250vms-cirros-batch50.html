@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CNV-75797 Tier 2 Results - 250 VMs (Cirros, Batched)</title>
+<style>
+  :root { --blue: #1a73e8; --blue-light: #e8f0fe; --blue-dark: #174ea6; --green: #1e8e3e; --green-light: #e6f4ea; --red: #d93025; --gray: #5f6368; --gray-light: #f8f9fa; --border: #dadce0; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Google Sans', 'Segoe UI', Roboto, sans-serif; color: #202124; background: #fff; line-height: 1.6; }
+  .container { max-width: 1100px; margin: 0 auto; padding: 20px; }
+  h1 { color: var(--blue-dark); font-size: 28px; margin-bottom: 4px; }
+  .subtitle { color: var(--gray); font-size: 15px; margin-bottom: 24px; }
+  .status-box { background: var(--blue-light); border-left: 4px solid var(--blue); padding: 16px 20px; border-radius: 8px; margin-bottom: 24px; }
+  .status-box .label { font-weight: 600; color: var(--blue-dark); font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .status-box .value { font-size: 22px; font-weight: 700; color: var(--blue); margin-top: 2px; }
+  .takeaway-box { background: var(--green-light); border-left: 4px solid var(--green); padding: 16px 20px; border-radius: 8px; margin-bottom: 24px; }
+  .takeaway-box h3 { color: var(--green); margin-bottom: 8px; }
+  .takeaway-box ul { margin-left: 20px; }
+  .takeaway-box li { margin-bottom: 4px; color: #137333; }
+  .metrics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px; margin-bottom: 24px; }
+  .metric-card { background: var(--gray-light); border: 1px solid var(--border); border-radius: 12px; padding: 16px; text-align: center; }
+  .metric-card .metric-value { font-size: 28px; font-weight: 700; color: var(--blue); }
+  .metric-card .metric-label { font-size: 12px; color: var(--gray); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 4px; }
+  .section { margin-bottom: 24px; }
+  .section h2 { color: var(--blue-dark); font-size: 20px; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 2px solid var(--blue-light); }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 16px; }
+  th { background: var(--blue); color: #fff; padding: 10px 12px; text-align: left; font-weight: 600; }
+  td { padding: 8px 12px; border-bottom: 1px solid var(--border); }
+  tr:nth-child(even) { background: var(--gray-light); }
+  .pass { color: var(--green); font-weight: 600; }
+  .fail { color: var(--red); font-weight: 600; }
+  .goal-achieved { color: var(--green); font-weight: 600; }
+  .goal-not { color: var(--red); font-weight: 600; }
+  .ellipsis-row td { text-align: center; color: var(--gray); font-style: italic; background: #fff; }
+  .footer { text-align: center; color: var(--gray); font-size: 12px; margin-top: 32px; padding-top: 16px; border-top: 1px solid var(--border); }
+</style>
+</head>
+<body>
+<div class="container">
+
+<h1>CNV-75797 Tier 2: 250 VMs with Requested IP via Primary UDN</h1>
+<p class="subtitle">Cirros golden image, batch-of-50 approach | 2026-06-01</p>
+
+<!-- Test Goals -->
+<div class="section">
+<h2>Test Goals</h2>
+<table>
+<tr><th>Goal</th><th>Status</th></tr>
+<tr><td>Validate IP spec works at 250 VMs with Cirros</td><td class="goal-achieved">ACHIEVED - 250/250 IPs correct</td></tr>
+<tr><td>Confirm all IPs within a single /24 are assignable</td><td class="goal-achieved">ACHIEVED - 172.16.0.3 to 172.16.0.252</td></tr>
+<tr><td>Measure throughput with batch-of-50 approach</td><td class="goal-achieved">ACHIEVED - 1,718 VMs/hour</td></tr>
+<tr><td>Verify storage remains healthy during batched creation</td><td class="goal-achieved">ACHIEVED - Ceph HEALTH_OK throughout</td></tr>
+</table>
+</div>
+
+<!-- Status Box -->
+<div class="status-box">
+  <div class="label">Overall Result</div>
+  <div class="value">PASS - 250/250 VMs (100%)</div>
+</div>
+
+<!-- Takeaways -->
+<div class="takeaway-box">
+<h3>Key Takeaways</h3>
+<ul>
+  <li>All 250 Cirros VMs created and running with correct IPs in 8m 44s (1,718 VMs/hr)</li>
+  <li>Batch-of-50 approach delivers consistent per-batch times: 93-113s per batch</li>
+  <li>All 250 IPs within single /24 subnet (172.16.0.3-252) assigned correctly</li>
+  <li>IPAMClaim SuccessfulAllocation confirmed for all 250 VMs</li>
+  <li>Guest OS IP verification passed on 2 sample VMs across different nodes</li>
+  <li>Ceph storage remained HEALTH_OK before and after test</li>
+  <li>VMs distributed across 18 nodes with reasonable balance (5-22 VMs/node)</li>
+</ul>
+</div>
+
+<!-- Metric Cards -->
+<div class="metrics-grid">
+  <div class="metric-card"><div class="metric-value">250</div><div class="metric-label">Total VMs</div></div>
+  <div class="metric-card"><div class="metric-value">100%</div><div class="metric-label">Pass Rate</div></div>
+  <div class="metric-card"><div class="metric-value">8m 44s</div><div class="metric-label">Creation Time</div></div>
+  <div class="metric-card"><div class="metric-value">1,718</div><div class="metric-label">VMs / Hour</div></div>
+  <div class="metric-card"><div class="metric-value">50</div><div class="metric-label">Batch Size</div></div>
+  <div class="metric-card"><div class="metric-value">5</div><div class="metric-label">Batch Count</div></div>
+</div>
+
+<!-- Test Environment -->
+<div class="section">
+<h2>Test Environment</h2>
+<table>
+<tr><th>Parameter</th><th>Value</th></tr>
+<tr><td>Cluster</td><td>f04-h10-000-r640.rdu2.scalelab.redhat.com</td></tr>
+<tr><td>Namespace</td><td>vm-ip-scale-test</td></tr>
+<tr><td>UDN</td><td>scale-test-udn (Layer2, Primary, 172.16.0.0/16, Persistent IPAM)</td></tr>
+<tr><td>VM Image</td><td>Cirros (golden-cirros PVC)</td></tr>
+<tr><td>VM Resources</td><td>1 vCPU, 256Mi RAM, 1Gi disk</td></tr>
+<tr><td>Storage Class</td><td>ocs-storagecluster-ceph-rbd-virtualization (RWX, Block)</td></tr>
+<tr><td>Network Binding</td><td>l2bridge</td></tr>
+<tr><td>IP Range</td><td>172.16.0.3 - 172.16.0.252</td></tr>
+<tr><td>Batch Size</td><td>50 VMs per batch</td></tr>
+<tr><td>Test Date</td><td>2026-06-01</td></tr>
+</table>
+</div>
+
+<!-- Validation Summary -->
+<div class="section">
+<h2>Validation Summary</h2>
+<table>
+<tr><th>Check</th><th>Scope</th><th>Pass</th><th>Fail</th><th>Result</th></tr>
+<tr><td>P0: VMI IP matches annotation</td><td>All 250 VMs</td><td>250</td><td>0</td><td class="pass">PASS</td></tr>
+<tr><td>P0: IPAMClaim SuccessfulAllocation</td><td>All 250 VMs</td><td>250</td><td>0</td><td class="pass">PASS</td></tr>
+<tr><td>P1: Guest OS IP (vm-ip-t2-103, e24-h01)</td><td>Sample</td><td>1</td><td>0</td><td class="pass">PASS - 172.16.0.105</td></tr>
+<tr><td>P1: Guest OS IP (vm-ip-t2-10, e24-h03)</td><td>Sample</td><td>1</td><td>0</td><td class="pass">PASS - 172.16.0.12</td></tr>
+</table>
+</div>
+
+<!-- Per-VM Results -->
+<div class="section">
+<h2>Per-VM Results (First 20 + Last 5)</h2>
+<table>
+<tr><th>#</th><th>VM Name</th><th>Expected IP</th><th>VMI IP</th><th>IPAMClaim IP</th><th>Node</th><th>Result</th></tr>
+<tr><td>1</td><td>vm-ip-t2-1</td><td>172.16.0.3</td><td>172.16.0.3</td><td>172.16.0.3/16</td><td>e24-h05-000-r640</td><td class="pass">PASS</td></tr>
+<tr><td>2</td><td>vm-ip-t2-2</td><td>172.16.0.4</td><td>172.16.0.4</td><td>172.16.0.4/16</td><td>e24-h03-000-r640</td><td class="pass">PASS</td></tr>
+<tr><td>3</td><td>vm-ip-t2-3</td><td>172.16.0.5</td><td>172.16.0.5</td><td>172.16.0.5/16</td><td>f21-h19-000-r640</td><td class="pass">PASS</td></tr>
+<tr><td>4</td><td>vm-ip-t2-4</td><td>172.16.0.6</td><td>172.16.0.6</td><td>172.16.0.6/16</td><td>f21-h06-000-r640</td><td class="pass">PASS</td></tr>
+<tr><td>5</td><td>vm-ip-t2-5</td><td>172.16.0.7</td><td>172.16.0.7</td><td>172.16.0.7/16</td><td>e24-h01-000-r640</td><td class="pass">PASS</td></tr>
+<tr><td>6</td><td>vm-ip-t2-6</td><td>172.16.0.8</td><td>172.16.0.8</td><td>172.16.0.8/16</td><td>e24-h03-000-r640</td><td class="pass">PASS</td></tr>
+<tr><td>7</td><td>vm-ip-t2-7</td><td>172.16.0.9</td><td>172.16.0.9</td><td>172.16.0.9/16</td><td>e24-h03-000-r640</td><td class="pass">PASS</td></tr>
+<tr><td>8</td><td>vm-ip-t2-8</td><td>172.16.0.10</td><td>172.16.0.10</td><td>172.16.0.10/16</td><td>f21-h06-000-r640</td><td class="pass">PASS</td></tr>
+<tr><td>9</td><td>vm-ip-t2-9</td><td>172.16.0.11</td><td>172.16.0.11</td><td>172.16.0.11/16</td><td>f21-h05-000-r640</td><td class="pass">PASS</td></tr>
+<tr><td>10</td><td>vm-ip-t2-10</td><td>172.16.0.12</td><td>172.16.0.12</td><td>172.16.0.12/16</td><td>e24-h03-000-r640</td><td class="pass">PASS</td></tr>
+<tr><td>11</td><td>vm-ip-t2-11</td><td>172.16.0.13</td><td>172.16.0.13</td><td>172.16.0.13/16</td><td>f30-h21-000-r640</td><td class="pass">PASS</td></tr>
+<tr><td>12</td><td>vm-ip-t2-12</td><td>172.16.0.14</td><td>172.16.0.14</td><td>172.16.0.14/16</td><td>e24-h07-000-r640</td><td class="pass">PASS</td></tr>
+<tr><td>13</td><td>vm-ip-t2-13</td><td>172.16.0.15</td><td>172.16.0.15</td><td>172.16.0.15/16</td><td>e24-h05-000-r640</td><td class="pass">PASS</td></tr>
+<tr><td>14</td><td>vm-ip-t2-14</td><td>172.16.0.16</td><td>172.16.0.16</td><td>172.16.0.16/16</td><td>e24-h01-000-r640</td><td class="pass">PASS</td></tr>
+<tr><td>15</td><td>vm-ip-t2-15</td><td>172.16.0.17</td><td>172.16.0.17</td><td>172.16.0.17/16</td><td>f21-h05-000-r640</td><td class="pass">PASS</td></tr>
+<tr><td>16</td><td>vm-ip-t2-16</td><td>172.16.0.18</td><td>172.16.0.18</td><td>172.16.0.18/16</td><td>f21-h10-000-r640</td><td class="pass">PASS</td></tr>
+<tr><td>17</td><td>vm-ip-t2-17</td><td>172.16.0.19</td><td>172.16.0.19</td><td>172.16.0.19/16</td><td>e24-h03-000-r640</td><td class="pass">PASS</td></tr>
+<tr><td>18</td><td>vm-ip-t2-18</td><td>172.16.0.20</td><td>172.16.0.20</td><td>172.16.0.20/16</td><td>e24-h05-000-r640</td><td class="pass">PASS</td></tr>
+<tr><td>19</td><td>vm-ip-t2-19</td><td>172.16.0.21</td><td>172.16.0.21</td><td>172.16.0.21/16</td><td>e24-h07-000-r640</td><td class="pass">PASS</td></tr>
+<tr><td>20</td><td>vm-ip-t2-20</td><td>172.16.0.22</td><td>172.16.0.22</td><td>172.16.0.22/16</td><td>e24-h03-000-r640</td><td class="pass">PASS</td></tr>
+<tr class="ellipsis-row"><td colspan="7">... VMs 21-245 (all PASS) ...</td></tr>
+<tr><td>246</td><td>vm-ip-t2-246</td><td>172.16.0.248</td><td>172.16.0.248</td><td>172.16.0.248/16</td><td>f21-h03-000-r640</td><td class="pass">PASS</td></tr>
+<tr><td>247</td><td>vm-ip-t2-247</td><td>172.16.0.249</td><td>172.16.0.249</td><td>172.16.0.249/16</td><td>e24-h09-000-r640</td><td class="pass">PASS</td></tr>
+<tr><td>248</td><td>vm-ip-t2-248</td><td>172.16.0.250</td><td>172.16.0.250</td><td>172.16.0.250/16</td><td>f30-h21-000-r640</td><td class="pass">PASS</td></tr>
+<tr><td>249</td><td>vm-ip-t2-249</td><td>172.16.0.251</td><td>172.16.0.251</td><td>172.16.0.251/16</td><td>e24-h03-000-r640</td><td class="pass">PASS</td></tr>
+<tr><td>250</td><td>vm-ip-t2-250</td><td>172.16.0.252</td><td>172.16.0.252</td><td>172.16.0.252/16</td><td>f21-h03-000-r640</td><td class="pass">PASS</td></tr>
+</table>
+</div>
+
+<!-- Per-Batch Timing -->
+<div class="section">
+<h2>Per-Batch Timing</h2>
+<table>
+<tr><th>Batch</th><th>VMs</th><th>Range</th><th>Time</th><th>VMs/Hour (batch)</th></tr>
+<tr><td>Batch 1</td><td>50</td><td>1-50</td><td>113s</td><td>1,593</td></tr>
+<tr><td>Batch 2</td><td>50</td><td>51-100</td><td>102s</td><td>1,765</td></tr>
+<tr><td>Batch 3</td><td>50</td><td>101-150</td><td>93s</td><td>1,935</td></tr>
+<tr><td>Batch 4</td><td>50</td><td>151-200</td><td>103s</td><td>1,748</td></tr>
+<tr><td>Batch 5</td><td>50</td><td>201-250</td><td>113s</td><td>1,593</td></tr>
+<tr style="font-weight:700; background:var(--blue-light)"><td>Total</td><td>250</td><td>1-250</td><td>524s (8m 44s)</td><td>1,718</td></tr>
+</table>
+</div>
+
+<!-- Node Distribution -->
+<div class="section">
+<h2>Node Distribution</h2>
+<table>
+<tr><th>Node</th><th>VM Count</th><th>Percentage</th></tr>
+<tr><td>f21-h06-000-r640</td><td>22</td><td>8.8%</td></tr>
+<tr><td>e24-h03-000-r640</td><td>22</td><td>8.8%</td></tr>
+<tr><td>e24-h05-000-r640</td><td>21</td><td>8.4%</td></tr>
+<tr><td>f21-h05-000-r640</td><td>20</td><td>8.0%</td></tr>
+<tr><td>f21-h19-000-r640</td><td>17</td><td>6.8%</td></tr>
+<tr><td>e24-h01-000-r640</td><td>17</td><td>6.8%</td></tr>
+<tr><td>f21-h18-000-r640</td><td>16</td><td>6.4%</td></tr>
+<tr><td>f30-h21-000-r640</td><td>15</td><td>6.0%</td></tr>
+<tr><td>f21-h17-000-r640</td><td>15</td><td>6.0%</td></tr>
+<tr><td>e24-h07-000-r640</td><td>15</td><td>6.0%</td></tr>
+<tr><td>f21-h01-000-r640</td><td>11</td><td>4.4%</td></tr>
+<tr><td>e24-h10-000-r640</td><td>11</td><td>4.4%</td></tr>
+<tr><td>e24-h09-000-r640</td><td>11</td><td>4.4%</td></tr>
+<tr><td>f30-h19-000-r640</td><td>10</td><td>4.0%</td></tr>
+<tr><td>f21-h10-000-r640</td><td>10</td><td>4.0%</td></tr>
+<tr><td>f21-h03-000-r640</td><td>7</td><td>2.8%</td></tr>
+<tr><td>f31-h17-000-r640</td><td>5</td><td>2.0%</td></tr>
+<tr><td>f21-h14-000-r640</td><td>5</td><td>2.0%</td></tr>
+</table>
+</div>
+
+<div class="footer">
+  CNV-75797 Tier 2 Scale Test | 250 Cirros VMs | Batched (50/batch) | Generated 2026-06-01
+</div>
+
+</div>
+</body>
+</html>

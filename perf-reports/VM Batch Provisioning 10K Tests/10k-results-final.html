@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Performance Test Results - 10K VM Full Run Complete</title>
+<style>
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  margin: 0;
+  padding: 0;
+  background: #fff;
+  color: #212121;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.container {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 30px 40px;
+}
+h1 {
+  font-size: 22px;
+  margin-bottom: 4px;
+  color: #1a237e;
+}
+h2 {
+  font-size: 17px;
+  color: #1565c0;
+  border-bottom: 2px solid #e3f2fd;
+  padding-bottom: 6px;
+  margin-top: 28px;
+}
+h3 {
+  font-size: 14px;
+  margin-bottom: 8px;
+}
+.status-box {
+  background: linear-gradient(135deg, #e8f5e9, #f1f8e9);
+  border: 1px solid #81c784;
+  border-radius: 8px;
+  padding: 16px 20px;
+  margin: 16px 0;
+  text-align: center;
+}
+.status-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: #2e7d32;
+}
+.status-sub {
+  font-size: 14px;
+  color: #388e3c;
+  margin-top: 4px;
+}
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin: 16px 0;
+}
+.metric-card {
+  background: #f5f5f5;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 14px;
+  text-align: center;
+}
+.metric-card .value {
+  font-size: 22px;
+  font-weight: 700;
+  color: #1565c0;
+}
+.metric-card .label {
+  font-size: 11px;
+  color: #546e7a;
+  text-transform: uppercase;
+  margin-top: 4px;
+}
+.takeaways {
+  background: #fffde7;
+  border: 1px solid #fff59d;
+  border-radius: 8px;
+  padding: 14px 18px;
+  margin: 16px 0;
+}
+.takeaways h3 {
+  margin-top: 0;
+  color: #f57f17;
+}
+.takeaways ul {
+  margin: 0;
+  padding-left: 20px;
+}
+.takeaways li {
+  margin-bottom: 6px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.insight-box {
+  background: #e8eaf6;
+  border: 1px solid #9fa8da;
+  border-radius: 8px;
+  padding: 14px 18px;
+  margin: 16px 0;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.bg-section {
+  background: #fafafa;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 18px 22px;
+  margin: 20px 0;
+}
+.section {
+  margin: 24px 0;
+}
+.winner {
+  background: linear-gradient(135deg, #e8f5e9, #f1f8e9);
+  border: 2px solid #66bb6a;
+  border-radius: 8px;
+  padding: 18px 22px;
+  margin: 20px 0;
+}
+.winner h3 {
+  color: #2e7d32;
+  margin-top: 0;
+}
+.footer {
+  margin-top: 30px;
+  padding-top: 16px;
+  border-top: 1px solid #e0e0e0;
+  font-size: 12px;
+  color: #78909c;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  margin: 10px 0;
+}
+th, td {
+  border: 1px solid #e0e0e0;
+  padding: 8px 10px;
+  text-align: left;
+}
+th {
+  background: #f5f5f5;
+  font-weight: 600;
+}
+.degradation-high {
+  color: #e65100;
+  font-weight: 600;
+}
+.degradation-med {
+  color: #f57f17;
+  font-weight: 600;
+}
+.degradation-low {
+  color: #2e7d32;
+  font-weight: 600;
+}
+.cfg-green {
+  color: #2e7d32;
+  font-weight: 600;
+}
+@media print {
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  table, .metrics-grid, .status-box, .takeaways,
+  .insight-box, .bg-section, .winner, .section {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+  tr { page-break-inside: avoid !important; break-inside: avoid !important; }
+  thead { display: table-header-group; }
+  h2, h3 { page-break-after: avoid !important; break-after: avoid !important; }
+  h2 + *, h3 + * { page-break-before: avoid !important; break-before: avoid !important; }
+}
+</style>
+</head>
+<body>
+<div class="container">
+<h1>Performance Test Results - 10K VM Full Run Complete</h1>
+<p style="color:rgb(84,110,122);margin-top:0px;font-size:15px">ScaleLab f04-h10-000-r640.rdu2</p>
+<div class="status-box">
+<div class="status-title">&#10003; SUCCESS</div>
+<div class="status-sub">10,000 / 10,000 VMs created and running - 100% success rate</div>
+</div>
+<div class="metrics-grid">
+<div class="metric-card"><div class="value">10,000</div><div class="label">VMs Created</div></div>
+<div class="metric-card"><div class="value">47h 30m</div><div class="label">Total Duration</div></div>
+<div class="metric-card"><div class="value">100%</div><div class="label">Success Rate</div></div>
+<div class="metric-card"><div class="value">1,532Mi</div><div class="label">CSI Peak Memory</div></div>
+<div class="metric-card"><div class="value">50</div><div class="label">VMs per Batch</div></div>
+<div class="metric-card"><div class="value">200</div><div class="label">Total Batches</div></div>
+</div>
+<div class="takeaways">
+<h3>Key Takeaways</h3>
+<ul>
+<li><strong>10,000 VMs created and running with 100% success rate</strong> - zero failures across all 200 batches</li>
+<li><strong>CSI memory prediction from 1K tests was accurate</strong> - projected ~1.6Gi, actual ~1,532Mi (within 7%)</li>
+<li><strong>Time prediction was significantly off</strong> - projected ~8 hours, actual 47h 30m due to progressive cluster control plane slowdown beyond 2K VMs</li>
+<li><strong>Batch size of 50 confirmed as optimal</strong> - 100% success rate, comfortable timeout margin, manageable CSI memory growth</li>
+</ul>
+</div>
+<div style="background:linear-gradient(135deg,rgb(227,242,253),rgb(245,249,255));border:1px solid rgb(144,202,249);border-radius:8px;padding:14px 18px;margin:16px 0px 8px;font-size:14px;line-height:1.5"><strong style="color:rgb(13,71,161)">Goal:</strong> Find the optimal batch size for creating 10,000 VMs and determine the optimal ODF/CNV resource configuration to sustain that workload without OOM or excessive degradation.</div>
+<div class="bg-section">
+<h2>Background: Preliminary Batch Size Evaluation</h2>
+<p style="font-size:13px;line-height:1.6">Before the full 10K run, preliminary tests were conducted at small scale (up to 1,000 VMs) to determine the optimal batch size, resource configuration, and projected memory behavior. Four test phases were run, progressively narrowing the parameter space. The winning configuration (50 VMs/batch with performance-tuned ODF resources) was selected based on the best combination of throughput, low degradation, and manageable CSI memory growth.</p>
+<h3 style="font-size:14px;margin-bottom:8px">Phase Comparison</h3>
+<table>
+<tbody>
+<tr><th>Phase</th><th>Config</th><th>Throughput</th><th>Degradation</th><th>Verdict</th></tr>
+<tr><td><strong>1 - Isolated</strong></td><td>25/50/100/200, single batch each</td><td>2,400 VMs/hr (50/batch best)</td><td>N/A</td><td>50/batch fastest</td></tr>
+<tr><td><strong>2 - Warm Start</strong></td><td>50/batch x 20 = 1K VMs</td><td>1,525 VMs/hr (early)</td><td class="degradation-high">41%</td><td style="color:rgb(230,81,0)">Misleading (warm caches)</td></tr>
+<tr><td><strong>3A - Clean 25</strong></td><td>25/batch x 40 = 1K VMs</td><td>1,045 VMs/hr</td><td class="degradation-med">9%</td><td>Stable but 400 batches needed</td></tr>
+<tr style="background:rgb(232,245,233)"><td><strong>3B - Clean 50</strong></td><td>50/batch x 20 = 1K VMs</td><td><strong>1,107 VMs/hr</strong></td><td class="degradation-low"><strong>5%</strong></td><td style="color:rgb(46,125,50);font-weight:700">Winner - best balance</td></tr>
+</tbody>
+</table>
+<h3 style="font-size:14px;margin-top:18px;margin-bottom:8px">Resource Configuration Applied for 10K Run</h3>
+<table>
+<tbody>
+<tr><th>Component</th><th>Default</th><th>Applied</th><th>Source</th></tr>
+<tr><td>resourceProfile</td><td>balanced</td><td class="cfg-green"><strong>performance</strong></td><td>Performance profile</td></tr>
+<tr><td>Clone strategy</td><td>csi-clone</td><td class="cfg-green"><strong>snapshot</strong></td><td>Performance profile</td></tr>
+<tr><td>Ceph MON count</td><td>3</td><td class="cfg-green"><strong>5</strong></td><td>Sarah Bennett's recommendation</td></tr>
+<tr><td>Ceph OSD memory</td><td>5Gi</td><td class="cfg-green"><strong>24Gi</strong></td><td>Sarah Bennett's recommendation</td></tr>
+<tr><td>Ceph OSD CPU</td><td>2 cores</td><td class="cfg-green"><strong>5 cores</strong></td><td>Sarah Bennett's recommendation</td></tr>
+<tr><td>csi-rbdplugin (ctrlplugin)</td><td>1Gi</td><td class="cfg-green"><strong>8Gi *</strong></td><td>Precautionary for 10K</td></tr>
+<tr><td>csi-addons-controller-mgr</td><td>512Mi</td><td class="cfg-green"><strong>2Gi</strong></td><td>Sarah Bennett's recommendation</td></tr>
+</tbody>
+</table>
+<p style="font-size:12px;color:rgb(84,110,122);margin-top:4px">* The 8Gi ctrlplugin limit was precautionary. Actual peak at 10K was ~1,532Mi (19% utilization) - will be right-sized based on these results.</p>
+<div class="insight-box"><strong>Projection Accuracy:</strong> The preliminary CSI memory growth rate (~0.095Mi/VM) predicted ~1.6Gi at 10K VMs. The actual peak was ~1,532Mi - <strong>accurate within 7%</strong>. CSI memory scales linearly with VM count, making it predictable from small-scale tests. However, the time projection (~8 hours) was significantly off (actual: 47h 30m) because cluster control plane performance degrades progressively beyond ~2K VMs - as object count grows, the API server, scheduler, and etcd database take progressively longer to process each request - a pattern not visible from 1K-VM tests.</div>
+<p style="font-size:13px;color:rgb(84,110,122);margin-top:14px;font-style:italic">For detailed preliminary test data (batch-by-batch results, CSI memory progression, and degradation curves), see the separate Batch Test Results report.</p>
+</div>
+<div class="section">
+<h2>Cluster Environment</h2>
+<table>
+<tbody>
+<tr><td style="width:200px;font-weight:600">Bastion</td><td><a href="http://f04-h10-000-r640.rdu2.scalelab.redhat.com">f04-h10-000-r640.rdu2.scalelab.redhat.com</a></td></tr>
+<tr><td style="font-weight:600">Nodes</td><td>42 total (39 workers)</td></tr>
+<tr><td style="font-weight:600">OSDs</td><td>21</td></tr>
+<tr><td style="font-weight:600">ODF Version</td><td>4.21.4</td></tr>
+<tr><td style="font-weight:600">Storage Class</td><td>ocs-storagecluster-ceph-rbd-virtualization</td></tr>
+<tr><td style="font-weight:600">Golden Image</td><td>Alpine containerdisk 256MiB (1Gi PVC)</td></tr>
+</tbody>
+</table>
+</div>
+<div class="section">
+<h2>Projection vs. Actual - 10K Run</h2>
+<table>
+<tbody>
+<tr><th>Scenario</th><th>Batch Size</th><th>Total Batches</th><th>Projected Time</th><th>Projected CSI Peak</th><th>OOM Risk</th></tr>
+<tr><td>Conservative A</td><td>25</td><td>400</td><td>~9.5 hrs</td><td>~700Mi</td><td style="color:rgb(76,175,80);font-weight:600">None</td></tr>
+<tr style="background:rgb(232,245,233)"><td><strong>Recommended B</strong></td><td><strong>50</strong></td><td><strong>200</strong></td><td><strong>~8 hrs</strong></td><td><strong>~1.6Gi</strong></td><td style="color:rgb(76,175,80);font-weight:600"><strong>Very Low</strong></td></tr>
+<tr><td>Aggressive (100)</td><td>100</td><td>100</td><td>~7 hrs (est)</td><td>~3-4Gi</td><td style="color:rgb(255,152,0);font-weight:600">Moderate</td></tr>
+<tr style="background:rgb(227,242,253);border-top:3px solid rgb(21,101,192)"><td colspan="6" style="text-align:center;font-weight:700;color:rgb(13,71,161);font-size:14px;padding:12px">Actual 10K Results (50 VMs/batch x 200 batches)</td></tr>
+<tr style="background:rgb(227,242,253)"><td><strong>Actual</strong></td><td><strong>50</strong></td><td><strong>200</strong></td><td><strong>47h 30m</strong></td><td><strong>~1,532Mi</strong></td><td style="color:rgb(76,175,80);font-weight:600"><strong>None (100% success)</strong></td></tr>
+</tbody>
+</table>
+<table style="margin-top:16px">
+<tbody>
+<tr><th style="width:180px">Metric</th><th>Projected (from 1K tests)</th><th>Actual (10K run)</th><th>Accuracy</th></tr>
+<tr><td style="font-weight:600">Total Time</td><td>~8 hours</td><td>47h 30m</td><td class="degradation-high">~6x off</td></tr>
+<tr><td style="font-weight:600">CSI Peak Memory</td><td>~1.6Gi</td><td>~1,532Mi</td><td class="degradation-low">Within 7% - accurate</td></tr>
+<tr><td style="font-weight:600">Success Rate</td><td>100% (expected)</td><td>100%</td><td class="degradation-low">Confirmed</td></tr>
+<tr><td style="font-weight:600">Batch Size</td><td>50 (recommended)</td><td>50 (used)</td><td class="degradation-low">Confirmed optimal</td></tr>
+</tbody>
+</table>
+<div class="insight-box" style="margin-top:14px"><strong>Why CSI was accurate but time was not:</strong><br><br><strong>CSI memory</strong> scales linearly with VM count - each VM adds a roughly constant amount of metadata to the CSI plugin regardless of how many other VMs exist. This makes it highly predictable from small-scale tests. The 1K-test growth rate of ~0.095Mi/VM extrapolated to ~1.6Gi at 10K, and the actual peak was ~1,532Mi.<br><br><strong>Cluster control plane performance</strong> degrades progressively with VM count - each new VM adds objects that increase API server response times, etcd transaction latency, and scheduler evaluation time. At 1K VMs the cluster handles requests efficiently, but beyond ~2K VMs, this compounding effect becomes significant. This was not visible from 1K-VM tests and could not be predicted from small-scale data. The result: a 6x time overrun versus the linear projection.</div>
+</div>
+<div class="section">
+<h2>Degradation Visualizations</h2>
+<p style="font-size:13px;color:rgb(84,110,122);margin-bottom:16px">Visual representation of batch time growth, throughput decline, and CSI memory scaling across the 10K run.</p>
+<h3 style="margin-bottom:10px">Batch Time Growth (per 1K milestone)</h3>
+<div style="background:rgb(248,249,255);border:1px solid rgb(224,224,224);border-radius:8px;padding:16px 18px;margin-bottom:20px">
+<div style="display:flex;margin:4px 0px"><div style="width:60px;font-weight:600;font-size:12px">1,000</div><div style="background:rgb(76,175,80);height:20px;width:52px;border-radius:3px;margin-right:8px"></div><span style="font-size:12px;color:rgb(84,110,122)">181s</span></div>
+<div style="display:flex;margin:4px 0px"><div style="width:60px;font-weight:600;font-size:12px">2,000</div><div style="background:rgb(21,101,192);height:20px;width:139px;border-radius:3px;margin-right:8px"></div><span style="font-size:12px;color:rgb(84,110,122)">482s</span></div>
+<div style="display:flex;margin:4px 0px"><div style="width:60px;font-weight:600;font-size:12px">3,000</div><div style="background:rgb(21,101,192);height:20px;width:157px;border-radius:3px;margin-right:8px"></div><span style="font-size:12px;color:rgb(84,110,122)">543s</span></div>
+<div style="display:flex;margin:4px 0px"><div style="width:60px;font-weight:600;font-size:12px">4,000</div><div style="background:rgb(255,152,0);height:20px;width:244px;border-radius:3px;margin-right:8px"></div><span style="font-size:12px;color:rgb(84,110,122)">845s</span></div>
+<div style="display:flex;margin:4px 0px"><div style="width:60px;font-weight:600;font-size:12px">5,000</div><div style="background:rgb(255,152,0);height:20px;width:270px;border-radius:3px;margin-right:8px"></div><span style="font-size:12px;color:rgb(84,110,122)">936s</span></div>
+<div style="display:flex;margin:4px 0px"><div style="width:60px;font-weight:600;font-size:12px">6,000</div><div style="background:rgb(255,152,0);height:20px;width:261px;border-radius:3px;margin-right:8px"></div><span style="font-size:12px;color:rgb(84,110,122)">905s</span></div>
+<div style="display:flex;margin:4px 0px"><div style="width:60px;font-weight:600;font-size:12px">7,000</div><div style="background:rgb(255,152,0);height:20px;width:322px;border-radius:3px;margin-right:8px"></div><span style="font-size:12px;color:rgb(84,110,122)">1,116s</span></div>
+<div style="display:flex;margin:4px 0px"><div style="width:60px;font-weight:600;font-size:12px">8,000</div><div style="background:rgb(244,67,54);height:20px;width:374px;border-radius:3px;margin-right:8px"></div><span style="font-size:12px;color:rgb(84,110,122)">1,297s</span></div>
+<div style="display:flex;margin:4px 0px"><div style="width:60px;font-weight:600;font-size:12px">9,000</div><div style="background:rgb(244,67,54);height:20px;width:391px;border-radius:3px;margin-right:8px"></div><span style="font-size:12px;color:rgb(84,110,122)">1,357s</span></div>
+<div style="display:flex;margin:4px 0px"><div style="width:60px;font-weight:600;font-size:12px">10,000</div><div style="background:rgb(244,67,54);height:20px;width:400px;border-radius:3px;margin-right:8px"></div><span style="font-size:12px;color:rgb(84,110,122)">1,388s</span></div>
+</div>
+<h3 style="margin-bottom:10px">Throughput Decline (VMs/hr at each 1K milestone)</h3>
+<div style="background:rgb(248,249,255);border:1px solid rgb(224,224,224);border-radius:8px;padding:16px 18px;margin-bottom:20px">
+<div style="display:flex;margin:4px 0px"><div style="width:60px;font-weight:600;font-size:12px">1,000</div><div style="background:rgb(76,175,80);height:20px;width:400px;border-radius:3px;margin-right:8px"></div><span style="font-size:12px;color:rgb(84,110,122)">994 VMs/hr</span></div>
+<div style="display:flex;margin:4px 0px"><div style="width:60px;font-weight:600;font-size:12px">2,000</div><div style="background:rgb(255,152,0);height:20px;width:150px;border-radius:3px;margin-right:8px"></div><span style="font-size:12px;color:rgb(84,110,122)">373 VMs/hr</span></div>
+<div style="display:flex;margin:4px 0px"><div style="width:60px;font-weight:600;font-size:12px">3,000</div><div style="background:rgb(255,152,0);height:20px;width:133px;border-radius:3px;margin-right:8px"></div><span style="font-size:12px;color:rgb(84,110,122)">331 VMs/hr</span></div>
+<div style="display:flex;margin:4px 0px"><div style="width:60px;font-weight:600;font-size:12px">4,000</div><div style="background:rgb(255,152,0);height:20px;width:86px;border-radius:3px;margin-right:8px"></div><span style="font-size:12px;color:rgb(84,110,122)">213 VMs/hr</span></div>
+<div style="display:flex;margin:4px 0px"><div style="width:60px;font-weight:600;font-size:12px">5,000</div><div style="background:rgb(244,67,54);height:20px;width:77px;border-radius:3px;margin-right:8px"></div><span style="font-size:12px;color:rgb(84,110,122)">192 VMs/hr</span></div>
+<div style="display:flex;margin:4px 0px"><div style="width:60px;font-weight:600;font-size:12px">6,000</div><div style="background:rgb(244,67,54);height:20px;width:80px;border-radius:3px;margin-right:8px"></div><span style="font-size:12px;color:rgb(84,110,122)">198 VMs/hr</span></div>
+<div style="display:flex;margin:4px 0px"><div style="width:60px;font-weight:600;font-size:12px">7,000</div><div style="background:rgb(244,67,54);height:20px;width:65px;border-radius:3px;margin-right:8px"></div><span style="font-size:12px;color:rgb(84,110,122)">161 VMs/hr</span></div>
+<div style="display:flex;margin:4px 0px"><div style="width:60px;font-weight:600;font-size:12px">8,000</div><div style="background:rgb(244,67,54);height:20px;width:56px;border-radius:3px;margin-right:8px"></div><span style="font-size:12px;color:rgb(84,110,122)">138 VMs/hr</span></div>
+<div style="display:flex;margin:4px 0px"><div style="width:60px;font-weight:600;font-size:12px">9,000</div><div style="background:rgb(244,67,54);height:20px;width:53px;border-radius:3px;margin-right:8px"></div><span style="font-size:12px;color:rgb(84,110,122)">132 VMs/hr</span></div>
+<div style="display:flex;margin:4px 0px"><div style="width:60px;font-weight:600;font-size:12px">10,000</div><div style="background:rgb(244,67,54);height:20px;width:52px;border-radius:3px;margin-right:8px"></div><span style="font-size:12px;color:rgb(84,110,122)">129 VMs/hr</span></div>
+</div>
+<h3 style="margin-bottom:10px">CSI Memory Growth (linear and predictable)</h3>
+<div style="background:rgb(248,249,255);border:1px solid rgb(224,224,224);border-radius:8px;padding:16px 18px;margin-bottom:12px">
+<div style="display:flex;margin:4px 0px"><div style="width:60px;font-weight:600;font-size:12px">50</div><div style="background:rgb(21,101,192);height:20px;width:37px;border-radius:3px;margin-right:8px"></div><span style="font-size:12px;color:rgb(84,110,122)">760Mi</span></div>
+<div style="display:flex;margin:4px 0px"><div style="width:60px;font-weight:600;font-size:12px">1,000</div><div style="background:rgb(21,101,192);height:20px;width:36px;border-radius:3px;margin-right:8px"></div><span style="font-size:12px;color:rgb(84,110,122)">734Mi</span></div>
+<div style="display:flex;margin:4px 0px"><div style="width:60px;font-weight:600;font-size:12px">2,500</div><div style="background:rgb(21,101,192);height:20px;width:41px;border-radius:3px;margin-right:8px"></div><span style="font-size:12px;color:rgb(84,110,122)">834Mi</span></div>
+<div style="display:flex;margin:4px 0px"><div style="width:60px;font-weight:600;font-size:12px">4,350</div><div style="background:rgb(76,175,80);height:20px;width:50px;border-radius:3px;margin-right:8px"></div><span style="font-size:12px;color:rgb(84,110,122)">1,034Mi</span></div>
+<div style="display:flex;margin:4px 0px"><div style="width:60px;font-weight:600;font-size:12px">5,550</div><div style="background:rgb(76,175,80);height:20px;width:60px;border-radius:3px;margin-right:8px"></div><span style="font-size:12px;color:rgb(84,110,122)">1,229Mi</span></div>
+<div style="display:flex;margin:4px 0px"><div style="width:60px;font-weight:600;font-size:12px">10,000</div><div style="background:rgb(76,175,80);height:20px;width:75px;border-radius:3px;margin-right:8px"></div><span style="font-size:12px;color:rgb(84,110,122)">~1,532Mi</span></div>
+<div style="display:flex;margin:6px 0px 0px"><div style="width:60px;font-weight:600;font-size:12px;color:rgb(158,158,158)">Limit</div><div style="height:20px;width:400px;border:2px dashed rgb(189,189,189);border-radius:3px;margin-right:8px;background:transparent"></div><span style="font-size:12px;color:rgb(158,158,158)">8,192Mi (8Gi)</span></div>
+</div>
+<p style="font-size:12px;color:rgb(84,110,122);font-style:italic;margin-top:6px">Batch time and throughput degrade progressively with VM count, while CSI memory grows linearly and predictably.</p>
+</div>
+<div class="winner">
+<h3>Confirmed: 50 VMs per Batch</h3>
+<p>The full 10K run confirmed the preliminary recommendation. <strong>50 VMs/batch</strong> delivered 10,000 VMs with 100% success and no OOM events.</p>
+<table>
+<tbody>
+<tr><td style="width:30%;font-weight:600">100% success rate</td><td>All 10,000 VMs created and running across 200 batches - zero failures</td></tr>
+<tr><td style="font-weight:600">CSI memory safe</td><td>Peak ~1,532Mi at 10K, well under the 8Gi precautionary limit (19% utilization). Projected ~1.6Gi was accurate within 7%.</td></tr>
+<tr><td style="font-weight:600">Higher throughput</td><td>1,107 VMs/hr steady-state vs 1,045 VMs/hr for batch-25 (6% faster at 1K-VM scale)</td></tr>
+<tr><td style="font-weight:600">Lower degradation</td><td>5% degradation at 1K VMs vs 9% for batch-25</td></tr>
+<tr><td style="font-weight:600">Half the batches</td><td>200 batches vs 400 - less YAML generation overhead, fewer API calls</td></tr>
+<tr><td style="font-weight:600">Proven at 10K</td><td>Consistent results from preliminary tests through full 10K run</td></tr>
+</tbody>
+</table>
+<p style="margin-top:12px"><strong>Actual 10K completion time: 47h 30m</strong> with CSI memory peaking at ~1,532Mi.</p>
+<p><strong>Next steps:</strong> Right-size the CSI ctrlplugin memory limit from the precautionary 8Gi down to ~2-3Gi based on the observed ~1.5Gi peak. This frees ~5Gi of reserved memory per CSI controller pod.</p>
+</div>
+<div class="section">
+<h2>Next Steps</h2>
+<ol style="font-size:13px;line-height:1.8">
+<li>Right-size the CSI ctrlplugin memory limit from 8Gi to ~2-3Gi based on the observed ~1,532Mi peak</li>
+<li>Investigate control plane slowdown patterns beyond 2K VMs for future projection models</li>
+<li>Consider intermediate checkpoints (2K, 5K) for recalibrating time projections in future large-scale runs</li>
+<li>Document the progressive degradation curve as input for capacity planning</li>
+</ol>
+</div>
+<div class="footer">
+<p>Cluster: <a href="http://f04-h10-000-r640.rdu2.scalelab.redhat.com">f04-h10-000-r640.rdu2.scalelab.redhat.com</a> | Test scripts: /tmp/vm-sustained-test.sh</p>
+<p>Tests: Preliminary (Phase 1-3, up to 1K VMs) + Full 10K run (50 VMs/batch x 200 batches)</p>
+</div>
+</div>
+</body>
+</html>

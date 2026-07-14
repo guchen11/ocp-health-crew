@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CNV-75797 Tier 0 Smoke Test Results</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Red Hat Display', 'Segoe UI', system-ui, sans-serif; background: #1a1a1a; color: #e0e0e0; }
+  .header { background: linear-gradient(135deg, #a30000 0%, #6a0000 100%); padding: 32px 40px; border-bottom: 4px solid #ff6b6b; }
+  .header h1 { font-size: 28px; font-weight: 700; color: #fff; margin-bottom: 6px; }
+  .header .subtitle { font-size: 14px; color: #ffb3b3; }
+  .container { max-width: 1100px; margin: 0 auto; padding: 24px 20px; }
+
+  .summary-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 28px; }
+  .card { background: #2a2a2a; border-radius: 10px; padding: 20px; border-left: 4px solid #cc0000; }
+  .card .label { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: #999; margin-bottom: 6px; }
+  .card .value { font-size: 28px; font-weight: 700; color: #fff; }
+  .card .value.pass { color: #4caf50; }
+  .card .value.warn { color: #ff9800; }
+  .card .value.fail { color: #f44336; }
+  .card .detail { font-size: 12px; color: #888; margin-top: 4px; }
+
+  .section { background: #2a2a2a; border-radius: 10px; margin-bottom: 20px; overflow: hidden; }
+  .section-header { background: #333; padding: 14px 20px; font-size: 16px; font-weight: 600; color: #fff; border-bottom: 1px solid #444; }
+
+  table { width: 100%; border-collapse: collapse; }
+  th { background: #333; color: #ccc; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; padding: 10px 14px; text-align: left; }
+  td { padding: 10px 14px; border-bottom: 1px solid #3a3a3a; font-size: 13px; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: #333; }
+
+  .badge { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; text-transform: uppercase; }
+  .badge-pass { background: #1b5e20; color: #81c784; }
+  .badge-fail { background: #b71c1c; color: #ef9a9a; }
+  .badge-warn { background: #e65100; color: #ffcc80; }
+  .badge-info { background: #0d47a1; color: #90caf9; }
+
+  .env-table td:first-child { font-weight: 600; color: #ccc; width: 220px; }
+  .env-table td:last-child { color: #aaa; }
+
+  .note-box { background: #3a2a00; border: 1px solid #665500; border-radius: 8px; padding: 14px 18px; margin: 16px 20px; font-size: 13px; color: #ffcc80; }
+  .note-box strong { color: #ffd54f; }
+
+  .footer { text-align: center; padding: 20px; color: #666; font-size: 12px; border-top: 1px solid #333; margin-top: 20px; }
+  .mono { font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: 12px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>CNV-75797 Tier 0 Smoke Test Results</h1>
+  <div class="subtitle">IP Address Specification for VMs on Primary UDN - 10 VM Scale Test</div>
+</div>
+
+<div class="container">
+
+  <!-- Summary Cards -->
+  <div class="summary-cards">
+    <div class="card">
+      <div class="label">Total VMs</div>
+      <div class="value">10</div>
+      <div class="detail">All Running on Primary UDN</div>
+    </div>
+    <div class="card">
+      <div class="label">P0 Pass Rate</div>
+      <div class="value pass">100%</div>
+      <div class="detail">10/10 all checks passed</div>
+    </div>
+    <div class="card">
+      <div class="label">Batch 1 Creation</div>
+      <div class="value">24s</div>
+      <div class="detail">8 VMs to Running</div>
+    </div>
+    <div class="card">
+      <div class="label">Batch 2 Creation</div>
+      <div class="value">20s</div>
+      <div class="detail">2 VMs (re-assigned IPs)</div>
+    </div>
+    <div class="card">
+      <div class="label">VMs / Hour</div>
+      <div class="value">~1,200</div>
+      <div class="detail">Based on 24s for 8 VMs</div>
+    </div>
+  </div>
+
+  <!-- Test Environment -->
+  <div class="section">
+    <div class="section-header">Test Environment</div>
+    <table class="env-table">
+      <tr><td>OCP Version</td><td class="mono">4.22.0-ec.5</td></tr>
+      <tr><td>CNV Version</td><td class="mono">4.22.0-190 (kubevirt-hyperconverged-operator)</td></tr>
+      <tr><td>Kubernetes</td><td class="mono">v1.35.3</td></tr>
+      <tr><td>Cluster Nodes</td><td>3 masters + 39 workers (42 total)</td></tr>
+      <tr><td>Test Namespace</td><td class="mono">vm-ip-scale-test</td></tr>
+      <tr><td>UDN Name</td><td class="mono">scale-test-udn</td></tr>
+      <tr><td>UDN Topology</td><td>Layer2, Primary, Persistent IPAM</td></tr>
+      <tr><td>UDN Subnet</td><td class="mono">172.16.0.0/16</td></tr>
+      <tr><td>VM Image</td><td class="mono">golden-alpine (1Gi, RBD Block)</td></tr>
+      <tr><td>Storage Class</td><td class="mono">ocs-storagecluster-ceph-rbd-virtualization</td></tr>
+      <tr><td>Interface Binding</td><td class="mono">l2bridge</td></tr>
+      <tr><td>Test Date</td><td>2026-05-31 16:31 UTC</td></tr>
+    </table>
+  </div>
+
+  <!-- Known Issue -->
+  <div class="section">
+    <div class="section-header">Observations</div>
+    <div class="note-box">
+      <strong>IP Conflict with OVN Gateway:</strong> Initial VMs requesting 172.16.0.1 and 172.16.0.2 failed.
+      OVN reserves low IPs in the subnet for gateway/router purposes. VM requesting .1 got stuck in Scheduling
+      with CNI annotation timeout. VM requesting .2 failed with "provided IP is already allocated".
+      After reassignment to .11 and .12, both VMs started within 20 seconds.
+      <br><br>
+      <strong>Recommendation:</strong> Avoid requesting IPs in the .1-.2 range on Layer2 UDN subnets.
+      Use .3+ or higher offsets for VM IP assignments.
+    </div>
+  </div>
+
+  <!-- Detailed Results -->
+  <div class="section">
+    <div class="section-header">P0 Validation Results - Per VM</div>
+    <table>
+      <thead>
+        <tr>
+          <th>VM Name</th>
+          <th>Requested IP</th>
+          <th>VMI Status IP</th>
+          <th>Guest OS IP</th>
+          <th>IPAMClaim IP</th>
+          <th>Node</th>
+          <th>IP Match</th>
+          <th>Guest Match</th>
+          <th>IPAM Status</th>
+          <th>Result</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="mono">vm-ip-t0-1</td>
+          <td class="mono">172.16.0.11</td>
+          <td class="mono">172.16.0.11</td>
+          <td class="mono">172.16.0.11</td>
+          <td class="mono">172.16.0.11/16</td>
+          <td class="mono">e24-h05</td>
+          <td><span class="badge badge-pass">PASS</span></td>
+          <td><span class="badge badge-pass">PASS</span></td>
+          <td><span class="badge badge-pass">Allocated</span></td>
+          <td><span class="badge badge-pass">PASS</span></td>
+        </tr>
+        <tr>
+          <td class="mono">vm-ip-t0-2</td>
+          <td class="mono">172.16.0.12</td>
+          <td class="mono">172.16.0.12</td>
+          <td class="mono">172.16.0.12</td>
+          <td class="mono">172.16.0.12/16</td>
+          <td class="mono">e24-h01</td>
+          <td><span class="badge badge-pass">PASS</span></td>
+          <td><span class="badge badge-pass">PASS</span></td>
+          <td><span class="badge badge-pass">Allocated</span></td>
+          <td><span class="badge badge-pass">PASS</span></td>
+        </tr>
+        <tr>
+          <td class="mono">vm-ip-t0-3</td>
+          <td class="mono">172.16.0.3</td>
+          <td class="mono">172.16.0.3</td>
+          <td class="mono">172.16.0.3</td>
+          <td class="mono">172.16.0.3/16</td>
+          <td class="mono">f21-h19</td>
+          <td><span class="badge badge-pass">PASS</span></td>
+          <td><span class="badge badge-pass">PASS</span></td>
+          <td><span class="badge badge-pass">Allocated</span></td>
+          <td><span class="badge badge-pass">PASS</span></td>
+        </tr>
+        <tr>
+          <td class="mono">vm-ip-t0-4</td>
+          <td class="mono">172.16.0.4</td>
+          <td class="mono">172.16.0.4</td>
+          <td class="mono">172.16.0.4</td>
+          <td class="mono">172.16.0.4/16</td>
+          <td class="mono">e24-h03</td>
+          <td><span class="badge badge-pass">PASS</span></td>
+          <td><span class="badge badge-pass">PASS</span></td>
+          <td><span class="badge badge-pass">Allocated</span></td>
+          <td><span class="badge badge-pass">PASS</span></td>
+        </tr>
+        <tr>
+          <td class="mono">vm-ip-t0-5</td>
+          <td class="mono">172.16.0.5</td>
+          <td class="mono">172.16.0.5</td>
+          <td class="mono">172.16.0.5</td>
+          <td class="mono">172.16.0.5/16</td>
+          <td class="mono">f21-h18</td>
+          <td><span class="badge badge-pass">PASS</span></td>
+          <td><span class="badge badge-pass">PASS</span></td>
+          <td><span class="badge badge-pass">Allocated</span></td>
+          <td><span class="badge badge-pass">PASS</span></td>
+        </tr>
+        <tr>
+          <td class="mono">vm-ip-t0-6</td>
+          <td class="mono">172.16.0.6</td>
+          <td class="mono">172.16.0.6</td>
+          <td class="mono">172.16.0.6</td>
+          <td class="mono">172.16.0.6/16</td>
+          <td class="mono">e24-h03</td>
+          <td><span class="badge badge-pass">PASS</span></td>
+          <td><span class="badge badge-pass">PASS</span></td>
+          <td><span class="badge badge-pass">Allocated</span></td>
+          <td><span class="badge badge-pass">PASS</span></td>
+        </tr>
+        <tr>
+          <td class="mono">vm-ip-t0-7</td>
+          <td class="mono">172.16.0.7</td>
+          <td class="mono">172.16.0.7</td>
+          <td class="mono">172.16.0.7</td>
+          <td class="mono">172.16.0.7/16</td>
+          <td class="mono">e24-h03</td>
+          <td><span class="badge badge-pass">PASS</span></td>
+          <td><span class="badge badge-pass">PASS</span></td>
+          <td><span class="badge badge-pass">Allocated</span></td>
+          <td><span class="badge badge-pass">PASS</span></td>
+        </tr>
+        <tr>
+          <td class="mono">vm-ip-t0-8</td>
+          <td class="mono">172.16.0.8</td>
+          <td class="mono">172.16.0.8</td>
+          <td class="mono">172.16.0.8</td>
+          <td class="mono">172.16.0.8/16</td>
+          <td class="mono">e24-h07</td>
+          <td><span class="badge badge-pass">PASS</span></td>
+          <td><span class="badge badge-pass">PASS</span></td>
+          <td><span class="badge badge-pass">Allocated</span></td>
+          <td><span class="badge badge-pass">PASS</span></td>
+        </tr>
+        <tr>
+          <td class="mono">vm-ip-t0-9</td>
+          <td class="mono">172.16.0.9</td>
+          <td class="mono">172.16.0.9</td>
+          <td class="mono">172.16.0.9</td>
+          <td class="mono">172.16.0.9/16</td>
+          <td class="mono">f21-h17</td>
+          <td><span class="badge badge-pass">PASS</span></td>
+          <td><span class="badge badge-pass">PASS</span></td>
+          <td><span class="badge badge-pass">Allocated</span></td>
+          <td><span class="badge badge-pass">PASS</span></td>
+        </tr>
+        <tr>
+          <td class="mono">vm-ip-t0-10</td>
+          <td class="mono">172.16.0.10</td>
+          <td class="mono">172.16.0.10</td>
+          <td class="mono">172.16.0.10</td>
+          <td class="mono">172.16.0.10/16</td>
+          <td class="mono">e24-h01</td>
+          <td><span class="badge badge-pass">PASS</span></td>
+          <td><span class="badge badge-pass">PASS</span></td>
+          <td><span class="badge badge-pass">Allocated</span></td>
+          <td><span class="badge badge-pass">PASS</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Validation Summary -->
+  <div class="section">
+    <div class="section-header">Validation Summary</div>
+    <table>
+      <thead>
+        <tr>
+          <th>Check</th>
+          <th>Description</th>
+          <th>Pass</th>
+          <th>Fail</th>
+          <th>Result</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>IP Assignment</td>
+          <td>VMI status IP matches annotation-requested IP</td>
+          <td>10</td>
+          <td>0</td>
+          <td><span class="badge badge-pass">PASS</span></td>
+        </tr>
+        <tr>
+          <td>Guest OS IP</td>
+          <td>Pod compute container ovn-udn1 interface IP matches annotation</td>
+          <td>10</td>
+          <td>0</td>
+          <td><span class="badge badge-pass">PASS</span></td>
+        </tr>
+        <tr>
+          <td>IPAMClaim</td>
+          <td>IPAMClaim has correct IP and SuccessfulAllocation status</td>
+          <td>10</td>
+          <td>0</td>
+          <td><span class="badge badge-pass">PASS</span></td>
+        </tr>
+        <tr>
+          <td>VM Running</td>
+          <td>All VMs reached Running phase with Ready=True</td>
+          <td>10</td>
+          <td>0</td>
+          <td><span class="badge badge-pass">PASS</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Node Distribution -->
+  <div class="section">
+    <div class="section-header">VM Node Distribution</div>
+    <table>
+      <thead>
+        <tr><th>Node</th><th>VM Count</th><th>VMs</th></tr>
+      </thead>
+      <tbody>
+        <tr><td class="mono">e24-h03-000-r640</td><td>3</td><td class="mono">t0-4, t0-6, t0-7</td></tr>
+        <tr><td class="mono">e24-h01-000-r640</td><td>2</td><td class="mono">t0-2, t0-10</td></tr>
+        <tr><td class="mono">e24-h05-000-r640</td><td>1</td><td class="mono">t0-1</td></tr>
+        <tr><td class="mono">e24-h07-000-r640</td><td>1</td><td class="mono">t0-8</td></tr>
+        <tr><td class="mono">f21-h17-000-r640</td><td>1</td><td class="mono">t0-9</td></tr>
+        <tr><td class="mono">f21-h18-000-r640</td><td>1</td><td class="mono">t0-5</td></tr>
+        <tr><td class="mono">f21-h19-000-r640</td><td>1</td><td class="mono">t0-3</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="footer">
+    CNV-75797 Tier 0 Smoke Test - Generated 2026-05-31T16:44Z<br>
+    Cluster: f04-h10-000-r640.rdu2.scalelab.redhat.com | OCP 4.22.0-ec.5 | CNV 4.22.0-190
+  </div>
+
+</div>
+</body>
+</html>
