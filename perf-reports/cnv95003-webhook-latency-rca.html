@@ -75,8 +75,8 @@ code{background:#f5f5f5;padding:2px 6px;border-radius:3px;font-size:12px;color:#
 <p>The <code>cdi-apiserver</code> was designed as a lightweight webhook handler. In CDI v1.59 (CNV 4.21), two PRs (<a href="https://github.com/kubevirt/containerized-data-importer/pull/2813" style="color:#1565c0">#2813</a>, <a href="https://github.com/kubevirt/containerized-data-importer/pull/3029" style="color:#1565c0">#3029</a>) added a full controller-runtime engine (informers, caches, field indexers) inside this same single-replica pod running on only 100m CPU. The background work now competes with webhook handling for CPU.</p>
 <p style="margin-bottom:0">One root cause, two symptoms:</p>
 <ul style="margin-top:4px">
-<li><strong>Single VM: ~30-50% slower.</strong> Every webhook call pays ~45ms overhead from CPU contention with background work, even with no other load. This matches the original CNV-95003 report.</li>
-<li><strong>At scale (100+ VMs): up to 19x slower at P99.</strong> Concurrent webhook requests queue up on the overloaded single-replica pod.</li>
+<li><strong>Single VM:</strong> Every webhook call pays additional overhead from CPU contention with background work, even with no other load.</li>
+<li><strong>At scale (100+ VMs): ~30-50% slower overall, up to 19x at P99.</strong> Concurrent webhook requests queue up on the single-replica pod. This matches the original CNV-95003 report.</li>
 </ul>
 </div>
 
@@ -201,7 +201,7 @@ code{background:#f5f5f5;padding:2px 6px;border-radius:3px;font-size:12px;color:#
 
 <div style="display:flex;gap:12px;flex-wrap:wrap">
 <div class="callout callout-green" style="flex:1;min-width:300px">
-<h3>CDI v1.57 (CNV 4.19) - Lean</h3>
+<h3>CDI v1.57 (CNV 4.19) - Before</h3>
 <ul style="padding-left:20px;line-height:1.8;font-size:12px">
 <li>Lightweight HTTP server</li>
 <li>Direct k8s API clients only</li>
@@ -211,7 +211,7 @@ code{background:#f5f5f5;padding:2px 6px;border-radius:3px;font-size:12px;color:#
 </ul>
 </div>
 <div class="callout callout-red" style="flex:1;min-width:300px">
-<h3>CDI v1.59+ (CNV 4.21+) - Heavy</h3>
+<h3>CDI v1.59+ (CNV 4.21+) - After</h3>
 <ul style="padding-left:20px;line-height:1.8;font-size:12px">
 <li>Full <code>controller-runtime/cluster</code></li>
 <li>Informers for CoreV1, CDI, Snapshots</li>
@@ -241,7 +241,7 @@ code{background:#f5f5f5;padding:2px 6px;border-radius:3px;font-size:12px;color:#
 </table>
 
 <div class="insight-box">
-<strong>Irony:</strong> The validate webhook actually does <em>fewer</em> API calls in v1.60 than v1.57 (<a href="https://github.com/kubevirt/containerized-data-importer/pull/3331" style="color:#1565c0">PR #3331</a> removed source PVC/snapshot validation from the webhook). But the infrastructure overhead of the embedded controller-runtime cluster more than offsets this improvement.
+<strong>Note:</strong> The validate webhook actually performs <em>fewer</em> direct API calls in v1.60 than v1.57 (<a href="https://github.com/kubevirt/containerized-data-importer/pull/3331" style="color:#1565c0">PR #3331</a> removed source PVC/snapshot validation from the webhook). However, the infrastructure overhead of the embedded controller-runtime cluster more than offsets this improvement.
 </div>
 </div>
 
