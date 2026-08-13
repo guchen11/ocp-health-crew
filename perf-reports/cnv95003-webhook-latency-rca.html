@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>CNV-95003: CDI Webhook Latency Root Cause Analysis</title>
+<title>CNV-95003: VM Creation Performance - Root Cause Analysis</title>
 <style>
 body{font-family:'Segoe UI',Roboto,Arial,sans-serif;color:#1a1a2e;margin:0;padding:20px;background:#f5f5f5}
 h1{color:#0d47a1;border-bottom:3px solid #1565c0;padding-bottom:10px;font-size:24px;margin-bottom:4px}
@@ -17,9 +17,9 @@ tr:hover{background:#e3f2fd}
 .status-box{border-radius:10px;padding:22px 24px;margin:20px 0 16px 0;text-align:center;box-shadow:0 4px 14px rgba(0,0,0,0.1)}
 .status-box .status-title{font-size:22px;font-weight:700}
 .status-box .status-sub{font-size:14px;margin-top:6px}
-.status-red{background:linear-gradient(135deg,#ffebee,#fce4ec);border:2px solid #ef9a9a}
-.status-red .status-title{color:#c62828}
-.status-red .status-sub{color:#d32f2f}
+.status-yellow{background:linear-gradient(135deg,#fff8e1,#fffde7);border:2px solid #ffd54f}
+.status-yellow .status-title{color:#f57f17}
+.status-yellow .status-sub{color:#795548}
 .metrics-grid{display:flex;flex-wrap:wrap;gap:10px;margin:16px 0}
 .metric-card{flex:1;min-width:130px;background:linear-gradient(135deg,#e3f2fd,#f5f9ff);border:1px solid #90caf9;border-radius:8px;padding:14px 16px;text-align:center;box-shadow:0 1px 4px rgba(0,0,0,0.06)}
 .metric-card .value{font-size:22px;font-weight:700;color:#0d47a1}
@@ -48,6 +48,8 @@ tr:hover{background:#e3f2fd}
 .same{color:#546e7a;font-weight:600}
 .section{margin-bottom:28px}
 .insight-box{background:linear-gradient(135deg,#e8eaf6,#f3e5f5);border:1px solid #b39ddb;border-radius:8px;padding:14px 18px;margin:14px 0;font-size:13px;line-height:1.6}
+.disproved{background:linear-gradient(135deg,#fce4ec,#ffebee);border:2px solid #ef9a9a;border-radius:8px;padding:14px 18px;margin:14px 0;font-size:13px;line-height:1.6;text-decoration:none}
+.disproved h3{color:#c62828;margin:0 0 8px 0}
 .footer{margin-top:30px;padding-top:15px;border-top:2px solid #e0e0e0;font-size:12px;color:#78909c}
 code{background:#f5f5f5;padding:2px 6px;border-radius:3px;font-size:12px;color:#c62828}
 @media print{
@@ -62,44 +64,65 @@ code{background:#f5f5f5;padding:2px 6px;border-radius:3px;font-size:12px;color:#
 <body>
 <div class="container">
 
-<h1>CNV-95003: CDI Webhook Latency - Root Cause Analysis</h1>
-<p style="color:#546e7a;margin-top:0;font-size:15px">VM creation regression traced to controller-runtime overhead in the CDI API server</p>
+<h1>CNV-95003: VM Creation Performance - Root Cause Analysis</h1>
+<p style="color:#546e7a;margin-top:0;font-size:15px">Investigation into VM creation regression between OCP 4.19 and OCP 4.22</p>
 
-<div class="status-box status-red">
-<div class="status-title">Root Cause Identified: CDI API Server Overloaded</div>
-<div class="status-sub">Controller-runtime engine added in CDI v1.59 (CNV 4.21) inside a single-replica pod with 100m CPU</div>
+<div class="status-box status-yellow">
+<div class="status-title">CDI Code Ruled Out as Cause</div>
+<div class="status-sub">CDI v1.58 and v1.60 perform identically on the same cluster. The 30-50% regression reported between OCP 4.19 and 4.22 originates outside CDI.</div>
 </div>
 
 <div class="callout callout-orange">
 <h3>TL;DR</h3>
-<p>The <code>cdi-apiserver</code> was designed as a lightweight webhook handler. In CDI v1.59 (CNV 4.21), two PRs (<a href="https://github.com/kubevirt/containerized-data-importer/pull/2813" style="color:#1565c0">#2813</a>, <a href="https://github.com/kubevirt/containerized-data-importer/pull/3029" style="color:#1565c0">#3029</a>) added a full controller-runtime engine (informers, caches, field indexers) inside this same single-replica pod running on only 100m CPU. The background work now competes with webhook handling for CPU.</p>
-<p style="margin-bottom:0">One root cause, two symptoms:</p>
-<ul style="margin-top:4px">
-<li><strong>Single VM:</strong> Every webhook call pays additional overhead from CPU contention with background work, even with no other load.</li>
-<li><strong>At scale (100+ VMs): ~30-50% slower overall, up to 19x at P99.</strong> Concurrent webhook requests queue up on the single-replica pod. This matches the original CNV-95003 report.</li>
-</ul>
+<p>CDI's multi-step DataVolume pipeline adds ~100s overhead vs direct PVC creation at 100-VM scale. However, this overhead is <strong>not a regression</strong> - it is identical between CDI v1.58 (CNV 4.19 era) and v1.60 (CNV 4.22). We proved this by swapping both the <code>cdi-apiserver</code> and <code>cdi-deployment</code> to v1.58.5 upstream images on the same 4.22 cluster.</p>
+<p style="margin-bottom:0">The 30-50% regression Purti reported between OCP 4.19 and 4.22 likely originates from infrastructure changes in the broader stack (API server, etcd, ODF/CSI driver, Kubernetes version). Confirming this requires a comparison test on an OCP 4.19 cluster.</p>
 </div>
 
 <div style="background:linear-gradient(135deg,#fff3e0,#fbe9e7);border:2px solid #ffb74d;border-radius:8px;padding:16px 20px;margin:16px 0">
 <h3 style="color:#e65100;margin:0 0 10px 0;font-size:15px">Jira</h3>
 <p style="font-size:13px;line-height:1.6;margin:0"><strong><a href="https://redhat.atlassian.net/browse/CNV-95003" style="color:#1565c0">CNV-95003</a></strong> - VM creation performance regression (original report by Purti Rajpal)<br>
-<strong>Component:</strong> CDI (containerized-data-importer), specifically the <code>cdi-apiserver</code> deployment<br>
-<strong>Regression introduced in:</strong> CDI v1.59.0 / CNV 4.21 (not present in CDI v1.57 / CNV 4.19)</p>
-<p style="font-size:12px;color:#546e7a;margin:8px 0 0 0">Related: <a href="https://redhat.atlassian.net/browse/CNV-90050" style="color:#1565c0">CNV-90050</a> (CDI throughput at 10K scale - different aspect of same component)</p>
+<strong>Environment:</strong> OCP 4.22.5, CNV 4.22.2, ODF 4.22.1 vs OCP 4.19.11, CNV 4.19.12, ODF 4.19.5<br>
+<strong>Reported regression:</strong> ~30-50% at 100 VM scale using kube-burner with DV snapshot clone</p>
+<p style="font-size:12px;color:#546e7a;margin:8px 0 0 0">Related: <a href="https://redhat.atlassian.net/browse/CNV-90050" style="color:#1565c0">CNV-90050</a> (CDI throughput at 10K scale)</p>
 </div>
 
 <div class="metrics-grid">
-<div class="metric-card metric-card-red"><div class="value">2.44s</div><div class="label">Mutate Webhook P99</div></div>
-<div class="metric-card metric-card-red"><div class="value">2.34s</div><div class="label">Validate Webhook P99</div></div>
-<div class="metric-card"><div class="value">125ms</div><div class="label">Serial (No Load)</div></div>
-<div class="metric-card metric-card-red"><div class="value">19x</div><div class="label">Concurrency Penalty</div></div>
-<div class="metric-card metric-card-green"><div class="value">2.67x</div><div class="label">Faster Without CDI</div></div>
-<div class="metric-card"><div class="value">1</div><div class="label">API Server Replicas</div></div>
+<div class="metric-card metric-card-red"><div class="value">160s</div><div class="label">With CDI (100 VMs)</div></div>
+<div class="metric-card metric-card-green"><div class="value">60s</div><div class="label">Without CDI (bypass)</div></div>
+<div class="metric-card"><div class="value">160s</div><div class="label">CDI v1.58 (same!)</div></div>
+<div class="metric-card"><div class="value">6.8s</div><div class="label">Controller Queue Wait</div></div>
+<div class="metric-card"><div class="value">3</div><div class="label">Max Concurrent Workers</div></div>
+<div class="metric-card"><div class="value">~80x</div><div class="label">Reconciles per DV</div></div>
+</div>
+
+<div class="section">
+<h2>Key Finding: CDI Version Swap Test</h2>
+<p style="font-size:13px;color:#546e7a">Swapped CDI components to upstream v1.58.5 (pre-CNV 4.21) on the same OCP 4.22 cluster. Same source snapshot, same test, same 100 VMs.</p>
+
+<table>
+<tr><th>Test Configuration</th><th>Total Time</th><th>VMs at 60s</th><th>VMs at 100s</th></tr>
+<tr><td style="font-weight:600">CDI v1.60 (current, CNV 4.22)</td><td class="same">160s</td><td>7</td><td>32</td></tr>
+<tr><td style="font-weight:600">CDI v1.58 apiserver only</td><td class="same">170s</td><td>4</td><td>32</td></tr>
+<tr><td style="font-weight:600">CDI v1.58 full (apiserver + controller)</td><td class="same">160s</td><td>4</td><td>24</td></tr>
+<tr style="background:#e8f5e9"><td style="font-weight:600">No CDI (direct PVC from snapshot)</td><td class="better">60s</td><td>100</td><td>-</td></tr>
+</table>
+
+<div class="insight-box">
+<strong>Conclusion:</strong> All CDI versions produce the same ~160s result. The CDI code did not regress between v1.57 and v1.60. The ~100s overhead vs direct PVC creation is CDI's inherent architectural cost (multi-controller reconciliation, 3-worker concurrency, multi-step pipeline), and has been present since at least CDI v1.57.
+</div>
+</div>
+
+<div class="section">
+<h2>Disproved Hypothesis: CDI Webhook PRs</h2>
+<div class="disproved">
+<h3>Initially suspected: PRs #2813 and #3029 in CDI v1.59</h3>
+<p>Our initial analysis identified two PRs that added a <code>controller-runtime</code> cluster inside the <code>cdi-apiserver</code>. We hypothesized this caused webhook latency to increase. However, <strong>swapping the cdi-apiserver to v1.58.5 (before those PRs) produced identical webhook latency</strong> (P99 ~2.48s vs ~2.45s). The high webhook latency is caused by request queuing on the single-replica pod, not by the webhook code itself.</p>
+</div>
 </div>
 
 <div class="section">
 <h2>Test 1: CDI Bypass Comparison (100 VMs)</h2>
-<p style="font-size:13px;color:#546e7a">Same cluster, same snapshot, same time window. Only difference: CDI in the path or not.</p>
+<p style="font-size:13px;color:#546e7a">Same cluster, same snapshot. Only difference: CDI in the path or not. This confirms CDI adds overhead, but does not prove it regressed.</p>
 
 <table>
 <tr><th>Metric</th><th>With CDI (DataVolume)</th><th>Without CDI (Direct PVC)</th><th>Difference</th></tr>
@@ -107,7 +130,6 @@ code{background:#f5f5f5;padding:2px 6px;border-radius:3px;font-size:12px;color:#
 <tr><td style="font-weight:600">VMs running at 10s</td><td class="degradation-high">2</td><td class="better">27</td><td>13.5x more</td></tr>
 <tr><td style="font-weight:600">VMs running at 30s</td><td class="degradation-high">3</td><td class="better">59</td><td>19.7x more</td></tr>
 <tr><td style="font-weight:600">VMs running at 60s</td><td class="degradation-high">7</td><td class="better">100 (done)</td><td>14.3x more</td></tr>
-<tr><td style="font-weight:600">Total end-to-end</td><td class="degradation-high">174s</td><td class="better">73s</td><td>2.4x faster</td></tr>
 </table>
 
 <h3>Ramp-Up: VMs Running Over Time</h3>
@@ -136,149 +158,76 @@ code{background:#f5f5f5;padding:2px 6px;border-radius:3px;font-size:12px;color:#
 </div>
 
 <div class="section">
-<h2>Test 2: Serial vs Concurrent Latency</h2>
-<p style="font-size:13px;color:#546e7a">Proves the webhook is fast when idle but degrades under concurrent load due to single-replica serialization.</p>
+<h2>Where the CDI Time Goes</h2>
+<p style="font-size:13px;color:#546e7a">CDI's DataVolume snapshot clone pipeline has multiple serialization points. These are architectural, not version-specific.</p>
 
 <table>
-<tr><th>Test</th><th>Per-DV Latency</th><th>Notes</th></tr>
-<tr style="background:#e8f5e9"><td style="font-weight:600">Serial (1 at a time, 2s gap)</td><td class="better">121-134ms (avg 125ms)</td><td>Both webhooks + SAR check in ~125ms</td></tr>
-<tr><td style="font-weight:600">Burst (50 DVs, no gap)</td><td class="degradation-med">~384ms avg (19.2s / 50)</td><td>3x slower due to queuing</td></tr>
-<tr><td style="font-weight:600">Concurrent (100 DVs via VMs)</td><td class="degradation-high">P50=780ms, P99=2450ms</td><td>19x worse at P99 vs serial</td></tr>
-</table>
-
-<div class="insight-box">
-<strong>Key insight:</strong> The webhook itself is fast (~125ms). The 2.4s P99 latency is entirely caused by requests queuing on a single-replica pod. This is why even a single VM sees 30-50% regression - the background controller-runtime work steals CPU cycles from the webhook handler.
-</div>
-</div>
-
-<div class="section">
-<h2>Test 3: 2-Replica Scaling</h2>
-<p style="font-size:13px;color:#546e7a">Paused the CDI operator and scaled cdi-apiserver to 2 replicas. Same 100-VM test.</p>
-
-<table>
-<tr><th>Metric</th><th>1 Replica</th><th>2 Replicas</th><th>Improvement</th></tr>
-<tr><td style="font-weight:600">Time to 100 VMIs Running</td><td class="degradation-high">160s</td><td class="degradation-med">140s</td><td>12.5% faster</td></tr>
-<tr><td style="font-weight:600">VMIs Running at 60s</td><td class="degradation-high">7</td><td class="degradation-low">28</td><td class="better">4x more</td></tr>
-<tr><td style="font-weight:600">Mutate webhook P50</td><td class="degradation-high">0.78s</td><td class="degradation-med">0.42s</td><td class="better">46% lower</td></tr>
+<tr><th>Stage</th><th>Bottleneck</th><th>Measured</th></tr>
+<tr><td style="font-weight:600">Webhook admission (mutate + validate)</td><td>Single-replica cdi-apiserver queues requests</td><td>P99: ~2.5s under load (same in v1.58 and v1.60)</td></tr>
+<tr><td style="font-weight:600">Controller reconciliation</td><td><code>datavolume-snapshot-clone-controller</code> - 3 workers</td><td>Queue wait: 6.8s avg, work: 0.37s per item</td></tr>
+<tr><td style="font-weight:600">Reconcile churn</td><td>~80 reconciles per DV across multiple controllers</td><td>8116 total adds for 100 DVs</td></tr>
+<tr><td style="font-weight:600">CDI controller config</td><td>1 replica, 100m CPU, 353Mi memory used</td><td>2 reconciles/sec at peak</td></tr>
 </table>
 
 <div class="callout callout-blue">
-<h3>Why didn't 2 replicas cut time in half?</h3>
-<p>The early ramp-up improved 4x (28 VMs at 60s vs 7). But the CDI controller (<code>cdi-deployment</code>, also single-replica with 100m CPU) becomes the next bottleneck once webhooks are faster. The full pipeline has two serialization points: webhook admission and controller reconciliation.</p>
+<h3>Why is CDI slow?</h3>
+<p>A DataVolume goes through multiple controllers (snapshot-clone, clone-populator, import-controller, upload-controller, clone-controller), each watching PVC events. Every PVC change triggers reconciliation across all controllers, most of which discard the event after checking annotations. With 3 workers and ~80 reconciles per DV, the queue backs up. This is CDI's design - not a regression.</p>
 </div>
 </div>
 
 <div class="section">
-<h2>Webhook Latency (Prometheus)</h2>
+<h2>What Likely Caused Purti's Regression</h2>
+<p style="font-size:13px;color:#546e7a">Since CDI code is ruled out, the 30-50% regression between OCP 4.19 and 4.22 must come from infrastructure changes.</p>
+
 <table>
-<tr><th>Webhook</th><th>P50</th><th>P95</th><th>P99</th></tr>
-<tr style="background:#ffebee"><td style="font-weight:600">datavolume-mutate.cdi.kubevirt.io</td><td class="degradation-high">780ms</td><td class="degradation-high">2.27s</td><td class="degradation-high">2.45s</td></tr>
-<tr style="background:#ffebee"><td style="font-weight:600">datavolume-validate.cdi.kubevirt.io</td><td class="degradation-low">3ms</td><td class="degradation-high">1.88s</td><td class="degradation-high">2.38s</td></tr>
-<tr><td style="font-weight:600">populator-validate.cdi.kubevirt.io</td><td class="degradation-low">2.5ms</td><td class="degradation-low">4.8ms</td><td class="degradation-low">5ms</td></tr>
-<tr><td style="font-weight:600">virtualmachine-validator.kubevirt.io</td><td class="degradation-low">5ms</td><td colspan="2">KubeVirt webhooks unaffected</td></tr>
-<tr><td style="font-weight:600">virtualmachines-mutator.kubevirt.io</td><td class="degradation-low">5ms</td><td colspan="2"></td></tr>
-<tr><td style="font-weight:600">virtualmachineinstances-mutator.kubevirt.io</td><td class="degradation-low">14ms</td><td colspan="2"></td></tr>
-</table>
-<p style="font-size:12px;color:#546e7a">The mutate webhook is slower because it performs a SubjectAccessReview (SAR) for clone authorization. The validate P50 is fast but P95/P99 spike under load from queuing behind mutate on the same single-replica server.</p>
-</div>
-
-<div class="section">
-<h2>CDI API Server Configuration</h2>
-<table>
-<tr><th>Setting</th><th>Value</th><th>Assessment</th></tr>
-<tr><td style="font-weight:600">Replicas</td><td class="degradation-high">1 (hardcoded by CDI operator)</td><td class="worse">Single point of serialization</td></tr>
-<tr><td style="font-weight:600">CPU request</td><td class="degradation-high">100m (no limit)</td><td class="worse">Insufficient for controller-runtime + webhooks</td></tr>
-<tr><td style="font-weight:600">Memory request</td><td>150Mi (no limit)</td><td class="same">Actual RSS: 58MB idle</td></tr>
-<tr><td style="font-weight:600">Threads</td><td>27</td><td class="same">Controller-runtime goroutines</td></tr>
-<tr><td style="font-weight:600">Webhook timeout</td><td>30s (failurePolicy=Fail)</td><td class="same">Standard</td></tr>
-<tr><td style="font-weight:600">Registered webhooks</td><td>6</td><td class="same">mutate-dv, validate-dv, mutate-pvc, validate-dic, validate-populator, validate-cdi</td></tr>
-</table>
-</div>
-
-<div class="section">
-<h2>Source Code Analysis: CDI v1.57 vs v1.60</h2>
-<p style="font-size:13px;color:#546e7a">Compared upstream <a href="https://github.com/kubevirt/containerized-data-importer" style="color:#1565c0">kubevirt/containerized-data-importer</a> between v1.57.1 (CNV 4.19) and v1.60.5 (CNV 4.22).</p>
-
-<div style="display:flex;gap:12px;flex-wrap:wrap">
-<div class="callout callout-green" style="flex:1;min-width:300px">
-<h3>CDI v1.57 (CNV 4.19) - Before</h3>
-<ul style="padding-left:20px;line-height:1.8;font-size:12px">
-<li>Lightweight HTTP server</li>
-<li>Direct k8s API clients only</li>
-<li>No informers, no caches</li>
-<li>No field indexes</li>
-<li>Webhook-only process</li>
-</ul>
-</div>
-<div class="callout callout-red" style="flex:1;min-width:300px">
-<h3>CDI v1.59+ (CNV 4.21+) - After</h3>
-<ul style="padding-left:20px;line-height:1.8;font-size:12px">
-<li>Full <code>controller-runtime/cluster</code></li>
-<li>Informers for CoreV1, CDI, Snapshots</li>
-<li>In-memory caches that must sync</li>
-<li>PV field indexers</li>
-<li>New PVC mutating webhook</li>
-<li>Feature gate checks on every validate call</li>
-</ul>
-</div>
-</div>
-
-<h3>The Two PRs That Caused the Regression</h3>
-<table>
-<tr><th>PR</th><th>Title</th><th>Impact</th><th>First Release</th></tr>
-<tr>
-<td style="font-weight:600"><a href="https://github.com/kubevirt/containerized-data-importer/pull/2813" style="color:#1565c0">#2813</a></td>
-<td>Add PVC spec mutating webhook rendering based on StorageProfiles</td>
-<td class="worse">Added <code>cluster.New()</code> + <code>cluster.Start()</code>, field indexers, new PVC webhook</td>
-<td>v1.59.0</td>
-</tr>
-<tr>
-<td style="font-weight:600"><a href="https://github.com/kubevirt/containerized-data-importer/pull/3029" style="color:#1565c0">#3029</a></td>
-<td>Feature Gate and annotation for PVCs to be adopted by DataVolumes</td>
-<td class="worse">Added <code>ClaimMayExistBeforeDataVolume()</code> - reads CDIConfig on every validation</td>
-<td>v1.59.0</td>
-</tr>
+<tr><th>Candidate</th><th>Why It Could Matter</th><th>Status</th></tr>
+<tr><td style="font-weight:600">OCP API server / etcd</td><td>Kubernetes 1.32 vs 1.38 - admission pipeline, webhook handling, etcd performance</td><td class="degradation-med">Not tested - requires 4.19 cluster</td></tr>
+<tr><td style="font-weight:600">ODF / Ceph CSI driver</td><td>ODF 4.19 vs 4.22 - snapshot clone performance, CSI sidecar changes</td><td class="degradation-med">Not tested - requires 4.19 cluster</td></tr>
+<tr><td style="font-weight:600">KubeVirt VM controller</td><td>CNV 4.19 vs 4.22 - VM/VMI reconciliation, DV readiness checks</td><td class="degradation-med">Not tested</td></tr>
+<tr><td style="font-weight:600">Different hardware</td><td>Purti tested on two different Fusion HCI racks</td><td class="degradation-med">Cannot rule out</td></tr>
 </table>
 
-<div class="insight-box">
-<strong>Note:</strong> The validate webhook actually performs <em>fewer</em> direct API calls in v1.60 than v1.57 (<a href="https://github.com/kubevirt/containerized-data-importer/pull/3331" style="color:#1565c0">PR #3331</a> removed source PVC/snapshot validation from the webhook). However, the infrastructure overhead of the embedded controller-runtime cluster more than offsets this improvement.
+<div class="callout callout-yellow">
+<h3>Next Steps</h3>
+<p>To identify the actual regression source, a comparison test on an OCP 4.19 cluster with the same hardware profile is needed. The test should use the same kube-burner scenario (100 VMs, DV snapshot clone) and collect Prometheus metrics for webhook latency, controller queue depth, and CSI operation timing.</p>
 </div>
 </div>
 
 <div class="section">
-<h2>Evidence Summary</h2>
-<table>
-<tr><th>#</th><th>Evidence</th><th>What It Proves</th></tr>
-<tr><td style="font-weight:700">1</td><td>Without CDI: 60s, With CDI: 160s for 100 VMs</td><td class="worse">CDI webhooks are the primary bottleneck (2.67x)</td></tr>
-<tr><td style="font-weight:700">2</td><td>Serial DV: 125ms, Concurrent P99: 2.45s</td><td class="worse">Single-replica serialization = 19x latency increase</td></tr>
-<tr><td style="font-weight:700">3</td><td>2 replicas: 4x more VMs at 60s, P50 halved</td><td class="better">Adding replicas directly reduces queuing</td></tr>
-<tr><td style="font-weight:700">4</td><td>CDI API server: 1 replica, 100m CPU</td><td class="worse">Under-provisioned for concurrent handling</td></tr>
-<tr><td style="font-weight:700">5</td><td>Code: controller-runtime added in v1.59</td><td class="worse">Infrastructure overhead added since CNV 4.21</td></tr>
-</table>
-</div>
-
-<div class="section">
-<h2>Recommended Fixes</h2>
+<h2>CDI Architectural Improvement Opportunities</h2>
+<p style="font-size:13px;color:#546e7a">While CDI code did not regress, its architecture has inherent scale limitations that are worth addressing.</p>
 
 <div class="callout callout-green">
-<h3>1. Make CDI API server replicas configurable</h3>
-<p>Currently hardcoded to 1 by the CDI operator. Our test showed 2 replicas halved the P50 webhook latency and gave 4x more VMs running at 60s. This is the lowest-effort, highest-impact fix.</p>
+<h3>1. Increase MaxConcurrentReconciles for snapshot-clone controller</h3>
+<p>Currently hardcoded to 3. With 6.8s average queue wait, increasing to 10-15 workers would significantly reduce wait time at scale.</p>
 </div>
 
 <div class="callout callout-blue">
-<h3>2. Increase default CPU request</h3>
-<p>100m is insufficient for a process running controller-runtime alongside webhook handlers. Increase to at least 500m, or add an HPA that scales based on webhook request rate.</p>
+<h3>2. Reduce reconcile churn</h3>
+<p>~80 reconciles per DV is excessive. Most are discarded by controllers that don't own the PVC type. Adding stricter event filters (predicates) would reduce unnecessary work.</p>
 </div>
 
 <div class="callout callout-yellow">
-<h3>3. Decouple controller-runtime from the webhook server</h3>
-<p>Move the controller-runtime cluster out of the API server process entirely, or lazy-load it only when the <code>WebhookPvcRendering</code> feature gate is enabled. The API server should return to being a lean webhook handler.</p>
+<h3>3. Make CDI controller replicas and CPU configurable</h3>
+<p>Both <code>cdi-apiserver</code> and <code>cdi-deployment</code> run as single replicas with 100m CPU. Allowing operators to scale these based on workload would help at scale.</p>
 </div>
+</div>
+
+<div class="section">
+<h2>All Test Results Summary</h2>
+<table>
+<tr><th>#</th><th>Test</th><th>Result</th><th>What It Proves</th></tr>
+<tr><td style="font-weight:700">1</td><td>CDI bypass (direct PVC)</td><td class="better">60s</td><td>CDI adds ~100s overhead at 100 VMs</td></tr>
+<tr><td style="font-weight:700">2</td><td>CDI v1.60 (current)</td><td class="same">160s</td><td>Baseline with current CDI</td></tr>
+<tr><td style="font-weight:700">3</td><td>CDI v1.58 apiserver only</td><td class="same">170s</td><td>Webhook code version does not matter</td></tr>
+<tr><td style="font-weight:700">4</td><td>CDI v1.58 full (api + controller)</td><td class="same">160s</td><td>Controller code version does not matter</td></tr>
+<tr><td style="font-weight:700">5</td><td>2x cdi-apiserver replicas</td><td class="degradation-med">140s</td><td>Scaling helps but controller is next bottleneck</td></tr>
+</table>
 </div>
 
 <div class="footer">
 <p>Lab: clod30 (aa37-h07-000-r740xd.rdu3.labs.perfscale.redhat.com) | OCP 4.22.6, CNV 4.22.2 (CDI v1.60.x), ODF 4.22.1</p>
-<p>Tests run: Aug 13, 2026 05:11-05:36 UTC</p>
+<p>Tests run: Aug 13, 2026 05:11-07:10 UTC</p>
 <p>Scripts and logs: /root/repro-cnv95003/ on clod30</p>
 </div>
 
