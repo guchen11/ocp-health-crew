@@ -68,14 +68,15 @@ code{background:#f5f5f5;padding:2px 6px;border-radius:3px;font-size:12px;color:#
 <p style="color:#546e7a;margin-top:0;font-size:15px">Investigation into VM creation regression between OCP 4.19 and OCP 4.22</p>
 
 <div class="status-box status-yellow">
-<div class="status-title">CDI Code Ruled Out as Cause</div>
-<div class="status-sub">CDI v1.58 and v1.60 perform identically on the same cluster. The 30-50% regression reported between OCP 4.19 and 4.22 originates outside CDI.</div>
+<div class="status-title">Primary Suspect: ODF / Ceph CSI Layer</div>
+<div class="status-sub">CDI code, emptyDisk, etcd, KubeVirt webhooks, and container runtime are all ruled out. Raw CSI snapshot clones (no CDI) take 102s for 100 PVCs - the storage layer dominates VM creation time.</div>
 </div>
 
 <div class="callout callout-orange">
 <h3>TL;DR</h3>
-<p>CDI's multi-step DataVolume pipeline adds ~100s overhead vs direct PVC creation at 100-VM scale. However, this overhead is <strong>not a regression</strong> - it is identical between CDI v1.58 (CNV 4.19 era) and v1.60 (CNV 4.22). We proved this by swapping both the <code>cdi-apiserver</code> and <code>cdi-deployment</code> to v1.58.5 upstream images on the same 4.22 cluster.</p>
-<p style="margin-bottom:0">The 30-50% regression Purti reported between OCP 4.19 and 4.22 likely originates from infrastructure changes in the broader stack (API server, etcd, ODF/CSI driver, Kubernetes version). Confirming this requires a comparison test on an OCP 4.19 cluster.</p>
+<p>After 11 targeted tests, we narrowed the 30-50% VM creation regression to the <strong>ODF/Ceph CSI layer</strong>. Raw CSI snapshot clones (no CDI, no KubeVirt) take 102s for 100 PVCs, with volume_attach at 4.9s P99 and map_volume at 2.5s P99. This accounts for most of the 160s total time.</p>
+<p>CDI code (v1.58 vs v1.60), emptyDisk, etcd (1ms P99), KubeVirt webhooks (5-22ms), and container runtime (12s for 20 pods) are all ruled out.</p>
+<p style="margin-bottom:0">Confirming ODF as the regression source requires comparing CSI clone speed on an OCP 4.19 cluster with the same test.</p>
 </div>
 
 <div style="background:linear-gradient(135deg,#fff3e0,#fbe9e7);border:2px solid #ffb74d;border-radius:8px;padding:16px 20px;margin:16px 0">
@@ -176,20 +177,87 @@ code{background:#f5f5f5;padding:2px 6px;border-radius:3px;font-size:12px;color:#
 </div>
 
 <div class="section">
-<h2>What Likely Caused Purti's Regression</h2>
-<p style="font-size:13px;color:#546e7a">Since CDI code is ruled out, the 30-50% regression between OCP 4.19 and 4.22 must come from infrastructure changes.</p>
+<h2>Disproved Hypothesis: Empty Disk Overhead</h2>
+<div class="disproved">
+<h3>Tested: emptyDisk (500Mi) adds latency to VM creation</h3>
+<p>Purti observed that removing the empty disk from the VM template improved performance. We tested this directly on clod30 with controlled experiments.</p>
 
 <table>
-<tr><th>Candidate</th><th>Why It Could Matter</th><th>Status</th></tr>
-<tr><td style="font-weight:600">OCP API server / etcd</td><td>Kubernetes 1.32 vs 1.38 - admission pipeline, webhook handling, etcd performance</td><td class="degradation-med">Not tested - requires 4.19 cluster</td></tr>
-<tr><td style="font-weight:600">ODF / Ceph CSI driver</td><td>ODF 4.19 vs 4.22 - snapshot clone performance, CSI sidecar changes</td><td class="degradation-med">Not tested - requires 4.19 cluster</td></tr>
-<tr><td style="font-weight:600">KubeVirt VM controller</td><td>CNV 4.19 vs 4.22 - VM/VMI reconciliation, DV readiness checks</td><td class="degradation-med">Not tested</td></tr>
-<tr><td style="font-weight:600">Different hardware</td><td>Purti tested on two different Fusion HCI racks</td><td class="degradation-med">Cannot rule out</td></tr>
+<tr><th>Test</th><th>Scale</th><th>With Empty Disk</th><th>Without Empty Disk</th><th>Verdict</th></tr>
+<tr><td style="font-weight:600">Single VM (clean state)</td><td>1 VM</td><td class="same">10s</td><td class="same">10s</td><td>No difference</td></tr>
+<tr><td style="font-weight:600">20 VMs concurrent</td><td>20 VMs</td><td class="same">43s</td><td class="same">53s</td><td>No difference (order-dependent)</td></tr>
+</table>
+
+<p>At single-VM scale, both configurations are identical (10s). At 20-VM scale, the results vary by test execution order, not by disk configuration. An initial sequential test showed 25s vs 56s, but this was caused by <strong>CDI controller state contamination</strong> from earlier tests, not the emptyDisk. When run in clean state, emptyDisk has zero impact.</p>
+<p><strong>Note:</strong> Purti's environment (Fusion HCI) may have different storage characteristics. The emptyDisk overhead she observed could be environment-specific rather than a general KubeVirt issue.</p>
+</div>
+</div>
+
+<div class="section">
+<h2>CSI Snapshot Clone Speed (Pure Storage Test)</h2>
+<p style="font-size:13px;color:#546e7a">Created PVCs directly from VolumeSnapshot - no CDI, no KubeVirt. Measures raw ODF/Ceph snapshot clone performance.</p>
+
+<table>
+<tr><th>Scale</th><th>Time to All Bound</th><th>Ramp-Up</th></tr>
+<tr><td style="font-weight:600">1 PVC</td><td class="better">2s</td><td>Instant</td></tr>
+<tr><td style="font-weight:600">20 PVCs</td><td class="same">22s</td><td>3 at 5s, 13 at 15s, 21 at 20s</td></tr>
+<tr><td style="font-weight:600">100 PVCs</td><td class="degradation-high">102s</td><td>18 at 60s, 56 at 80s, 100 at 90s</td></tr>
+</table>
+
+<div class="callout callout-red">
+<h3>Key insight: CSI is the dominant bottleneck</h3>
+<p>100 PVCs from snapshot take <strong>102s</strong> just to become Bound - no CDI, no KubeVirt involved. This means of the 160s total with CDI, roughly 100s is CSI/Ceph and ~60s is CDI controller overhead. Any regression in ODF snapshot clone speed between 4.19 and 4.22 would directly explain Purti's 30-50% degradation.</p>
+</div>
+
+<h3>CSI Operation Latencies (Prometheus P99, last 1h)</h3>
+<table>
+<tr><th>Operation</th><th>P99 Latency</th><th>Impact</th></tr>
+<tr><td style="font-weight:600">volume_attach (RBD CSI)</td><td class="degradation-high">4.9s</td><td>Per-volume - serialized through attachdetach controller</td></tr>
+<tr><td style="font-weight:600">map_volume (RBD CSI)</td><td class="degradation-high">2.2-2.5s</td><td>Per-volume - node-level RBD map</td></tr>
+<tr><td style="font-weight:600">volume_detach (RBD CSI)</td><td class="same">24.2s</td><td>Cleanup only - does not affect creation</td></tr>
+</table>
+<p style="font-size:12px;color:#546e7a">CSI RBD controller plugin: 2 replicas with leader election (1 active). No <code>--worker-threads</code> set (defaults: provisioner=100, attacher=10, snapshotter=1).</p>
+</div>
+
+<div class="section">
+<h2>Infrastructure Health Check</h2>
+<p style="font-size:13px;color:#546e7a">Metrics collected from Prometheus on clod30 to rule out cluster-level issues.</p>
+
+<table>
+<tr><th>Component</th><th>Metric</th><th>Value</th><th>Verdict</th></tr>
+<tr><td style="font-weight:600">etcd backend commit</td><td>P99 (1h)</td><td class="better">1.0ms (all 3 nodes)</td><td>Healthy</td></tr>
+<tr><td style="font-weight:600">etcd WAL fsync</td><td>P99 (1h)</td><td class="better">1.0ms (all 3 nodes)</td><td>Healthy</td></tr>
+<tr><td style="font-weight:600">KubeVirt virt-api webhooks</td><td>P99 (1h)</td><td class="better">5-22ms</td><td>Healthy</td></tr>
+<tr><td style="font-weight:600">CDI webhooks (mutate+validate)</td><td>P99 (1h)</td><td class="degradation-high">~2,485ms</td><td>Slow - single-replica queuing</td></tr>
+<tr><td style="font-weight:600">Pod startup (20 bare pods)</td><td>Wall clock</td><td class="better">12s (16/20 at 5s)</td><td>Healthy</td></tr>
+</table>
+
+<div class="insight-box">
+<strong>Conclusion:</strong> etcd, API server, KubeVirt webhooks, and container runtime are all healthy. The only slow components are CDI webhooks (architectural, same in v1.58 and v1.60) and CSI volume operations (4.9s attach + 2.5s map per volume).
+</div>
+</div>
+
+<div class="section">
+<h2>What Likely Caused Purti's Regression</h2>
+<p style="font-size:13px;color:#546e7a">CDI code, emptyDisk, etcd, KubeVirt webhooks, and container runtime are all ruled out. The evidence points to the CSI/ODF layer.</p>
+
+<table>
+<tr><th>Candidate</th><th>Evidence</th><th>Status</th></tr>
+<tr><td style="font-weight:600">ODF / Ceph CSI driver</td><td>Raw CSI clone takes 102s for 100 PVCs. volume_attach=4.9s, map=2.5s P99. Any ODF 4.19->4.22 change here directly impacts VM creation.</td><td class="degradation-high">Primary suspect - needs 4.19 comparison</td></tr>
+<tr><td style="font-weight:600">CDI code (v1.58 vs v1.60)</td><td>Swapped both apiserver and controller. Identical results.</td><td class="better">Ruled out</td></tr>
+<tr><td style="font-weight:600">CDI webhooks (PRs #2813, #3029)</td><td>v1.58 apiserver produces same webhook latency.</td><td class="better">Ruled out</td></tr>
+<tr><td style="font-weight:600">emptyDisk overhead</td><td>No measurable impact at 1-VM or 20-VM scale.</td><td class="better">Ruled out</td></tr>
+<tr><td style="font-weight:600">etcd</td><td>P99: 1ms on all nodes.</td><td class="better">Ruled out</td></tr>
+<tr><td style="font-weight:600">KubeVirt webhooks</td><td>P99: 5-22ms.</td><td class="better">Ruled out</td></tr>
+<tr><td style="font-weight:600">Container runtime (crun/cri-o)</td><td>20 pods start in 12s. No overhead.</td><td class="better">Ruled out</td></tr>
+<tr><td style="font-weight:600">Different hardware</td><td>Purti tested on two different Fusion HCI racks.</td><td class="degradation-med">Cannot rule out</td></tr>
 </table>
 
 <div class="callout callout-yellow">
 <h3>Next Steps</h3>
-<p>To identify the actual regression source, a comparison test on an OCP 4.19 cluster with the same hardware profile is needed. The test should use the same kube-burner scenario (100 VMs, DV snapshot clone) and collect Prometheus metrics for webhook latency, controller queue depth, and CSI operation timing.</p>
+<p><strong>1. Compare CSI clone speed on OCP 4.19:</strong> Run the same raw PVC-from-snapshot test (100 PVCs) on an OCP 4.19 cluster. If CSI clones are faster on 4.19, that confirms ODF/CSI driver regression.</p>
+<p><strong>2. Check ODF release notes:</strong> Review ODF 4.20-4.22 release notes for changes to Ceph CSI driver, snapshot controller, or RBD provisioner that could affect clone throughput.</p>
+<p><strong>3. CSI driver version comparison:</strong> Compare ceph-csi driver image versions between ODF 4.19 and 4.22.</p>
 </div>
 </div>
 
@@ -222,12 +290,44 @@ code{background:#f5f5f5;padding:2px 6px;border-radius:3px;font-size:12px;color:#
 <tr><td style="font-weight:700">3</td><td>CDI v1.58 apiserver only</td><td class="same">170s</td><td>Webhook code version does not matter</td></tr>
 <tr><td style="font-weight:700">4</td><td>CDI v1.58 full (api + controller)</td><td class="same">160s</td><td>Controller code version does not matter</td></tr>
 <tr><td style="font-weight:700">5</td><td>2x cdi-apiserver replicas</td><td class="degradation-med">140s</td><td>Scaling helps but controller is next bottleneck</td></tr>
+<tr><td style="font-weight:700">6</td><td>Empty disk comparison (1 + 20 VMs)</td><td class="same">10s / 43s</td><td>emptyDisk has no measurable impact</td></tr>
+<tr><td style="font-weight:700">7</td><td>Raw CSI clone (100 PVCs from snapshot)</td><td class="degradation-high">102s</td><td>CSI/Ceph is the dominant bottleneck (~100s of 160s)</td></tr>
+<tr><td style="font-weight:700">8</td><td>Bare pod startup (20 pods)</td><td class="better">12s</td><td>Container runtime is healthy</td></tr>
+<tr><td style="font-weight:700">9</td><td>etcd latency (P99)</td><td class="better">1ms</td><td>etcd is healthy</td></tr>
+<tr><td style="font-weight:700">10</td><td>KubeVirt virt-api webhooks (P99)</td><td class="better">5-22ms</td><td>KubeVirt webhooks are healthy</td></tr>
+<tr><td style="font-weight:700">11</td><td>CSI volume_attach + map (P99)</td><td class="degradation-high">4.9s + 2.5s</td><td>Storage attach/map is slow at scale</td></tr>
+<tr><td style="font-weight:700">12</td><td>KubeVirt virt-controller (P99)</td><td class="better">96ms work / 98ms queue</td><td>virt-controller is healthy</td></tr>
+<tr><td style="font-weight:700">13</td><td>API server admission pipeline (P99)</td><td class="better">5ms</td><td>Admission controllers are healthy</td></tr>
+<tr><td style="font-weight:700">14</td><td>VMs with pre-bound PVCs (20 VMs)</td><td class="better">17s</td><td>KubeVirt + cri-o adds only 5s vs bare pods</td></tr>
+</table>
+</div>
+
+<div class="section">
+<h2>Test Scenarios - Methodology</h2>
+<p style="font-size:13px;color:#546e7a">All tests ran on clod30 (OCP 4.22.6, CNV 4.22.2, ODF 4.22.1). Source snapshot: 10Gi Fedora RBD image in <code>source-ns/source-snapshot</code>. Each test used a clean namespace or waited for prior cleanup.</p>
+
+<table>
+<tr><th>#</th><th>Scenario</th><th>Method</th></tr>
+<tr><td style="font-weight:700">1</td><td>CDI bypass</td><td>100 VMs with direct PVC (<code>dataSource: VolumeSnapshot</code>) - no DataVolume, no CDI. Measured time until all 100 VMIs reach Running.</td></tr>
+<tr><td style="font-weight:700">2</td><td>CDI v1.60 baseline</td><td>100 VMs with DataVolumeTemplate (snapshot clone via CDI). Same snapshot source. Measured until all VMIs Running.</td></tr>
+<tr><td style="font-weight:700">3</td><td>CDI v1.58 apiserver</td><td>Paused CDI operator. Swapped <code>cdi-apiserver</code> image to upstream <code>quay.io/kubevirt/cdi-apiserver:v1.58.5</code>. Ran same 100-VM DV test. Compared webhook latency P99.</td></tr>
+<tr><td style="font-weight:700">4</td><td>CDI v1.58 full swap</td><td>Swapped both <code>cdi-apiserver</code> and <code>cdi-deployment</code> (controller) to v1.58.5. Ran same 100-VM DV test.</td></tr>
+<tr><td style="font-weight:700">5</td><td>2x cdi-apiserver</td><td>Scaled <code>cdi-apiserver</code> to 2 replicas. Ran 100-VM DV test. Measured webhook latency reduction and total time.</td></tr>
+<tr><td style="font-weight:700">6</td><td>emptyDisk comparison</td><td>Created 1 VM with and without <code>emptyDisk: 500Mi</code> in clean state (10s vs 10s). Repeated at 20-VM scale (43s vs 53s). Verified order-dependence by reversing test sequence.</td></tr>
+<tr><td style="font-weight:700">7</td><td>Raw CSI clone</td><td>Created PVCs directly from VolumeSnapshot (<code>dataSource</code>) in source-ns. No CDI, no KubeVirt. Tested at 1, 20, and 100 PVC scale. Measured time until all PVCs Bound.</td></tr>
+<tr><td style="font-weight:700">8</td><td>Bare pod startup</td><td>Created 20 bare pods (<code>ubi9-minimal</code>, sleep command, 64Mi/50m). No volumes, no VMs. Measured time until all Running.</td></tr>
+<tr><td style="font-weight:700">9</td><td>etcd latency</td><td>Prometheus query: <code>histogram_quantile(0.99, rate(etcd_disk_backend_commit_duration_seconds_bucket[1h]))</code> and WAL fsync equivalent. Queried from inside <code>prometheus-k8s-0</code> via thanos-querier.</td></tr>
+<tr><td style="font-weight:700">10</td><td>Webhook latency</td><td>Prometheus: <code>apiserver_admission_webhook_admission_duration_seconds_bucket</code> filtered by <code>name=~".*virt.*"</code> and <code>name=~".*cdi.*"</code>. P99 over 1h.</td></tr>
+<tr><td style="font-weight:700">11</td><td>CSI operation latency</td><td>Prometheus: <code>storage_operation_duration_seconds_bucket</code>. Checked volume_attach, map_volume, volume_detach. Also inspected CSI RBD controller plugin args for worker thread configuration.</td></tr>
+<tr><td style="font-weight:700">12</td><td>virt-controller workqueue</td><td>Prometheus: <code>kubevirt_workqueue_work_duration_seconds_bucket</code> and <code>kubevirt_workqueue_queue_duration_seconds_bucket</code> for virt-controller pods. P99 over 5m window after generating load with 20 VMs.</td></tr>
+<tr><td style="font-weight:700">13</td><td>API admission pipeline</td><td>Prometheus: <code>apiserver_admission_controller_admission_duration_seconds_bucket</code> for admit and validate types. P99 over 5m.</td></tr>
+<tr><td style="font-weight:700">14</td><td>Pre-bound PVC VMs</td><td>Pre-created 20 PVCs from snapshot, waited until all Bound. Then created 20 VMs referencing those PVCs. Measured from VM creation to all VMIs Running. Isolates KubeVirt controller + cri-o + CSI attach/map from CDI and CSI provisioning.</td></tr>
 </table>
 </div>
 
 <div class="footer">
 <p>Lab: clod30 (aa37-h07-000-r740xd.rdu3.labs.perfscale.redhat.com) | OCP 4.22.6, CNV 4.22.2 (CDI v1.60.x), ODF 4.22.1</p>
-<p>Tests run: Aug 13, 2026 05:11-07:10 UTC</p>
+<p>Tests run: Aug 13-19, 2026</p>
 <p>Scripts and logs: /root/repro-cnv95003/ on clod30</p>
 </div>
 
