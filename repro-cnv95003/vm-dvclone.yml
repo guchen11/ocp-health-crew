@@ -1,0 +1,40 @@
+apiVersion: kubevirt.io/v1
+kind: VirtualMachine
+metadata:
+  name: vm-clone-{{.Replica}}-{{.JobName}}
+  labels:
+    repro: cnv95003
+spec:
+  running: true
+  template:
+    metadata:
+      labels:
+        repro: cnv95003
+    spec:
+      domain:
+        resources:
+          requests:
+            memory: 512Mi
+        devices:
+          disks:
+            - name: rootdisk
+              disk:
+                bus: virtio
+      volumes:
+        - name: rootdisk
+          dataVolume:
+            name: dv-clone-{{.Replica}}-{{.JobName}}
+  dataVolumeTemplates:
+    - metadata:
+        name: dv-clone-{{.Replica}}-{{.JobName}}
+      spec:
+        source:
+          snapshot:
+            namespace: source-ns
+            name: source-snapshot
+        storage:
+          resources:
+            requests:
+              storage: 10Gi
+          storageClassName: ocs-storagecluster-ceph-rbd-virtualization
+          volumeMode: Block

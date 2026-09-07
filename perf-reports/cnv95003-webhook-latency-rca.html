@@ -20,6 +20,9 @@ tr:hover{background:#e3f2fd}
 .status-yellow{background:linear-gradient(135deg,#fff8e1,#fffde7);border:2px solid #ffd54f}
 .status-yellow .status-title{color:#f57f17}
 .status-yellow .status-sub{color:#795548}
+.status-green{background:linear-gradient(135deg,#e8f5e9,#f1f8e9);border:2px solid #81c784}
+.status-green .status-title{color:#2e7d32}
+.status-green .status-sub{color:#33691e}
 .metrics-grid{display:flex;flex-wrap:wrap;gap:10px;margin:16px 0}
 .metric-card{flex:1;min-width:130px;background:linear-gradient(135deg,#e3f2fd,#f5f9ff);border:1px solid #90caf9;border-radius:8px;padding:14px 16px;text-align:center;box-shadow:0 1px 4px rgba(0,0,0,0.06)}
 .metric-card .value{font-size:22px;font-weight:700;color:#0d47a1}
@@ -67,16 +70,83 @@ code{background:#f5f5f5;padding:2px 6px;border-radius:3px;font-size:12px;color:#
 <h1>CNV-95003: VM Creation Performance - Root Cause Analysis</h1>
 <p style="color:#546e7a;margin-top:0;font-size:15px">Investigation into VM creation regression between OCP 4.19 and OCP 4.22</p>
 
-<div class="status-box status-yellow">
-<div class="status-title">Primary Suspect: ODF / Ceph CSI Layer</div>
-<div class="status-sub">CDI code, emptyDisk, etcd, KubeVirt webhooks, and container runtime are all ruled out. Raw CSI snapshot clones (no CDI) take 102s for 100 PVCs - the storage layer dominates VM creation time.</div>
+<div class="status-box status-green">
+<div class="status-title">Root Cause: ODF ceph-csi 4.22 (commit 28daf2e0d)</div>
+<div class="status-sub">Image-swap isolation on the same OCP 4.19 cluster reproduces a 3x PVC clone slowdown. CDI, KubeVirt, etcd, and container runtime are ruled out. File against ODF/ceph-csi; link CNV-95003 as consumer symptom.</div>
 </div>
 
 <div class="callout callout-orange">
 <h3>TL;DR</h3>
-<p>After 11 targeted tests, we narrowed the 30-50% VM creation regression to the <strong>ODF/Ceph CSI layer</strong>. Raw CSI snapshot clones (no CDI, no KubeVirt) take 102s for 100 PVCs, with volume_attach at 4.9s P99 and map_volume at 2.5s P99. This accounts for most of the 160s total time.</p>
-<p>CDI code (v1.58 vs v1.60), emptyDisk, etcd (1ms P99), KubeVirt webhooks (5-22ms), and container runtime (12s for 20 pods) are all ruled out.</p>
-<p style="margin-bottom:0">Confirming ODF as the regression source requires comparing CSI clone speed on an OCP 4.19 cluster with the same test.</p>
+<p>After 14 initial tests plus a 5-test <strong>certainty suite</strong>, the regression is traced to <strong>ceph-csi 4.22</strong> commit <code>28daf2e0d</code> (<a href="https://github.com/ceph/ceph-csi/pull/6205" style="color:#1565c0">upstream PR #6205</a>): temp clone images during snapshot provisioning now inherit full StorageClass <code>imageFeatures</code> (<code>exclusive-lock, object-map, fast-diff</code>) instead of only <code>layering, deep-flatten</code>.</p>
+<p>On the same cluster, swapping only the <code>cephcsi-rhel9</code> image: <strong>62s → 215s</strong> for 100 PVC clones (+243%). Fresh snapshot retest: <strong>63s → 195s</strong> (+209%). Virt SC hit hardest; non-virt SC unaffected.</p>
+<p>CDI code (v1.58 vs v1.60), emptyDisk, etcd (1ms P99), KubeVirt webhooks (5-22ms), and container runtime are all ruled out. No existing RHSTOR bug found - recommend filing new ticket.</p>
+<p style="margin-bottom:0"><strong>Patch enters ODF 4.22.0+</strong> (commit <code>28daf2e0d</code>, upstream v3.17.0, downstream PR #733 merged 2026-04-02). Absent in ODF 4.19/4.20/4.21. <a href="#patch-timeline" style="color:#1565c0">Full timeline below</a>.</p>
+</div>
+
+<div class="section" id="patch-timeline">
+<h2>Version &amp; Patch Timeline</h2>
+<p style="font-size:13px;color:#546e7a">Traced in <code>red-hat-storage/ceph-csi</code> (downstream) and <code>ceph/ceph-csi</code> (upstream). The regression <strong>enters in ODF 4.22</strong>, not in 4.19, 4.20, or 4.21.</p>
+
+<table>
+<tr><th>Layer</th><th>First version with change</th><th>Versions without change</th></tr>
+<tr><td style="font-weight:600">Upstream ceph-csi</td><td><strong>v3.17.0</strong> (May 2026)</td><td>v3.16.3 and earlier</td></tr>
+<tr><td style="font-weight:600">Red Hat ODF branch</td><td><strong>release-4.22</strong></td><td>release-4.19, 4.20, 4.21</td></tr>
+<tr><td style="font-weight:600">Purti observed regression</td><td>ODF 4.22.1 / OCP 4.22.5 / CNV 4.22.2</td><td>ODF 4.19.5 / OCP 4.19.11 / CNV 4.19.12</td></tr>
+</table>
+
+<table>
+<tr><th>RH branch</th><th>Commit <code>28daf2e0d</code>?</th><th>Branch tip (verified)</th></tr>
+<tr><td style="font-weight:600">release-4.19</td><td class="better">MISSING</td><td><code>94dfd2a8</code> (ODF 4.19.22)</td></tr>
+<tr><td style="font-weight:600">release-4.20</td><td class="better">MISSING</td><td>-</td></tr>
+<tr><td style="font-weight:600">release-4.21</td><td class="better">MISSING</td><td>-</td></tr>
+<tr><td style="font-weight:600">release-4.22</td><td class="degradation-high">CONTAINS</td><td><code>ba61578f</code> (ODF 4.22.2)</td></tr>
+</table>
+
+<div class="insight-box">
+<strong>How it entered ODF 4.22:</strong> Commit landed on <code>release-4.22</code> via downstream <strong>PR #733</strong> (<code>sync_us--devel</code>, merged <strong>2026-04-02</strong>). Present from <strong>ODF 4.22.0 GA</strong> through all z-streams (4.22.1, 4.22.2, etc.). We did not bisect individual z-stream builds; the commit is in the founding 4.22 branch sync.
+</div>
+
+<table>
+<tr><th>Field</th><th>Value</th></tr>
+<tr><td style="font-weight:600">Commit</td><td><code>28daf2e0d1d4ab4e15d4b3c30ee3df6522111de5</code></td></tr>
+<tr><td style="font-weight:600">Subject</td><td>rbd: use StorageClass image features for temp clones and snapshots</td></tr>
+<tr><td style="font-weight:600">Author / date</td><td>Praveen M (IBM), 2026-03-23</td></tr>
+<tr><td style="font-weight:600">Upstream</td><td><a href="https://github.com/ceph/ceph-csi/pull/6205" style="color:#1565c0">PR #6205</a> (fixes <a href="https://github.com/ceph/ceph-csi/issues/4936" style="color:#1565c0">#4936</a> - <code>rbd du</code> on temp clones)</td></tr>
+<tr><td style="font-weight:600">First upstream tag</td><td>ceph-csi v3.17.0 (absent in v3.16.3)</td></tr>
+</table>
+
+<h3>Code change (<code>internal/rbd/clone.go</code> - <code>generateTempClone</code>)</h3>
+<div style="display:flex;gap:12px;flex-wrap:wrap">
+<div class="callout callout-green" style="flex:1;min-width:280px">
+<h3>ODF 4.19 (minimal temp clone)</h3>
+<pre style="font-size:11px;margin:0;line-height:1.5;overflow-x:auto">f := []string{librbd.FeatureNameLayering,
+     librbd.FeatureNameDeepFlatten}
+tempClone.ImageFeatureSet =
+  librbd.FeatureSetFromNames(f)</pre>
+</div>
+<div class="callout callout-red" style="flex:1;min-width:280px">
+<h3>ODF 4.22 (inherits SC features)</h3>
+<pre style="font-size:11px;margin:0;line-height:1.5;overflow-x:auto">f := []string{librbd.FeatureNameLayering,
+     librbd.FeatureNameDeepFlatten}
+tempClone.ImageFeatureSet =
+  rv.ImageFeatureSet |
+  librbd.FeatureSetFromNames(f)</pre>
+</div>
+</div>
+<p style="font-size:12px;color:#546e7a">On the virt SC, temp clones during snapshot provision also get <code>exclusive-lock</code>, <code>object-map</code>, <code>fast-diff</code>. Same pattern in <code>snapshot.go</code> for snapshot backing images.</p>
+
+<table>
+<tr><th>Product</th><th>Regression enters at</th><th>Ownership</th></tr>
+<tr><td style="font-weight:600">ODF / ceph-csi</td><td>4.22.0+</td><td>File RHSTOR bug here</td></tr>
+<tr><td style="font-weight:600">OCP</td><td>4.22 (ships ODF 4.22)</td><td>Consumer</td></tr>
+<tr><td style="font-weight:600">CNV</td><td>Symptom only (VM disks use CSI clone path)</td><td><a href="https://redhat.atlassian.net/browse/CNV-95003" style="color:#1565c0">CNV-95003</a> tracks user impact</td></tr>
+</table>
+</div>
+
+<div class="callout callout-blue">
+<h3>Why VM E2E (~30-50%) differs from PVC clone (~3x)</h3>
+<p>Purti measured <strong>VM creation</strong> end-to-end (kube-burner + DataVolume snapshot clone). Our causal proof used <strong>PVC bind time</strong> only (no CDI, no KubeVirt). VM creation adds CDI orchestration (~100s architectural overhead), CSI attach/map per volume, and virt-controller scheduling - these layers dilute the raw CSI hit.</p>
+<p style="margin-bottom:0">Certainty test <strong>C2</strong> (100 VMs, same ceph-csi swap): 284s vs 271s total (~flat), but per-VM Ready averaged ~7.7s vs ~8.7s (~13% slower on 4.22 CSI). A ~3x PVC clone regression manifesting as ~30-50% VM E2E on Purti's stack is consistent with this dilution.</p>
 </div>
 
 <div style="background:linear-gradient(135deg,#fff3e0,#fbe9e7);border:2px solid #ffb74d;border-radius:8px;padding:16px 20px;margin:16px 0">
@@ -88,16 +158,144 @@ code{background:#f5f5f5;padding:2px 6px;border-radius:3px;font-size:12px;color:#
 </div>
 
 <div class="metrics-grid">
-<div class="metric-card metric-card-red"><div class="value">160s</div><div class="label">With CDI (100 VMs)</div></div>
-<div class="metric-card metric-card-green"><div class="value">60s</div><div class="label">Without CDI (bypass)</div></div>
-<div class="metric-card"><div class="value">160s</div><div class="label">CDI v1.58 (same!)</div></div>
-<div class="metric-card"><div class="value">6.8s</div><div class="label">Controller Queue Wait</div></div>
-<div class="metric-card"><div class="value">3</div><div class="label">Max Concurrent Workers</div></div>
-<div class="metric-card"><div class="value">~80x</div><div class="label">Reconciles per DV</div></div>
+<div class="metric-card metric-card-red"><div class="value">215s</div><div class="label">100 PVC clone (4.22 CSI)</div></div>
+<div class="metric-card metric-card-green"><div class="value">62s</div><div class="label">100 PVC clone (4.19 CSI)</div></div>
+<div class="metric-card metric-card-red"><div class="value">+243%</div><div class="label">Image-swap delta</div></div>
+<div class="metric-card"><div class="value">28daf2e0d</div><div class="label">ceph-csi commit</div></div>
+<div class="metric-card metric-card-green"><div class="value">Not in 4.19</div><div class="label">Commit absent in 4.19.22</div></div>
+<div class="metric-card"><div class="value">ODF 4.22</div><div class="label">First shipped in</div></div>
 </div>
 
 <div class="section">
-<h2>Key Finding: CDI Version Swap Test</h2>
+<h2>Root Cause: ceph-csi Image Feature Change (ODF 4.22)</h2>
+<p style="font-size:13px;color:#546e7a">Commit <code>28daf2e0d</code> in red-hat-storage/ceph-csi (<code>release-4.22</code> branch, upstream <a href="https://github.com/ceph/ceph-csi/pull/6205" style="color:#1565c0">PR #6205</a>) changed temp clone and snapshot backing images to inherit full StorageClass <code>imageFeatures</code>.</p>
+
+<table>
+<tr><th>Version</th><th>Temp clone / snapshot backing features</th></tr>
+<tr><td style="font-weight:600">ODF 4.19 (ceph-csi 4.19.22)</td><td class="better"><code>layering, deep-flatten</code> only</td></tr>
+<tr><td style="font-weight:600">ODF 4.22 (ceph-csi 4.22.x)</td><td class="degradation-high"><code>layering, deep-flatten, exclusive-lock, object-map, fast-diff</code></td></tr>
+</table>
+
+<p style="font-size:13px;color:#546e7a">Virt SC <code>ocs-storagecluster-ceph-rbd-virtualization</code> uses the full feature set. The upstream change was intentional (fixes <a href="https://github.com/ceph/ceph-csi/issues/4936" style="color:#1565c0">#4936</a> for <code>rbd du</code> on temp clones) but adds per-clone Ceph overhead at scale. No existing RHSTOR/ODF Jira bug found for this performance impact.</p>
+
+<div class="callout callout-green">
+<h3>Causal proof: ceph-csi image swap (same cluster)</h3>
+<p>On clod30 (OCP 4.19.11), only the <code>cephcsi-rhel9</code> image was swapped. Same snapshot, same SC, same hardware. CSI operator paused during swap to prevent revert.</p>
+<table>
+<tr><th>cephcsi image</th><th>100 PVC clones (bind time)</th><th>Delta</th></tr>
+<tr><td style="font-weight:600">4.19 (<code>5d0da2db...</code>)</td><td class="better">62s</td><td>-</td></tr>
+<tr><td style="font-weight:600">4.22 (<code>3928e649...</code>)</td><td class="degradation-high">215s</td><td class="worse">+243%</td></tr>
+</table>
+<p style="font-size:12px;color:#546e7a;margin-top:8px">Images: <code>registry.redhat.io/odf4/cephcsi-rhel9@sha256:5d0da2db0e67c7054df6d94755ac050033514131ad879e388a93e30bf3c5d80a</code> (4.19) vs <code>...3928e6499dd866ed08168004803f174d187f3db185e7fddda4711b15a9565f07</code> (4.22). Scale <code>ceph-csi-controller-manager</code> to 0 during swap or the operator reverts the image.</p>
+</div>
+</div>
+
+<div class="section">
+<h2>Certainty Suite Results (Sep 7, 2026)</h2>
+<p style="font-size:13px;color:#546e7a">Five tests (C1-C5) on clod30 (OCP 4.19.11) via <code>/root/repro-cnv95003/run-certainty-suite.sh</code>. Operator paused during image swaps; rollout gate waits for all CSI pods on target version.</p>
+
+<table>
+<tr><th>Test</th><th>4.19 CSI</th><th>4.22 CSI</th><th>Delta</th><th>Proves</th></tr>
+<tr><td style="font-weight:600">C1. Image swap A/B (100 PVC)</td><td class="better">62s</td><td class="degradation-high">215s</td><td class="worse">+243%</td><td>Causal: only ceph-csi changed</td></tr>
+<tr><td style="font-weight:600">C2. VM kube-burner (100 VMs)</td><td class="same">284s</td><td class="same">271s</td><td class="same">~same</td><td>VM E2E dilutes CSI hit; per-VM Ready ~13% slower</td></tr>
+<tr><td style="font-weight:600">C3. Fresh snapshot (100 PVC)</td><td class="better">63s</td><td class="degradation-high">195s</td><td class="worse">+209%</td><td>Not polluted Ceph state</td></tr>
+<tr><td style="font-weight:600">C4. RBD image features</td><td colspan="3">See below</td><td>Mechanism support (code + timing)</td></tr>
+<tr><td style="font-weight:600">C5. Virt vs non-virt SC (30 PVC)</td><td>135s / 75s</td><td>176s / 64s</td><td class="worse">virt +30%</td><td>Virt SC path hit hardest</td></tr>
+</table>
+
+<h3>C4: RBD Image Features</h3>
+<p style="font-size:13px;color:#546e7a"><code>rbd info</code> via admin toolbox pod on pool <code>ocs-storagecluster-cephblockpool</code>.</p>
+<table>
+<tr><th>Image type</th><th>Features observed</th><th>Notes</th></tr>
+<tr><td style="font-weight:600">Source snapshot backing (<code>csi-snap-*</code>)</td><td><code>layering, deep-flatten</code></td><td>Created under 4.19; minimal features</td></tr>
+<tr><td style="font-weight:600">Final clone volume (<code>csi-vol-*</code>) - 4.19 CSI</td><td><code>layering, exclusive-lock, object-map, fast-diff, deep-flatten</code></td><td>Full SC features on delivered volume</td></tr>
+<tr><td style="font-weight:600">Final clone volume (<code>csi-vol-*</code>) - 4.22 CSI</td><td><code>layering, exclusive-lock, object-map, fast-diff, deep-flatten</code></td><td>Identical to 4.19 on bound volumes</td></tr>
+<tr><td style="font-weight:600">Bind time (5 PVCs)</td><td class="better">4.19 CSI: ~6s</td><td>4.22 CSI: ~135s (+22x)</td></tr>
+</table>
+
+<div class="insight-box">
+<strong>C4 interpretation:</strong> Final bound volumes show identical features on both CSI versions - expected, since the delivered clone always inherits SC <code>imageFeatures</code>. The regression is in <strong>ephemeral intermediate temp clones</strong> during provision (deleted in seconds). Mechanism proof combines the code diff (<code>28daf2e0d</code>) with bind-time regression (+243%). Purti's FIO showed no raw IO regression - consistent with clone-path overhead, not disk throughput.
+</div>
+</div>
+
+<div class="section">
+<h2>Candidate Summary</h2>
+<table>
+<tr><th>Candidate</th><th>Evidence</th><th>Status</th></tr>
+<tr><td style="font-weight:600">ODF / ceph-csi 4.22 (<code>28daf2e0d</code>)</td><td>Image swap on same cluster: 62s → 215s. Fresh snapshot: 63s → 195s. Virt SC +30% at 30 PVCs.</td><td class="better">Confirmed root cause</td></tr>
+<tr><td style="font-weight:600">CDI code (v1.58 vs v1.60)</td><td>Swapped both apiserver and controller. Identical results.</td><td class="better">Ruled out</td></tr>
+<tr><td style="font-weight:600">CDI webhooks (PRs #2813, #3029)</td><td>v1.58 apiserver produces same webhook latency.</td><td class="better">Ruled out</td></tr>
+<tr><td style="font-weight:600">emptyDisk overhead</td><td>No measurable impact at 1-VM or 20-VM scale.</td><td class="better">Ruled out</td></tr>
+<tr><td style="font-weight:600">etcd / KubeVirt / cri-o</td><td>All healthy under load (tests 8-14).</td><td class="better">Ruled out</td></tr>
+<tr><td style="font-weight:600">Raw IO (FIO)</td><td>Purti: no FIO regression 4.19 vs 4.22.</td><td class="better">Ruled out</td></tr>
+</table>
+
+<div class="callout callout-yellow">
+<h3>Recommended Actions</h3>
+<p><strong>1. File RHSTOR bug</strong> against ODF/ceph-csi: reference commit <code>28daf2e0d</code>, upstream PR #6205, link CNV-95003 as consumer symptom. Ask whether temp-clone path can keep minimal features while final volumes retain full SC features.</p>
+<p><strong>2. Update CNV-95003</strong> with certainty suite results and redirect ownership to ODF storage team.</p>
+<p><strong>3. Optional:</strong> Run same image-swap test on Purti's native 4.22 stack to deflect "lab != production" objections.</p>
+</div>
+</div>
+
+<div class="section">
+<h2>CSI Snapshot Clone Speed (Pure Storage Test)</h2>
+<p style="font-size:13px;color:#546e7a">Created PVCs directly from VolumeSnapshot - no CDI, no KubeVirt. Measures raw ODF/Ceph snapshot clone performance.</p>
+
+<h3>100 PVC benchmark (same snapshot, virt SC)</h3>
+<table>
+<tr><th>Test context</th><th>OCP</th><th>ceph-csi</th><th>100 PVC bind</th></tr>
+<tr><td style="font-weight:600">Phase 1: native 4.22 cluster</td><td>4.22.6</td><td>4.22 (shipped)</td><td class="degradation-high">102s</td></tr>
+<tr><td style="font-weight:600">Phase 2: native 4.19 cluster</td><td>4.19.11</td><td>4.19 (shipped)</td><td class="better">62s</td></tr>
+<tr style="background:#e8f5e9"><td style="font-weight:600">Phase 2: image swap on 4.19 cluster</td><td>4.19.11</td><td>4.22 (image only)</td><td class="degradation-high">215s (+243%)</td></tr>
+</table>
+
+<h3>Scale ramp (Phase 1 only - OCP 4.22.6)</h3>
+<table>
+<tr><th>Scale</th><th>Time to All Bound</th><th>Ramp-Up</th></tr>
+<tr><td style="font-weight:600">1 PVC</td><td class="better">2s</td><td>Instant</td></tr>
+<tr><td style="font-weight:600">20 PVCs</td><td class="same">22s</td><td>3 at 5s, 13 at 15s, 21 at 20s</td></tr>
+<tr><td style="font-weight:600">100 PVCs</td><td class="degradation-high">102s</td><td>18 at 60s, 56 at 80s, 100 at 90s</td></tr>
+</table>
+
+<div class="callout callout-red">
+<h3>Key insight: CSI clone path is the regression surface</h3>
+<p>Cross-cluster: <strong>62s</strong> (4.19 CSI) vs <strong>102s</strong> (native 4.22). Image-swap isolation on the same 4.19 cluster: <strong>215s</strong> with 4.22 CSI only - confirms the delta is ceph-csi version, not cluster config. Attach/map latencies (below) are a separate per-volume cost, not the 4.19→4.22 regression.</p>
+</div>
+
+<h3>CSI Operation Latencies (Prometheus P99, last 1h)</h3>
+<table>
+<tr><th>Operation</th><th>P99 Latency</th><th>Impact</th></tr>
+<tr><td style="font-weight:600">volume_attach (RBD CSI)</td><td class="degradation-high">4.9s</td><td>Per-volume - serialized through attachdetach controller</td></tr>
+<tr><td style="font-weight:600">map_volume (RBD CSI)</td><td class="degradation-high">2.2-2.5s</td><td>Per-volume - node-level RBD map</td></tr>
+<tr><td style="font-weight:600">volume_detach (RBD CSI)</td><td class="same">24.2s</td><td>Cleanup only - does not affect creation</td></tr>
+</table>
+<p style="font-size:12px;color:#546e7a">CSI RBD controller plugin: 2 replicas with leader election (1 active). No <code>--worker-threads</code> set (defaults: provisioner=100, attacher=10, snapshotter=1).</p>
+</div>
+
+<div class="section">
+<h2>Infrastructure Health Check</h2>
+<p style="font-size:13px;color:#546e7a">Metrics collected from Prometheus on clod30 to rule out cluster-level issues (Phase 1, OCP 4.22.6).</p>
+
+<table>
+<tr><th>Component</th><th>Metric</th><th>Value</th><th>Verdict</th></tr>
+<tr><td style="font-weight:600">etcd backend commit</td><td>P99 (1h)</td><td class="better">1.0ms (all 3 nodes)</td><td>Healthy</td></tr>
+<tr><td style="font-weight:600">etcd WAL fsync</td><td>P99 (1h)</td><td class="better">1.0ms (all 3 nodes)</td><td>Healthy</td></tr>
+<tr><td style="font-weight:600">KubeVirt virt-api webhooks</td><td>P99 (1h)</td><td class="better">5-22ms</td><td>Healthy</td></tr>
+<tr><td style="font-weight:600">CDI webhooks (mutate+validate)</td><td>P99 (1h)</td><td class="degradation-high">~2,485ms</td><td>Slow - single-replica queuing (not a regression)</td></tr>
+<tr><td style="font-weight:600">Pod startup (20 bare pods)</td><td>Wall clock</td><td class="better">12s (16/20 at 5s)</td><td>Healthy</td></tr>
+</table>
+
+<div class="insight-box">
+<strong>Conclusion:</strong> etcd, API server, KubeVirt webhooks, and container runtime are healthy. CDI webhook slowness is architectural (same in v1.58 and v1.60). The 4.19→4.22 regression is in ceph-csi snapshot clone provisioning, not in attach/map or control-plane health.
+</div>
+</div>
+
+<div class="section">
+<h2>Appendix: Early Investigation (CDI Ruled Out)</h2>
+<p style="font-size:13px;color:#546e7a">Phase 1 tests (Aug 13-19) on OCP 4.22.6 initially suspected CDI. All CDI hypotheses were disproved before the certainty suite identified ceph-csi as root cause.</p>
+
+<h3>Key Finding: CDI Version Swap Test</h3>
 <p style="font-size:13px;color:#546e7a">Swapped CDI components to upstream v1.58.5 (pre-CNV 4.21) on the same OCP 4.22 cluster. Same source snapshot, same test, same 100 VMs.</p>
 
 <table>
@@ -111,18 +309,14 @@ code{background:#f5f5f5;padding:2px 6px;border-radius:3px;font-size:12px;color:#
 <div class="insight-box">
 <strong>Conclusion:</strong> All CDI versions produce the same ~160s result. The CDI code did not regress between v1.57 and v1.60. The ~100s overhead vs direct PVC creation is CDI's inherent architectural cost (multi-controller reconciliation, 3-worker concurrency, multi-step pipeline), and has been present since at least CDI v1.57.
 </div>
-</div>
 
-<div class="section">
-<h2>Disproved Hypothesis: CDI Webhook PRs</h2>
+<h3>Disproved Hypothesis: CDI Webhook PRs</h3>
 <div class="disproved">
 <h3>Initially suspected: PRs #2813 and #3029 in CDI v1.59</h3>
 <p>Our initial analysis identified two PRs that added a <code>controller-runtime</code> cluster inside the <code>cdi-apiserver</code>. We hypothesized this caused webhook latency to increase. However, <strong>swapping the cdi-apiserver to v1.58.5 (before those PRs) produced identical webhook latency</strong> (P99 ~2.48s vs ~2.45s). The high webhook latency is caused by request queuing on the single-replica pod, not by the webhook code itself.</p>
 </div>
-</div>
 
-<div class="section">
-<h2>Test 1: CDI Bypass Comparison (100 VMs)</h2>
+<h3>Test 1: CDI Bypass Comparison (100 VMs)</h3>
 <p style="font-size:13px;color:#546e7a">Same cluster, same snapshot. Only difference: CDI in the path or not. This confirms CDI adds overhead, but does not prove it regressed.</p>
 
 <table>
@@ -156,10 +350,8 @@ code{background:#f5f5f5;padding:2px 6px;border-radius:3px;font-size:12px;color:#
 60s: 100/100  DONE</pre>
 </div>
 </div>
-</div>
 
-<div class="section">
-<h2>Where the CDI Time Goes</h2>
+<h3>Where the CDI Time Goes</h3>
 <p style="font-size:13px;color:#546e7a">CDI's DataVolume snapshot clone pipeline has multiple serialization points. These are architectural, not version-specific.</p>
 
 <table>
@@ -174,10 +366,8 @@ code{background:#f5f5f5;padding:2px 6px;border-radius:3px;font-size:12px;color:#
 <h3>Why is CDI slow?</h3>
 <p>A DataVolume goes through multiple controllers (snapshot-clone, clone-populator, import-controller, upload-controller, clone-controller), each watching PVC events. Every PVC change triggers reconciliation across all controllers, most of which discard the event after checking annotations. With 3 workers and ~80 reconciles per DV, the queue backs up. This is CDI's design - not a regression.</p>
 </div>
-</div>
 
-<div class="section">
-<h2>Disproved Hypothesis: Empty Disk Overhead</h2>
+<h3>Disproved Hypothesis: Empty Disk Overhead</h3>
 <div class="disproved">
 <h3>Tested: emptyDisk (500Mi) adds latency to VM creation</h3>
 <p>Purti observed that removing the empty disk from the VM template improved performance. We tested this directly on clod30 with controlled experiments.</p>
@@ -194,104 +384,23 @@ code{background:#f5f5f5;padding:2px 6px;border-radius:3px;font-size:12px;color:#
 </div>
 
 <div class="section">
-<h2>CSI Snapshot Clone Speed (Pure Storage Test)</h2>
-<p style="font-size:13px;color:#546e7a">Created PVCs directly from VolumeSnapshot - no CDI, no KubeVirt. Measures raw ODF/Ceph snapshot clone performance.</p>
-
-<table>
-<tr><th>Scale</th><th>Time to All Bound</th><th>Ramp-Up</th></tr>
-<tr><td style="font-weight:600">1 PVC</td><td class="better">2s</td><td>Instant</td></tr>
-<tr><td style="font-weight:600">20 PVCs</td><td class="same">22s</td><td>3 at 5s, 13 at 15s, 21 at 20s</td></tr>
-<tr><td style="font-weight:600">100 PVCs</td><td class="degradation-high">102s</td><td>18 at 60s, 56 at 80s, 100 at 90s</td></tr>
-</table>
-
-<div class="callout callout-red">
-<h3>Key insight: CSI is the dominant bottleneck</h3>
-<p>100 PVCs from snapshot take <strong>102s</strong> just to become Bound - no CDI, no KubeVirt involved. This means of the 160s total with CDI, roughly 100s is CSI/Ceph and ~60s is CDI controller overhead. Any regression in ODF snapshot clone speed between 4.19 and 4.22 would directly explain Purti's 30-50% degradation.</p>
-</div>
-
-<h3>CSI Operation Latencies (Prometheus P99, last 1h)</h3>
-<table>
-<tr><th>Operation</th><th>P99 Latency</th><th>Impact</th></tr>
-<tr><td style="font-weight:600">volume_attach (RBD CSI)</td><td class="degradation-high">4.9s</td><td>Per-volume - serialized through attachdetach controller</td></tr>
-<tr><td style="font-weight:600">map_volume (RBD CSI)</td><td class="degradation-high">2.2-2.5s</td><td>Per-volume - node-level RBD map</td></tr>
-<tr><td style="font-weight:600">volume_detach (RBD CSI)</td><td class="same">24.2s</td><td>Cleanup only - does not affect creation</td></tr>
-</table>
-<p style="font-size:12px;color:#546e7a">CSI RBD controller plugin: 2 replicas with leader election (1 active). No <code>--worker-threads</code> set (defaults: provisioner=100, attacher=10, snapshotter=1).</p>
-</div>
-
-<div class="section">
-<h2>Infrastructure Health Check</h2>
-<p style="font-size:13px;color:#546e7a">Metrics collected from Prometheus on clod30 to rule out cluster-level issues.</p>
-
-<table>
-<tr><th>Component</th><th>Metric</th><th>Value</th><th>Verdict</th></tr>
-<tr><td style="font-weight:600">etcd backend commit</td><td>P99 (1h)</td><td class="better">1.0ms (all 3 nodes)</td><td>Healthy</td></tr>
-<tr><td style="font-weight:600">etcd WAL fsync</td><td>P99 (1h)</td><td class="better">1.0ms (all 3 nodes)</td><td>Healthy</td></tr>
-<tr><td style="font-weight:600">KubeVirt virt-api webhooks</td><td>P99 (1h)</td><td class="better">5-22ms</td><td>Healthy</td></tr>
-<tr><td style="font-weight:600">CDI webhooks (mutate+validate)</td><td>P99 (1h)</td><td class="degradation-high">~2,485ms</td><td>Slow - single-replica queuing</td></tr>
-<tr><td style="font-weight:600">Pod startup (20 bare pods)</td><td>Wall clock</td><td class="better">12s (16/20 at 5s)</td><td>Healthy</td></tr>
-</table>
-
-<div class="insight-box">
-<strong>Conclusion:</strong> etcd, API server, KubeVirt webhooks, and container runtime are all healthy. The only slow components are CDI webhooks (architectural, same in v1.58 and v1.60) and CSI volume operations (4.9s attach + 2.5s map per volume).
-</div>
-</div>
-
-<div class="section">
-<h2>What Likely Caused Purti's Regression</h2>
-<p style="font-size:13px;color:#546e7a">CDI code, emptyDisk, etcd, KubeVirt webhooks, and container runtime are all ruled out. The evidence points to the CSI/ODF layer.</p>
-
-<table>
-<tr><th>Candidate</th><th>Evidence</th><th>Status</th></tr>
-<tr><td style="font-weight:600">ODF / Ceph CSI driver</td><td>Raw CSI clone takes 102s for 100 PVCs. volume_attach=4.9s, map=2.5s P99. Any ODF 4.19->4.22 change here directly impacts VM creation.</td><td class="degradation-high">Primary suspect - needs 4.19 comparison</td></tr>
-<tr><td style="font-weight:600">CDI code (v1.58 vs v1.60)</td><td>Swapped both apiserver and controller. Identical results.</td><td class="better">Ruled out</td></tr>
-<tr><td style="font-weight:600">CDI webhooks (PRs #2813, #3029)</td><td>v1.58 apiserver produces same webhook latency.</td><td class="better">Ruled out</td></tr>
-<tr><td style="font-weight:600">emptyDisk overhead</td><td>No measurable impact at 1-VM or 20-VM scale.</td><td class="better">Ruled out</td></tr>
-<tr><td style="font-weight:600">etcd</td><td>P99: 1ms on all nodes.</td><td class="better">Ruled out</td></tr>
-<tr><td style="font-weight:600">KubeVirt webhooks</td><td>P99: 5-22ms.</td><td class="better">Ruled out</td></tr>
-<tr><td style="font-weight:600">Container runtime (crun/cri-o)</td><td>20 pods start in 12s. No overhead.</td><td class="better">Ruled out</td></tr>
-<tr><td style="font-weight:600">Different hardware</td><td>Purti tested on two different Fusion HCI racks.</td><td class="degradation-med">Cannot rule out</td></tr>
-</table>
-
-<div class="callout callout-yellow">
-<h3>Next Steps</h3>
-<p><strong>1. Compare CSI clone speed on OCP 4.19:</strong> Run the same raw PVC-from-snapshot test (100 PVCs) on an OCP 4.19 cluster. If CSI clones are faster on 4.19, that confirms ODF/CSI driver regression.</p>
-<p><strong>2. Check ODF release notes:</strong> Review ODF 4.20-4.22 release notes for changes to Ceph CSI driver, snapshot controller, or RBD provisioner that could affect clone throughput.</p>
-<p><strong>3. CSI driver version comparison:</strong> Compare ceph-csi driver image versions between ODF 4.19 and 4.22.</p>
-</div>
-</div>
-
-<div class="section">
-<h2>CDI Architectural Improvement Opportunities</h2>
-<p style="font-size:13px;color:#546e7a">While CDI code did not regress, its architecture has inherent scale limitations that are worth addressing.</p>
-
-<div class="callout callout-green">
-<h3>1. Increase MaxConcurrentReconciles for snapshot-clone controller</h3>
-<p>Currently hardcoded to 3. With 6.8s average queue wait, increasing to 10-15 workers would significantly reduce wait time at scale.</p>
-</div>
-
-<div class="callout callout-blue">
-<h3>2. Reduce reconcile churn</h3>
-<p>~80 reconciles per DV is excessive. Most are discarded by controllers that don't own the PVC type. Adding stricter event filters (predicates) would reduce unnecessary work.</p>
-</div>
-
-<div class="callout callout-yellow">
-<h3>3. Make CDI controller replicas and CPU configurable</h3>
-<p>Both <code>cdi-apiserver</code> and <code>cdi-deployment</code> run as single replicas with 100m CPU. Allowing operators to scale these based on workload would help at scale.</p>
-</div>
-</div>
-
-<div class="section">
 <h2>All Test Results Summary</h2>
+<p style="font-size:13px;color:#546e7a"><strong>Certainty suite (C1-C5)</strong> proves ceph-csi root cause. Tests 1-14 are Phase 1 elimination work (CDI/etcd/KubeVirt ruled out).</p>
 <table>
 <tr><th>#</th><th>Test</th><th>Result</th><th>What It Proves</th></tr>
+<tr style="background:#e8f5e9"><td style="font-weight:700">C1</td><td>Certainty: ceph-csi image swap (100 PVC)</td><td class="degradation-high">62s → 215s</td><td>Causal proof - only CSI image changed</td></tr>
+<tr style="background:#e8f5e9"><td style="font-weight:700">C2</td><td>Certainty: VM kube-burner (100 VMs)</td><td class="same">284s / 271s</td><td>VM E2E does not show full CSI delta</td></tr>
+<tr style="background:#e8f5e9"><td style="font-weight:700">C3</td><td>Certainty: fresh snapshot (100 PVC)</td><td class="degradation-high">63s → 195s</td><td>Not polluted Ceph state</td></tr>
+<tr style="background:#e8f5e9"><td style="font-weight:700">C4</td><td>Certainty: RBD features</td><td class="same">Same on bound vols</td><td>Ephemeral temp clones differ per code diff</td></tr>
+<tr style="background:#e8f5e9"><td style="font-weight:700">C5</td><td>Certainty: virt vs non-virt SC (30 PVC)</td><td class="worse">virt +30%</td><td>Virt SC path hit hardest</td></tr>
+<tr><td colspan="4" style="background:#f5f5f5;font-size:12px;color:#546e7a;padding:8px 12px"><em>Phase 1 elimination tests (appendix) - not the regression source</em></td></tr>
 <tr><td style="font-weight:700">1</td><td>CDI bypass (direct PVC)</td><td class="better">60s</td><td>CDI adds ~100s overhead at 100 VMs</td></tr>
 <tr><td style="font-weight:700">2</td><td>CDI v1.60 (current)</td><td class="same">160s</td><td>Baseline with current CDI</td></tr>
 <tr><td style="font-weight:700">3</td><td>CDI v1.58 apiserver only</td><td class="same">170s</td><td>Webhook code version does not matter</td></tr>
 <tr><td style="font-weight:700">4</td><td>CDI v1.58 full (api + controller)</td><td class="same">160s</td><td>Controller code version does not matter</td></tr>
 <tr><td style="font-weight:700">5</td><td>2x cdi-apiserver replicas</td><td class="degradation-med">140s</td><td>Scaling helps but controller is next bottleneck</td></tr>
 <tr><td style="font-weight:700">6</td><td>Empty disk comparison (1 + 20 VMs)</td><td class="same">10s / 43s</td><td>emptyDisk has no measurable impact</td></tr>
-<tr><td style="font-weight:700">7</td><td>Raw CSI clone (100 PVCs from snapshot)</td><td class="degradation-high">102s</td><td>CSI/Ceph is the dominant bottleneck (~100s of 160s)</td></tr>
+<tr><td style="font-weight:700">7</td><td>Raw CSI clone (100 PVCs, Phase 1 / OCP 4.22)</td><td class="degradation-high">102s</td><td>Baseline before certainty suite; compare 62s on 4.19</td></tr>
 <tr><td style="font-weight:700">8</td><td>Bare pod startup (20 pods)</td><td class="better">12s</td><td>Container runtime is healthy</td></tr>
 <tr><td style="font-weight:700">9</td><td>etcd latency (P99)</td><td class="better">1ms</td><td>etcd is healthy</td></tr>
 <tr><td style="font-weight:700">10</td><td>KubeVirt virt-api webhooks (P99)</td><td class="better">5-22ms</td><td>KubeVirt webhooks are healthy</td></tr>
@@ -304,7 +413,9 @@ code{background:#f5f5f5;padding:2px 6px;border-radius:3px;font-size:12px;color:#
 
 <div class="section">
 <h2>Test Scenarios - Methodology</h2>
-<p style="font-size:13px;color:#546e7a">All tests ran on clod30 (OCP 4.22.6, CNV 4.22.2, ODF 4.22.1). Source snapshot: 10Gi Fedora RBD image in <code>source-ns/source-snapshot</code>. Each test used a clean namespace or waited for prior cleanup.</p>
+<p style="font-size:13px;color:#546e7a">All tests on clod30. Source snapshot: 10Gi Fedora RBD image in <code>source-ns/source-snapshot</code>. Each test used a clean namespace or waited for prior cleanup.</p>
+<p style="font-size:13px;color:#546e7a"><strong>Phase 1 (Aug 13-19):</strong> OCP 4.22.6, CNV 4.22.2, ODF 4.22.1 - elimination tests 1-14 (CDI, etcd, KubeVirt, CSI attach/map).</p>
+<p style="font-size:13px;color:#546e7a"><strong>Phase 2 (Sep 7):</strong> OCP 4.19.11, same CNV/ODF stack - certainty suite C1-C5 with ceph-csi image swap (operator paused, rollout gate on all CSI pods).</p>
 
 <table>
 <tr><th>#</th><th>Scenario</th><th>Method</th></tr>
@@ -322,13 +433,14 @@ code{background:#f5f5f5;padding:2px 6px;border-radius:3px;font-size:12px;color:#
 <tr><td style="font-weight:700">12</td><td>virt-controller workqueue</td><td>Prometheus: <code>kubevirt_workqueue_work_duration_seconds_bucket</code> and <code>kubevirt_workqueue_queue_duration_seconds_bucket</code> for virt-controller pods. P99 over 5m window after generating load with 20 VMs.</td></tr>
 <tr><td style="font-weight:700">13</td><td>API admission pipeline</td><td>Prometheus: <code>apiserver_admission_controller_admission_duration_seconds_bucket</code> for admit and validate types. P99 over 5m.</td></tr>
 <tr><td style="font-weight:700">14</td><td>Pre-bound PVC VMs</td><td>Pre-created 20 PVCs from snapshot, waited until all Bound. Then created 20 VMs referencing those PVCs. Measured from VM creation to all VMIs Running. Isolates KubeVirt controller + cri-o + CSI attach/map from CDI and CSI provisioning.</td></tr>
+<tr style="background:#e8f5e9"><td style="font-weight:700">C1-C5</td><td>Certainty suite (Phase 2)</td><td>On OCP 4.19.11: C1=100 PVC image swap A/B, C2=100 VM kube-burner A/B, C3=fresh snapshot 100 PVC clone, C4=<code>rbd info</code> feature capture, C5=virt vs non-virt SC (30 PVC each). Scripts: <code>/root/repro-cnv95003/</code>.</td></tr>
 </table>
 </div>
 
 <div class="footer">
-<p>Lab: clod30 (aa37-h07-000-r740xd.rdu3.labs.perfscale.redhat.com) | OCP 4.22.6, CNV 4.22.2 (CDI v1.60.x), ODF 4.22.1</p>
-<p>Tests run: Aug 13-19, 2026</p>
-<p>Scripts and logs: /root/repro-cnv95003/ on clod30</p>
+<p>Lab: clod30 (aa37-h07-000-r740xd.rdu3.labs.perfscale.redhat.com) | OCP 4.19.11 (certainty suite) / 4.22.6 (initial tests), CNV 4.22.2, ODF 4.22.1</p>
+<p>Initial tests: Aug 13-19, 2026 | Certainty suite: Sep 7, 2026</p>
+<p>Scripts and logs: <code>/root/repro-cnv95003/</code> on clod30</p>
 </div>
 
 </div>

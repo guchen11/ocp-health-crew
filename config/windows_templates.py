@@ -2,9 +2,7 @@
 
 from config.template_builder import build_template
 
-_WINDOWS_IMAGE = (
-    'http://f01-h08-000-1029u.rdu2.scalelab.redhat.com:9002/winmssql2022.qcow2'
-)
+_WINDOWS_IMAGE = 'pvc://openshift-virtualization-os-images/windows-golden'
 
 _WINDOWS_ENV = {'windowsImageUrl': _WINDOWS_IMAGE}
 

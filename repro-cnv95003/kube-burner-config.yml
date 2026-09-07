@@ -1,0 +1,19 @@
+---
+global:
+  gc: false
+  measurements:
+    - name: podLatency
+jobs:
+  - name: vm-dvclone-density
+    namespace: vm-density
+    jobIterations: 2
+    qps: 10
+    burst: 10
+    namespacedIterations: true
+    cleanup: false
+    waitWhenFinished: true
+    maxWaitTimeout: 30m
+    podWait: true
+    objects:
+      - objectTemplate: vm-dvclone.yml
+        replicas: 50

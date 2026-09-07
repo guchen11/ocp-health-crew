@@ -1,0 +1,98 @@
+<h2>CNV-95003: Extended Evidence - CDI Webhook Latency Root Cause</h2>
+<p><b>Lab:</b> clod30 | <b>OCP:</b> 4.22.6 | <b>CNV:</b> 4.22.2 (CDI v1.60.x)<br>
+<b>Date:</b> Aug 13, 2026 - Follow-up to earlier CDI bypass comparison email</p>
+
+<h3>Evidence 1: Serial vs Concurrent DV Creation Latency</h3>
+<p>Created DataVolumes one at a time with 2s gaps (serial), then 50 DVs simultaneously (burst).</p>
+<table border='1' cellpadding='6' cellspacing='0' style='border-collapse:collapse;'>
+<tr style='background:#f0f0f0;'><th>Test</th><th>Per-DV API Call Time</th><th>Notes</th></tr>
+<tr style='background:#e8ffe8;'><td>Serial (1 at a time)</td><td><b>121-134ms (avg 125ms)</b></td><td>Both webhooks + SAR check complete in ~125ms</td></tr>
+<tr style='background:#ffe0e0;'><td>Concurrent (50 DVs burst)</td><td><b>~384ms avg (19.2s / 50)</b></td><td>3x slower per DV due to queuing</td></tr>
+<tr style='background:#ffe0e0;'><td>Concurrent (100 DVs via VMs)</td><td><b>P50=780ms, P99=2450ms</b></td><td>19x worse at P99 vs serial baseline</td></tr>
+</table>
+<p><b>Conclusion:</b> The webhook itself is reasonably fast when idle (~125ms). The latency is caused by single-replica serialization under concurrent load.</p>
+
+<h3>Evidence 2: CDI API Server Infrastructure</h3>
+<table border='1' cellpadding='6' cellspacing='0' style='border-collapse:collapse;'>
+<tr><td>Replicas</td><td><b>1</b> (hardcoded by CDI operator)</td></tr>
+<tr><td>CPU request</td><td>100m (no limit)</td></tr>
+<tr><td>Memory request</td><td>150Mi (no limit)</td></tr>
+<tr><td>Actual RSS</td><td>58MB idle, grows under load</td></tr>
+<tr><td>Threads</td><td>27</td></tr>
+<tr><td>Webhook timeout</td><td>30s (failurePolicy=Fail)</td></tr>
+<tr><td>Registered webhooks</td><td>5 (datavolume-mutate, datavolume-validate, pvc-mutate, dataimportcron-validate, populator-validate, cdi-validate)</td></tr>
+</table>
+
+<h3>Evidence 3: 2-Replica Scaling Test</h3>
+<p>Paused the CDI operator and scaled the API server to 2 replicas. Ran the same 100-VM test.</p>
+<table border='1' cellpadding='6' cellspacing='0' style='border-collapse:collapse;'>
+<tr style='background:#f0f0f0;'><th>Metric</th><th>1 Replica</th><th>2 Replicas</th><th>Improvement</th></tr>
+<tr><td>Time to 100 VMIs Running</td><td>160s</td><td>140s</td><td>12.5% faster</td></tr>
+<tr><td>VMIs Running at 60s</td><td>7</td><td>28</td><td><b>4x more</b></td></tr>
+<tr><td>Mutate webhook P50</td><td>0.78s</td><td>0.42s</td><td><b>46% lower latency</b></td></tr>
+</table>
+<p>The early ramp-up improved dramatically (4x more VMs running at 60s). Total time improved less because the CDI controller (also single-replica, 100m CPU request) becomes the next bottleneck after the webhook.</p>
+
+<h3>Evidence 4: Prometheus Webhook Latency Breakdown</h3>
+<table border='1' cellpadding='6' cellspacing='0' style='border-collapse:collapse;'>
+<tr style='background:#f0f0f0;'><th>Webhook</th><th>P50</th><th>P95</th><th>P99</th></tr>
+<tr style='background:#ffe0e0;'><td>datavolume-mutate</td><td>780ms</td><td>2.27s</td><td>2.45s</td></tr>
+<tr style='background:#ffe0e0;'><td>datavolume-validate</td><td>3ms</td><td>1.88s</td><td>2.38s</td></tr>
+<tr style='background:#e8ffe8;'><td>populator-validate</td><td>2.5ms</td><td>4.8ms</td><td>5ms</td></tr>
+</table>
+<p>The mutate webhook is slower because it performs a SubjectAccessReview (SAR) for clone authorization. The validate webhook P50 is fast but P95/P99 spikes under load due to queuing behind the mutate webhook on the same single-replica server.</p>
+
+<h3>Evidence 5: Source Code Comparison (CDI v1.57 vs v1.60)</h3>
+<p>Compared the upstream CDI source code between v1.57.1 (CNV 4.19) and v1.60.5 (CNV 4.22):</p>
+
+<p><b>Key architectural change introduced in CDI v1.59.0 (CNV 4.21):</b></p>
+<p>Two PRs transformed the CDI API server from a lean webhook handler into a heavier process:</p>
+
+<ol>
+<li><b><a href="https://github.com/kubevirt/containerized-data-importer/pull/2813">PR #2813</a></b> - "Add PVC spec mutating webhook rendering based on StorageProfiles"
+<ul>
+<li>Added <code>cluster.New(cfg)</code> + <code>cluster.Start(ctx)</code> - starts a full controller-runtime cluster with informers and caches inside the API server</li>
+<li>Added <code>CreateAvailablePersistentVolumeIndex()</code> - field indexers for PVs</li>
+<li>Added new PVC mutating webhook (<code>pvc-mutate</code>)</li>
+<li>Registered schemes for CoreV1, CDI, VolumeSnapshots</li>
+</ul></li>
+<li><b><a href="https://github.com/kubevirt/containerized-data-importer/pull/3029">PR #3029</a></b> - "Feature Gate and annotation for PVCs to be adopted by DataVolumes"
+<ul>
+<li>Added <code>ClaimMayExistBeforeDataVolume()</code> to the validate webhook</li>
+<li>This reads CDIConfig via controller-runtime client on every validation to check feature gates</li>
+<li>Added <code>controllerRuntimeClient</code> dependency to the validation webhook</li>
+</ul></li>
+</ol>
+
+<p><b>In CDI v1.57 (CNV 4.19):</b> The API server was a lightweight process with only direct k8s API clients. No informers, no caches, no field indexes. The webhook handlers made direct API calls only when needed.</p>
+
+<p><b>In CDI v1.59+ (CNV 4.21+):</b> The API server now runs a full controller-runtime cluster alongside webhook handling. Under concurrent load, the informers, caches, and event processing compete with webhook requests for CPU/memory on the single-replica pod.</p>
+
+<p><b>Ironically</b>, the validate webhook actually does <i>fewer</i> API calls in v1.60 than v1.57 (<a href="https://github.com/kubevirt/containerized-data-importer/pull/3331">PR #3331</a> removed source PVC/snapshot validation from the webhook). But the infrastructure overhead of the embedded controller-runtime cluster more than offsets this improvement.</p>
+
+<h3>Evidence Summary</h3>
+<table border='1' cellpadding='6' cellspacing='0' style='border-collapse:collapse;'>
+<tr style='background:#f0f0f0;'><th>#</th><th>Evidence</th><th>What It Proves</th></tr>
+<tr><td>1</td><td>Serial DV: 125ms, Concurrent P99: 2.45s</td><td>Single-replica serialization causes 19x latency increase under load</td></tr>
+<tr><td>2</td><td>No CDI: 60s, With CDI: 160s for 100 VMs</td><td>CDI webhooks are the primary bottleneck (2.67x slower)</td></tr>
+<tr><td>3</td><td>2 replicas: 4x more VMs at 60s, P50 halved</td><td>Adding replicas directly reduces webhook queuing</td></tr>
+<tr><td>4</td><td>CDI API server: 1 replica, 100m CPU, no limits</td><td>Severely under-provisioned for concurrent webhook handling</td></tr>
+<tr><td>5</td><td>Code: controller-runtime cluster added in v1.59</td><td>Infrastructure overhead added to webhook-serving process</td></tr>
+</table>
+
+<h3>Root Cause (Refined)</h3>
+<p>The regression has two contributing factors:</p>
+<ol>
+<li><b>Architectural change (v1.59/CNV 4.21):</b> Adding a controller-runtime cluster inside the single-replica CDI API server increased its resource footprint and added background work competing with webhook handling</li>
+<li><b>Operational limitation:</b> The CDI operator hardcodes the API server to 1 replica with only 100m CPU request. This was tolerable in v1.57 (lean webhook handler) but insufficient for v1.59+ (heavier process)</li>
+</ol>
+
+<h3>Recommended Fixes</h3>
+<ol>
+<li><b>Immediate:</b> Allow CDI API server replica count to be configurable (currently hardcoded to 1 by the CDI operator). 2 replicas halved the P50 webhook latency.</li>
+<li><b>Short-term:</b> Increase default CPU request from 100m to at least 500m, or add an HPA.</li>
+<li><b>Medium-term:</b> Move the controller-runtime cluster out of the API server process, or make it lazy-load only when the WebhookPvcRendering feature gate is enabled.</li>
+<li><b>Long-term:</b> Re-evaluate whether the SubjectAccessReview in the mutate webhook can be cached or batched.</li>
+</ol>
+
+<p style='color:gray;font-size:0.9em;'>All test scripts and logs saved on clod30 at /root/repro-cnv95003/</p>
