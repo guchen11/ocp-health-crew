@@ -4,59 +4,313 @@
 <meta charset="utf-8">
 <title>CNV-95003: VM Creation Performance - Root Cause Analysis</title>
 <style>
-body{font-family:'Segoe UI',Roboto,Arial,sans-serif;color:#1a1a2e;margin:0;padding:20px;background:#f5f5f5}
-h1{color:#0d47a1;border-bottom:3px solid #1565c0;padding-bottom:10px;font-size:24px;margin-bottom:4px}
-h2{color:#1565c0;margin-top:32px;font-size:17px;border-left:4px solid #1565c0;padding-left:10px}
-h3{color:#37474f;font-size:15px;margin-top:20px}
-.container{max-width:960px;margin:0 auto;background:#fff;padding:32px;border-radius:10px;box-shadow:0 3px 12px rgba(0,0,0,0.08)}
-table{border-collapse:collapse;width:100%;margin:12px 0;font-size:13px}
-th{background:#1565c0;color:#fff;padding:9px 12px;text-align:left;font-weight:600}
-td{padding:8px 12px;border-bottom:1px solid #e0e0e0}
-tr:nth-child(even){background:#f8f9fa}
-tr:hover{background:#e3f2fd}
-.status-box{border-radius:10px;padding:22px 24px;margin:20px 0 16px 0;text-align:center;box-shadow:0 4px 14px rgba(0,0,0,0.1)}
-.status-box .status-title{font-size:22px;font-weight:700}
-.status-box .status-sub{font-size:14px;margin-top:6px}
-.status-yellow{background:linear-gradient(135deg,#fff8e1,#fffde7);border:2px solid #ffd54f}
-.status-yellow .status-title{color:#f57f17}
-.status-yellow .status-sub{color:#795548}
-.status-green{background:linear-gradient(135deg,#e8f5e9,#f1f8e9);border:2px solid #81c784}
-.status-green .status-title{color:#2e7d32}
-.status-green .status-sub{color:#33691e}
-.metrics-grid{display:flex;flex-wrap:wrap;gap:10px;margin:16px 0}
-.metric-card{flex:1;min-width:130px;background:linear-gradient(135deg,#e3f2fd,#f5f9ff);border:1px solid #90caf9;border-radius:8px;padding:14px 16px;text-align:center;box-shadow:0 1px 4px rgba(0,0,0,0.06)}
-.metric-card .value{font-size:22px;font-weight:700;color:#0d47a1}
-.metric-card .label{font-size:11px;color:#546e7a;margin-top:5px;text-transform:uppercase;letter-spacing:0.3px}
-.metric-card-red{background:linear-gradient(135deg,#ffebee,#fff5f5);border:1px solid #ef9a9a}
-.metric-card-red .value{color:#c62828}
-.metric-card-green{background:linear-gradient(135deg,#e8f5e9,#f1f8e9);border:1px solid #81c784}
-.metric-card-green .value{color:#2e7d32}
-.callout{border-radius:8px;padding:16px 20px;margin:14px 0;font-size:13px;line-height:1.7}
-.callout h3{margin:0 0 8px 0;font-size:15px}
-.callout-green{background:linear-gradient(135deg,#e8f5e9,#f1f8e9);border:2px solid #81c784}
-.callout-green h3{color:#2e7d32}
-.callout-blue{background:linear-gradient(135deg,#e3f2fd,#f0f7ff);border:2px solid #64b5f6}
-.callout-blue h3{color:#1565c0}
-.callout-yellow{background:linear-gradient(135deg,#fff8e1,#fffde7);border:2px solid #ffd54f}
-.callout-yellow h3{color:#f57f17}
-.callout-red{background:linear-gradient(135deg,#ffebee,#fce4ec);border:2px solid #ef9a9a}
-.callout-red h3{color:#c62828}
-.callout-orange{background:linear-gradient(135deg,#fff3e0,#fbe9e7);border:2px solid #ffb74d}
-.callout-orange h3{color:#e65100}
-.degradation-high{color:#f44336;font-weight:600}
-.degradation-med{color:#ff9800;font-weight:600}
-.degradation-low{color:#4caf50;font-weight:600}
-.better{color:#2e7d32;font-weight:700}
-.worse{color:#c62828;font-weight:700}
-.same{color:#546e7a;font-weight:600}
-.section{margin-bottom:28px}
-.insight-box{background:linear-gradient(135deg,#e8eaf6,#f3e5f5);border:1px solid #b39ddb;border-radius:8px;padding:14px 18px;margin:14px 0;font-size:13px;line-height:1.6}
-.disproved{background:linear-gradient(135deg,#fce4ec,#ffebee);border:2px solid #ef9a9a;border-radius:8px;padding:14px 18px;margin:14px 0;font-size:13px;line-height:1.6;text-decoration:none}
-.disproved h3{color:#c62828;margin:0 0 8px 0}
-.footer{margin-top:30px;padding-top:15px;border-top:2px solid #e0e0e0;font-size:12px;color:#78909c}
-code{background:#f5f5f5;padding:2px 6px;border-radius:3px;font-size:12px;color:#c62828}
+:root{
+  --bg:#f0f4f8;
+  --surface:#fff;
+  --text:#1e293b;
+  --muted:#64748b;
+  --border:#e2e8f0;
+  --primary:#1d4ed8;
+  --primary-soft:#eff6ff;
+  --success:#15803d;
+  --success-bg:#f0fdf4;
+  --success-border:#86efac;
+  --warn:#b45309;
+  --warn-bg:#fffbeb;
+  --warn-border:#fcd34d;
+  --danger:#b91c1c;
+  --danger-bg:#fef2f2;
+  --danger-border:#fca5a5;
+  --code-bg:#f1f5f9;
+  --code-text:#334155;
+  --radius:12px;
+  --shadow:0 1px 3px rgba(15,23,42,.08),0 4px 16px rgba(15,23,42,.06);
+}
+*{box-sizing:border-box}
+body{
+  font-family:'Segoe UI',system-ui,-apple-system,Roboto,Arial,sans-serif;
+  color:var(--text);
+  margin:0;
+  padding:32px 20px 48px;
+  background:var(--bg);
+  line-height:1.65;
+  font-size:15px;
+  -webkit-font-smoothing:antialiased;
+}
+a{color:var(--primary);text-decoration:none;font-weight:500}
+a:hover{text-decoration:underline}
+.container{
+  max-width:920px;
+  margin:0 auto;
+  background:var(--surface);
+  padding:40px 44px;
+  border-radius:var(--radius);
+  box-shadow:var(--shadow);
+  border:1px solid var(--border);
+}
+.report-header{
+  margin-bottom:28px;
+  padding-bottom:20px;
+  border-bottom:1px solid var(--border);
+}
+.report-header h1{
+  color:#0f172a;
+  font-size:1.75rem;
+  font-weight:700;
+  letter-spacing:-.02em;
+  margin:0 0 8px;
+  line-height:1.25;
+  border:none;
+  padding:0;
+}
+.report-meta{
+  color:var(--muted);
+  font-size:.95rem;
+  margin:0;
+}
+.report-meta strong{color:var(--text);font-weight:600}
+.toc{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  margin:0 0 28px;
+  padding:14px 16px;
+  background:var(--primary-soft);
+  border:1px solid #bfdbfe;
+  border-radius:10px;
+  font-size:.82rem;
+}
+.toc a{
+  padding:4px 10px;
+  background:#fff;
+  border-radius:6px;
+  border:1px solid #dbeafe;
+  color:#1e40af;
+}
+.toc a:hover{background:#dbeafe;text-decoration:none}
+h2{
+  color:#0f172a;
+  margin:36px 0 14px;
+  font-size:1.15rem;
+  font-weight:700;
+  letter-spacing:-.01em;
+  border:none;
+  padding:0;
+  display:flex;
+  align-items:center;
+  gap:10px;
+}
+h2::before{
+  content:'';
+  width:4px;
+  height:1.1em;
+  background:var(--primary);
+  border-radius:2px;
+  flex-shrink:0;
+}
+h3{color:#334155;font-size:1rem;font-weight:600;margin:22px 0 10px}
+.lead{color:var(--muted);font-size:.92rem;margin:0 0 16px;max-width:72ch}
+table{
+  border-collapse:separate;
+  border-spacing:0;
+  width:100%;
+  margin:14px 0 20px;
+  font-size:.88rem;
+  border:1px solid var(--border);
+  border-radius:10px;
+  overflow:hidden;
+}
+th{
+  background:#1e40af;
+  color:#fff;
+  padding:11px 14px;
+  text-align:left;
+  font-weight:600;
+  font-size:.8rem;
+  letter-spacing:.02em;
+  text-transform:uppercase;
+}
+td{padding:10px 14px;border-bottom:1px solid var(--border);vertical-align:top}
+tr:last-child td{border-bottom:none}
+tbody tr:nth-child(even){background:#f8fafc}
+tbody tr:hover{background:#eff6ff}
+.status-box{
+  border-radius:var(--radius);
+  padding:20px 24px;
+  margin:24px 0;
+  text-align:left;
+  border:1px solid var(--success-border);
+  background:var(--success-bg);
+}
+.status-box .status-title{
+  font-size:1.1rem;
+  font-weight:700;
+  color:var(--success);
+  margin-bottom:6px;
+}
+.status-box .status-sub{
+  font-size:.92rem;
+  color:#166534;
+  line-height:1.6;
+  max-width:72ch;
+}
+.status-green{background:var(--success-bg);border-color:var(--success-border)}
+.status-green .status-title{color:var(--success)}
+.status-green .status-sub{color:#166534}
+.status-yellow{background:var(--warn-bg);border-color:var(--warn-border)}
+.status-yellow .status-title{color:var(--warn)}
+.status-yellow .status-sub{color:#92400e}
+.metrics-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin:20px 0}
+.metric-card{
+  background:#f8fafc;
+  border:1px solid var(--border);
+  border-radius:10px;
+  padding:16px;
+  text-align:center;
+}
+.metric-card .value{font-size:1.35rem;font-weight:700;color:#1e40af;line-height:1.2}
+.metric-card .label{font-size:.7rem;color:var(--muted);margin-top:6px;text-transform:uppercase;letter-spacing:.04em;font-weight:600}
+.metric-card-red{border-color:#fecaca;background:var(--danger-bg)}
+.metric-card-red .value{color:var(--danger)}
+.metric-card-green{border-color:#bbf7d0;background:var(--success-bg)}
+.metric-card-green .value{color:var(--success)}
+.callout{
+  border-radius:var(--radius);
+  padding:18px 22px;
+  margin:18px 0;
+  font-size:.92rem;
+  line-height:1.65;
+  border:1px solid var(--border);
+}
+.callout h3{margin:0 0 12px;font-size:.95rem;font-weight:700}
+.callout ul{margin:0;padding-left:1.25rem}
+.callout li{margin-bottom:8px}
+.callout li:last-child{margin-bottom:0}
+.callout-green{background:var(--success-bg);border-color:var(--success-border)}
+.callout-green h3{color:var(--success)}
+.callout-blue{background:var(--primary-soft);border-color:#bfdbfe}
+.callout-blue h3{color:#1e40af}
+.callout-yellow{background:var(--warn-bg);border-color:var(--warn-border)}
+.callout-yellow h3{color:var(--warn)}
+.callout-red{background:var(--danger-bg);border-color:var(--danger-border)}
+.callout-red h3{color:var(--danger)}
+.callout-orange{background:#fff7ed;border-color:#fdba74}
+.callout-orange h3{color:#c2410c}
+.degradation-high{color:var(--danger);font-weight:600}
+.degradation-med{color:#d97706;font-weight:600}
+.degradation-low{color:var(--success);font-weight:600}
+.better{color:var(--success);font-weight:600}
+.worse{color:var(--danger);font-weight:600}
+.same{color:var(--muted);font-weight:500}
+.badge{
+  display:inline-block;
+  padding:2px 10px;
+  border-radius:999px;
+  font-size:.75rem;
+  font-weight:700;
+  letter-spacing:.03em;
+  text-transform:uppercase;
+}
+.badge-ok{background:#dcfce7;color:#166534}
+.badge-alert{background:#fee2e2;color:#991b1b}
+.section{margin-bottom:32px;padding-bottom:8px}
+.section-timeline{background:#fafbfc;border:1px solid var(--border);border-radius:var(--radius);padding:24px 28px;margin:24px 0}
+.insight-box{
+  background:#f5f3ff;
+  border:1px solid #ddd6fe;
+  border-left:4px solid #7c3aed;
+  border-radius:0 10px 10px 0;
+  padding:14px 18px;
+  margin:16px 0;
+  font-size:.9rem;
+  line-height:1.6;
+  color:#4c1d95;
+}
+.disproved{
+  background:var(--danger-bg);
+  border:1px solid var(--danger-border);
+  border-radius:var(--radius);
+  padding:16px 20px;
+  margin:14px 0;
+  font-size:.9rem;
+  line-height:1.6;
+}
+.disproved h3{color:var(--danger);margin:0 0 8px;font-size:.95rem}
+.jira-box{
+  background:#fff7ed;
+  border:1px solid #fdba74;
+  border-radius:var(--radius);
+  padding:18px 22px;
+  margin:20px 0;
+}
+.jira-box h3{color:#c2410c;margin:0 0 10px;font-size:.95rem}
+.jira-box p{font-size:.9rem;line-height:1.6;margin:0}
+.jira-box .related{font-size:.82rem;color:var(--muted);margin-top:10px}
+.code-compare{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:14px 0}
+@media(max-width:640px){.code-compare{grid-template-columns:1fr}}
+.code-compare pre{
+  font-family:'Cascadia Code','Fira Code',Consolas,monospace;
+  font-size:.75rem;
+  line-height:1.55;
+  margin:0;
+  padding:12px 14px;
+  background:#0f172a;
+  color:#e2e8f0;
+  border-radius:8px;
+  overflow-x:auto;
+}
+.code-compare .callout{margin:0;padding:14px 16px}
+.code-compare .callout h3{font-size:.82rem;margin-bottom:8px}
+.footer{
+  margin-top:36px;
+  padding-top:20px;
+  border-top:1px solid var(--border);
+  font-size:.82rem;
+  color:var(--muted);
+  line-height:1.6;
+}
+code{
+  background:var(--code-bg);
+  padding:2px 6px;
+  border-radius:4px;
+  font-size:.84em;
+  color:var(--code-text);
+  font-family:'Cascadia Code','Fira Code',Consolas,monospace;
+  font-weight:500;
+  border:1px solid #e2e8f0;
+}
+.callout code,.insight-box code,.status-box code{background:#fff}
+.appendix{
+  margin-top:40px;
+  padding-top:28px;
+  border-top:2px dashed var(--border);
+}
+.appendix > h2::before{background:#94a3b8}
+.appendix-label{
+  display:inline-block;
+  font-size:.72rem;
+  font-weight:700;
+  text-transform:uppercase;
+  letter-spacing:.06em;
+  color:var(--muted);
+  background:#f1f5f9;
+  padding:3px 8px;
+  border-radius:4px;
+  margin-bottom:8px;
+}
+.row-sep td{
+  background:#f1f5f9!important;
+  font-size:.78rem;
+  color:var(--muted);
+  font-style:italic;
+  padding:8px 14px;
+  border-bottom:1px solid var(--border);
+}
 @media print{
   *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  body{background:#fff;padding:0}
+  .container{box-shadow:none;border:none;padding:24px}
+  .toc{display:none}
   table,.metrics-grid,.status-box,.callout,.section{page-break-inside:avoid!important;break-inside:avoid!important}
   tr{page-break-inside:avoid!important}
   thead{display:table-header-group}
@@ -67,79 +321,99 @@ code{background:#f5f5f5;padding:2px 6px;border-radius:3px;font-size:12px;color:#
 <body>
 <div class="container">
 
-<h1>CNV-95003: VM Creation Performance - Root Cause Analysis</h1>
-<p style="color:#546e7a;margin-top:0;font-size:15px">Investigation into VM creation regression between OCP 4.19 and OCP 4.22</p>
+<div class="report-header">
+<h1>CNV-95003: VM Creation Performance</h1>
+<p class="report-meta">Root cause analysis &middot; OCP 4.19 vs 4.22 &middot; Lab: clod30 &middot; Sep 2026</p>
+</div>
+
+<nav class="toc" aria-label="Report sections">
+  <a href="#patch-timeline">Patch timeline</a>
+  <a href="#certainty">Certainty suite</a>
+  <a href="#root-cause">Root cause</a>
+  <a href="#results">All results</a>
+  <a href="#appendix">Appendix (CDI)</a>
+</nav>
 
 <div class="status-box status-green">
-<div class="status-title">Root Cause: ODF ceph-csi 4.22 (commit 28daf2e0d)</div>
-<div class="status-sub">Image-swap isolation on the same OCP 4.19 cluster reproduces a 3x PVC clone slowdown. CDI, KubeVirt, etcd, and container runtime are ruled out. File against ODF/ceph-csi; link CNV-95003 as consumer symptom.</div>
+<div class="status-title">Root cause: ODF ceph-csi 4.22</div>
+<div class="status-sub">Commit <code>28daf2e0d</code> - temp snapshot clones inherit full StorageClass image features. Image-swap on the same cluster reproduces a 3x PVC clone slowdown. CDI, KubeVirt, etcd ruled out. File RHSTOR bug; link <a href="https://redhat.atlassian.net/browse/CNV-95003">CNV-95003</a> as consumer symptom.</div>
 </div>
 
 <div class="callout callout-orange">
-<h3>TL;DR</h3>
-<p>After 14 initial tests plus a 5-test <strong>certainty suite</strong>, the regression is traced to <strong>ceph-csi 4.22</strong> commit <code>28daf2e0d</code> (<a href="https://github.com/ceph/ceph-csi/pull/6205" style="color:#1565c0">upstream PR #6205</a>): temp clone images during snapshot provisioning now inherit full StorageClass <code>imageFeatures</code> (<code>exclusive-lock, object-map, fast-diff</code>) instead of only <code>layering, deep-flatten</code>.</p>
-<p>On the same cluster, swapping only the <code>cephcsi-rhel9</code> image: <strong>62s → 215s</strong> for 100 PVC clones (+243%). Fresh snapshot retest: <strong>63s → 195s</strong> (+209%). Virt SC hit hardest; non-virt SC unaffected.</p>
-<p>CDI code (v1.58 vs v1.60), emptyDisk, etcd (1ms P99), KubeVirt webhooks (5-22ms), and container runtime are all ruled out. No existing RHSTOR bug found - recommend filing new ticket.</p>
-<p style="margin-bottom:0"><strong>Patch enters ODF 4.22.0+</strong> (commit <code>28daf2e0d</code>, upstream v3.17.0, downstream PR #733 merged 2026-04-02). Absent in ODF 4.19/4.20/4.21. <a href="#patch-timeline" style="color:#1565c0">Full timeline below</a>.</p>
+<h3>Summary</h3>
+<ul>
+<li><strong>What broke:</strong> ceph-csi 4.22 commit <code>28daf2e0d</code> (<a href="https://github.com/ceph/ceph-csi/pull/6205">PR #6205</a>) - temp clones get <code>exclusive-lock, object-map, fast-diff</code> instead of only <code>layering, deep-flatten</code>.</li>
+<li><strong>Proof:</strong> Same cluster, swap only <code>cephcsi-rhel9</code> image - 100 PVC clones: <strong>62s &rarr; 215s</strong> (+243%). Fresh snapshot: <strong>63s &rarr; 195s</strong>.</li>
+<li><strong>Ruled out:</strong> CDI v1.58 vs v1.60, emptyDisk, etcd (1ms P99), KubeVirt webhooks, container runtime.</li>
+<li><strong>When it entered:</strong> ODF <strong>4.22.0+</strong> via PR #733 (2026-04-02). Absent in 4.19/4.20/4.21. <a href="#patch-timeline">Full timeline</a>.</li>
+</ul>
 </div>
 
-<div class="section" id="patch-timeline">
+<div class="section section-timeline" id="patch-timeline">
 <h2>Version &amp; Patch Timeline</h2>
-<p style="font-size:13px;color:#546e7a">Traced in <code>red-hat-storage/ceph-csi</code> (downstream) and <code>ceph/ceph-csi</code> (upstream). The regression <strong>enters in ODF 4.22</strong>, not in 4.19, 4.20, or 4.21.</p>
+<p class="lead">Traced in <code>red-hat-storage/ceph-csi</code> and <code>ceph/ceph-csi</code>. Regression enters in <strong>ODF 4.22 only</strong>.</p>
 
 <table>
-<tr><th>Layer</th><th>First version with change</th><th>Versions without change</th></tr>
-<tr><td style="font-weight:600">Upstream ceph-csi</td><td><strong>v3.17.0</strong> (May 2026)</td><td>v3.16.3 and earlier</td></tr>
-<tr><td style="font-weight:600">Red Hat ODF branch</td><td><strong>release-4.22</strong></td><td>release-4.19, 4.20, 4.21</td></tr>
-<tr><td style="font-weight:600">Purti observed regression</td><td>ODF 4.22.1 / OCP 4.22.5 / CNV 4.22.2</td><td>ODF 4.19.5 / OCP 4.19.11 / CNV 4.19.12</td></tr>
+<thead><tr><th>Layer</th><th>First version with change</th><th>Versions without change</th></tr></thead>
+<tbody>
+<tr><td>Upstream ceph-csi</td><td><strong>v3.17.0</strong> (May 2026)</td><td>v3.16.3 and earlier</td></tr>
+<tr><td>Red Hat ODF branch</td><td><strong>release-4.22</strong></td><td>release-4.19, 4.20, 4.21</td></tr>
+<tr><td>Purti observed regression</td><td>ODF 4.22.1 / OCP 4.22.5 / CNV 4.22.2</td><td>ODF 4.19.5 / OCP 4.19.11 / CNV 4.19.12</td></tr>
+</tbody>
 </table>
 
 <table>
-<tr><th>RH branch</th><th>Commit <code>28daf2e0d</code>?</th><th>Branch tip (verified)</th></tr>
-<tr><td style="font-weight:600">release-4.19</td><td class="better">MISSING</td><td><code>94dfd2a8</code> (ODF 4.19.22)</td></tr>
-<tr><td style="font-weight:600">release-4.20</td><td class="better">MISSING</td><td>-</td></tr>
-<tr><td style="font-weight:600">release-4.21</td><td class="better">MISSING</td><td>-</td></tr>
-<tr><td style="font-weight:600">release-4.22</td><td class="degradation-high">CONTAINS</td><td><code>ba61578f</code> (ODF 4.22.2)</td></tr>
+<thead><tr><th>RH branch</th><th>Commit present?</th><th>Branch tip (verified)</th></tr></thead>
+<tbody>
+<tr><td>release-4.19</td><td><span class="badge badge-ok">Missing</span></td><td><code>94dfd2a8</code> (ODF 4.19.22)</td></tr>
+<tr><td>release-4.20</td><td><span class="badge badge-ok">Missing</span></td><td>-</td></tr>
+<tr><td>release-4.21</td><td><span class="badge badge-ok">Missing</span></td><td>-</td></tr>
+<tr><td>release-4.22</td><td><span class="badge badge-alert">Present</span></td><td><code>ba61578f</code> (ODF 4.22.2)</td></tr>
+</tbody>
 </table>
 
 <div class="insight-box">
-<strong>How it entered ODF 4.22:</strong> Commit landed on <code>release-4.22</code> via downstream <strong>PR #733</strong> (<code>sync_us--devel</code>, merged <strong>2026-04-02</strong>). Present from <strong>ODF 4.22.0 GA</strong> through all z-streams (4.22.1, 4.22.2, etc.). We did not bisect individual z-stream builds; the commit is in the founding 4.22 branch sync.
+<strong>How it entered ODF 4.22:</strong> Downstream <strong>PR #733</strong> (<code>sync_us--devel</code>, merged <strong>2026-04-02</strong>). Present from ODF 4.22.0 GA through all z-streams.
 </div>
 
 <table>
-<tr><th>Field</th><th>Value</th></tr>
-<tr><td style="font-weight:600">Commit</td><td><code>28daf2e0d1d4ab4e15d4b3c30ee3df6522111de5</code></td></tr>
-<tr><td style="font-weight:600">Subject</td><td>rbd: use StorageClass image features for temp clones and snapshots</td></tr>
-<tr><td style="font-weight:600">Author / date</td><td>Praveen M (IBM), 2026-03-23</td></tr>
-<tr><td style="font-weight:600">Upstream</td><td><a href="https://github.com/ceph/ceph-csi/pull/6205" style="color:#1565c0">PR #6205</a> (fixes <a href="https://github.com/ceph/ceph-csi/issues/4936" style="color:#1565c0">#4936</a> - <code>rbd du</code> on temp clones)</td></tr>
-<tr><td style="font-weight:600">First upstream tag</td><td>ceph-csi v3.17.0 (absent in v3.16.3)</td></tr>
+<thead><tr><th>Field</th><th>Value</th></tr></thead>
+<tbody>
+<tr><td>Commit</td><td><code>28daf2e0d1d4ab4e15d4b3c30ee3df6522111de5</code></td></tr>
+<tr><td>Subject</td><td>rbd: use StorageClass image features for temp clones and snapshots</td></tr>
+<tr><td>Author / date</td><td>Praveen M (IBM), 2026-03-23</td></tr>
+<tr><td>Upstream</td><td><a href="https://github.com/ceph/ceph-csi/pull/6205">PR #6205</a> (fixes <a href="https://github.com/ceph/ceph-csi/issues/4936">#4936</a>)</td></tr>
+<tr><td>First upstream tag</td><td>ceph-csi v3.17.0 (absent in v3.16.3)</td></tr>
+</tbody>
 </table>
 
-<h3>Code change (<code>internal/rbd/clone.go</code> - <code>generateTempClone</code>)</h3>
-<div style="display:flex;gap:12px;flex-wrap:wrap">
-<div class="callout callout-green" style="flex:1;min-width:280px">
-<h3>ODF 4.19 (minimal temp clone)</h3>
-<pre style="font-size:11px;margin:0;line-height:1.5;overflow-x:auto">f := []string{librbd.FeatureNameLayering,
+<h3>Code change: <code>generateTempClone</code> in <code>internal/rbd/clone.go</code></h3>
+<div class="code-compare">
+<div class="callout callout-green">
+<h3>ODF 4.19 - minimal features</h3>
+<pre>f := []string{librbd.FeatureNameLayering,
      librbd.FeatureNameDeepFlatten}
 tempClone.ImageFeatureSet =
   librbd.FeatureSetFromNames(f)</pre>
 </div>
-<div class="callout callout-red" style="flex:1;min-width:280px">
-<h3>ODF 4.22 (inherits SC features)</h3>
-<pre style="font-size:11px;margin:0;line-height:1.5;overflow-x:auto">f := []string{librbd.FeatureNameLayering,
+<div class="callout callout-red">
+<h3>ODF 4.22 - inherits SC features</h3>
+<pre>f := []string{librbd.FeatureNameLayering,
      librbd.FeatureNameDeepFlatten}
 tempClone.ImageFeatureSet =
   rv.ImageFeatureSet |
   librbd.FeatureSetFromNames(f)</pre>
 </div>
 </div>
-<p style="font-size:12px;color:#546e7a">On the virt SC, temp clones during snapshot provision also get <code>exclusive-lock</code>, <code>object-map</code>, <code>fast-diff</code>. Same pattern in <code>snapshot.go</code> for snapshot backing images.</p>
+<p class="lead">Same pattern in <code>snapshot.go</code>. Virt SC temp clones also get <code>exclusive-lock</code>, <code>object-map</code>, <code>fast-diff</code>.</p>
 
 <table>
-<tr><th>Product</th><th>Regression enters at</th><th>Ownership</th></tr>
-<tr><td style="font-weight:600">ODF / ceph-csi</td><td>4.22.0+</td><td>File RHSTOR bug here</td></tr>
-<tr><td style="font-weight:600">OCP</td><td>4.22 (ships ODF 4.22)</td><td>Consumer</td></tr>
-<tr><td style="font-weight:600">CNV</td><td>Symptom only (VM disks use CSI clone path)</td><td><a href="https://redhat.atlassian.net/browse/CNV-95003" style="color:#1565c0">CNV-95003</a> tracks user impact</td></tr>
+<thead><tr><th>Product</th><th>Regression enters at</th><th>Ownership</th></tr></thead>
+<tbody>
+<tr><td>ODF / ceph-csi</td><td>4.22.0+</td><td>File RHSTOR bug</td></tr>
+<tr><td>OCP</td><td>4.22</td><td>Consumer</td></tr>
+<tr><td>CNV</td><td>Symptom only</td><td><a href="https://redhat.atlassian.net/browse/CNV-95003">CNV-95003</a></td></tr>
+</tbody>
 </table>
 </div>
 
@@ -149,12 +423,13 @@ tempClone.ImageFeatureSet =
 <p style="margin-bottom:0">Certainty test <strong>C2</strong> (100 VMs, same ceph-csi swap): 284s vs 271s total (~flat), but per-VM Ready averaged ~7.7s vs ~8.7s (~13% slower on 4.22 CSI). A ~3x PVC clone regression manifesting as ~30-50% VM E2E on Purti's stack is consistent with this dilution.</p>
 </div>
 
-<div style="background:linear-gradient(135deg,#fff3e0,#fbe9e7);border:2px solid #ffb74d;border-radius:8px;padding:16px 20px;margin:16px 0">
-<h3 style="color:#e65100;margin:0 0 10px 0;font-size:15px">Jira</h3>
-<p style="font-size:13px;line-height:1.6;margin:0"><strong><a href="https://redhat.atlassian.net/browse/CNV-95003" style="color:#1565c0">CNV-95003</a></strong> - VM creation performance regression (original report by Purti Rajpal)<br>
-<strong>Environment:</strong> OCP 4.22.5, CNV 4.22.2, ODF 4.22.1 vs OCP 4.19.11, CNV 4.19.12, ODF 4.19.5<br>
-<strong>Reported regression:</strong> ~30-50% at 100 VM scale using kube-burner with DV snapshot clone</p>
-<p style="font-size:12px;color:#546e7a;margin:8px 0 0 0">Related: <a href="https://redhat.atlassian.net/browse/CNV-90050" style="color:#1565c0">CNV-90050</a> (CDI throughput at 10K scale)</p>
+<div class="jira-box">
+<h3>Jira</h3>
+<p><strong><a href="https://redhat.atlassian.net/browse/CNV-95003">CNV-95003</a></strong> - VM creation performance regression (Purti Rajpal)<br>
+<strong>Slow stack:</strong> OCP 4.22.5, CNV 4.22.2, ODF 4.22.1<br>
+<strong>Fast baseline:</strong> OCP 4.19.11, CNV 4.19.12, ODF 4.19.5<br>
+<strong>Observed:</strong> ~30-50% slower at 100 VM scale (kube-burner + DV snapshot clone)</p>
+<p class="related">Related: <a href="https://redhat.atlassian.net/browse/CNV-90050">CNV-90050</a> (CDI throughput at 10K scale)</p>
 </div>
 
 <div class="metrics-grid">
@@ -166,9 +441,9 @@ tempClone.ImageFeatureSet =
 <div class="metric-card"><div class="value">ODF 4.22</div><div class="label">First shipped in</div></div>
 </div>
 
-<div class="section">
-<h2>Root Cause: ceph-csi Image Feature Change (ODF 4.22)</h2>
-<p style="font-size:13px;color:#546e7a">Commit <code>28daf2e0d</code> in red-hat-storage/ceph-csi (<code>release-4.22</code> branch, upstream <a href="https://github.com/ceph/ceph-csi/pull/6205" style="color:#1565c0">PR #6205</a>) changed temp clone and snapshot backing images to inherit full StorageClass <code>imageFeatures</code>.</p>
+<div class="section" id="root-cause">
+<h2>Root Cause: ceph-csi Image Feature Change</h2>
+<p class="lead">Commit <code>28daf2e0d</code> on <code>release-4.22</code> (<a href="https://github.com/ceph/ceph-csi/pull/6205">PR #6205</a>) - temp clones inherit full StorageClass <code>imageFeatures</code>.</p>
 
 <table>
 <tr><th>Version</th><th>Temp clone / snapshot backing features</th></tr>
@@ -190,9 +465,9 @@ tempClone.ImageFeatureSet =
 </div>
 </div>
 
-<div class="section">
-<h2>Certainty Suite Results (Sep 7, 2026)</h2>
-<p style="font-size:13px;color:#546e7a">Five tests (C1-C5) on clod30 (OCP 4.19.11) via <code>/root/repro-cnv95003/run-certainty-suite.sh</code>. Operator paused during image swaps; rollout gate waits for all CSI pods on target version.</p>
+<div class="section" id="certainty">
+<h2>Certainty Suite Results</h2>
+<p class="lead">Five tests (C1-C5) on clod30 (OCP 4.19.11), Sep 7 2026. Scripts: <code>/root/repro-cnv95003/run-certainty-suite.sh</code></p>
 
 <table>
 <tr><th>Test</th><th>4.19 CSI</th><th>4.22 CSI</th><th>Delta</th><th>Proves</th></tr>
@@ -291,9 +566,10 @@ tempClone.ImageFeatureSet =
 </div>
 </div>
 
-<div class="section">
-<h2>Appendix: Early Investigation (CDI Ruled Out)</h2>
-<p style="font-size:13px;color:#546e7a">Phase 1 tests (Aug 13-19) on OCP 4.22.6 initially suspected CDI. All CDI hypotheses were disproved before the certainty suite identified ceph-csi as root cause.</p>
+<div class="section appendix" id="appendix">
+<span class="appendix-label">Historical - ruled out</span>
+<h2>Appendix: Early CDI Investigation</h2>
+<p class="lead">Phase 1 (Aug 13-19) initially suspected CDI. Disproved before certainty suite found ceph-csi root cause.</p>
 
 <h3>Key Finding: CDI Version Swap Test</h3>
 <p style="font-size:13px;color:#546e7a">Swapped CDI components to upstream v1.58.5 (pre-CNV 4.21) on the same OCP 4.22 cluster. Same source snapshot, same test, same 100 VMs.</p>
@@ -383,17 +659,18 @@ tempClone.ImageFeatureSet =
 </div>
 </div>
 
-<div class="section">
-<h2>All Test Results Summary</h2>
-<p style="font-size:13px;color:#546e7a"><strong>Certainty suite (C1-C5)</strong> proves ceph-csi root cause. Tests 1-14 are Phase 1 elimination work (CDI/etcd/KubeVirt ruled out).</p>
+<div class="section" id="results">
+<h2>All Test Results</h2>
+<p class="lead"><strong>C1-C5</strong> prove ceph-csi root cause. Tests 1-14 are Phase 1 elimination (not the regression source).</p>
 <table>
-<tr><th>#</th><th>Test</th><th>Result</th><th>What It Proves</th></tr>
-<tr style="background:#e8f5e9"><td style="font-weight:700">C1</td><td>Certainty: ceph-csi image swap (100 PVC)</td><td class="degradation-high">62s → 215s</td><td>Causal proof - only CSI image changed</td></tr>
-<tr style="background:#e8f5e9"><td style="font-weight:700">C2</td><td>Certainty: VM kube-burner (100 VMs)</td><td class="same">284s / 271s</td><td>VM E2E does not show full CSI delta</td></tr>
-<tr style="background:#e8f5e9"><td style="font-weight:700">C3</td><td>Certainty: fresh snapshot (100 PVC)</td><td class="degradation-high">63s → 195s</td><td>Not polluted Ceph state</td></tr>
-<tr style="background:#e8f5e9"><td style="font-weight:700">C4</td><td>Certainty: RBD features</td><td class="same">Same on bound vols</td><td>Ephemeral temp clones differ per code diff</td></tr>
-<tr style="background:#e8f5e9"><td style="font-weight:700">C5</td><td>Certainty: virt vs non-virt SC (30 PVC)</td><td class="worse">virt +30%</td><td>Virt SC path hit hardest</td></tr>
-<tr><td colspan="4" style="background:#f5f5f5;font-size:12px;color:#546e7a;padding:8px 12px"><em>Phase 1 elimination tests (appendix) - not the regression source</em></td></tr>
+<thead><tr><th>#</th><th>Test</th><th>Result</th><th>What it proves</th></tr></thead>
+<tbody>
+<tr><td><strong>C1</strong></td><td>ceph-csi image swap (100 PVC)</td><td class="worse">62s &rarr; 215s</td><td>Causal proof</td></tr>
+<tr><td><strong>C2</strong></td><td>VM kube-burner (100 VMs)</td><td class="same">284s / 271s</td><td>VM E2E dilutes CSI hit</td></tr>
+<tr><td><strong>C3</strong></td><td>Fresh snapshot (100 PVC)</td><td class="worse">63s &rarr; 195s</td><td>Not polluted Ceph state</td></tr>
+<tr><td><strong>C4</strong></td><td>RBD features</td><td class="same">Same on bound vols</td><td>Temp clones differ per code</td></tr>
+<tr><td><strong>C5</strong></td><td>Virt vs non-virt SC (30 PVC)</td><td class="worse">virt +30%</td><td>Virt SC hit hardest</td></tr>
+<tr class="row-sep"><td colspan="4">Phase 1 elimination tests</td></tr>
 <tr><td style="font-weight:700">1</td><td>CDI bypass (direct PVC)</td><td class="better">60s</td><td>CDI adds ~100s overhead at 100 VMs</td></tr>
 <tr><td style="font-weight:700">2</td><td>CDI v1.60 (current)</td><td class="same">160s</td><td>Baseline with current CDI</td></tr>
 <tr><td style="font-weight:700">3</td><td>CDI v1.58 apiserver only</td><td class="same">170s</td><td>Webhook code version does not matter</td></tr>
