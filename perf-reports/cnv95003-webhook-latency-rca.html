@@ -306,6 +306,75 @@ code{
   padding:8px 14px;
   border-bottom:1px solid var(--border);
 }
+.swap-grid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:14px;
+  margin:16px 0;
+}
+@media(max-width:700px){.swap-grid{grid-template-columns:1fr}}
+.swap-col{
+  border-radius:10px;
+  padding:14px 16px;
+  font-size:.88rem;
+  line-height:1.55;
+}
+.swap-col h4{
+  margin:0 0 10px;
+  font-size:.82rem;
+  text-transform:uppercase;
+  letter-spacing:.04em;
+}
+.swap-col ul{margin:0;padding-left:1.2rem}
+.swap-col li{margin-bottom:6px}
+.swap-changed{background:#eff6ff;border:1px solid #bfdbfe}
+.swap-changed h4{color:#1e40af}
+.swap-unchanged{background:#f8fafc;border:1px solid var(--border)}
+.swap-unchanged h4{color:var(--muted)}
+.summary-lead{
+  font-size:.92rem;
+  line-height:1.6;
+  margin:0 0 14px;
+  color:var(--text);
+}
+.summary-grid{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:12px;
+  margin:14px 0 16px;
+}
+@media(max-width:800px){.summary-grid{grid-template-columns:1fr}}
+.summary-card{
+  background:#fff;
+  border:1px solid var(--border);
+  border-radius:8px;
+  padding:12px 14px;
+  font-size:.84rem;
+  line-height:1.5;
+}
+.summary-card strong{
+  display:block;
+  font-size:.72rem;
+  text-transform:uppercase;
+  letter-spacing:.04em;
+  color:var(--muted);
+  margin-bottom:6px;
+}
+.summary-card ul{margin:0;padding-left:1.1rem}
+.summary-card li{margin-bottom:4px}
+.summary-proof{
+  width:100%;
+  margin:12px 0 14px;
+  font-size:.86rem;
+}
+.summary-proof th,.summary-proof td{padding:8px 12px}
+.summary-list{
+  margin:0;
+  padding-left:1.2rem;
+  font-size:.88rem;
+  line-height:1.55;
+}
+.summary-list li{margin-bottom:6px}
 @media print{
   *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
   body{background:#fff;padding:0}
@@ -327,6 +396,7 @@ code{
 </div>
 
 <nav class="toc" aria-label="Report sections">
+  <a href="#image-swap">Image swap test</a>
   <a href="#patch-timeline">Patch timeline</a>
   <a href="#certainty">Certainty suite</a>
   <a href="#root-cause">Root cause</a>
@@ -336,17 +406,86 @@ code{
 
 <div class="status-box status-green">
 <div class="status-title">Root cause: ODF ceph-csi 4.22</div>
-<div class="status-sub">Commit <code>28daf2e0d</code> - temp snapshot clones inherit full StorageClass image features (intentional upstream fix for <a href="https://github.com/ceph/ceph-csi/issues/4936">#4936</a>). Image-swap on the same cluster reproduces a 3x PVC clone slowdown. CDI, KubeVirt, etcd ruled out. User impact tracked in <a href="https://redhat.atlassian.net/browse/CNV-95003">CNV-95003</a>.</div>
+<div class="status-sub">Commit <code>28daf2e0d</code> - temp snapshot clones inherit full StorageClass image features (intentional upstream fix for <a href="https://github.com/ceph/ceph-csi/issues/4936">#4936</a>). On a fixed OCP 4.19 cluster, swapping <strong>only</strong> the <code>cephcsi-rhel9</code> container image reproduces a 3x PVC clone slowdown. CDI, KubeVirt, etcd ruled out. User impact tracked in <a href="https://redhat.atlassian.net/browse/CNV-95003">CNV-95003</a>.</div>
 </div>
 
 <div class="callout callout-orange">
 <h3>Summary</h3>
+<p class="summary-lead"><strong>CNV-95003:</strong> VM creation is ~30-50% slower on OCP 4.22 vs 4.19 when using kube-burner with DataVolume snapshot clones. Root cause is <strong>not</strong> CNV, CDI, or KubeVirt - it is an ODF ceph-csi behavior change in 4.22.</p>
+
+<div class="summary-grid">
+<div class="summary-card">
+<strong>Root cause</strong>
+ODF ceph-csi 4.22 commit <code>28daf2e0d</code> (<a href="https://github.com/ceph/ceph-csi/pull/6205">PR #6205</a>). Temp snapshot clones now inherit full StorageClass RBD features (<code>exclusive-lock, object-map, fast-diff</code>) instead of only <code>layering, deep-flatten</code>. Intentional upstream fix for <a href="https://github.com/ceph/ceph-csi/issues/4936">#4936</a>.
+</div>
+<div class="summary-card">
+<strong>What we swapped</strong>
 <ul>
-<li><strong>What changed:</strong> ceph-csi 4.22 commit <code>28daf2e0d</code> (<a href="https://github.com/ceph/ceph-csi/pull/6205">PR #6205</a>) - temp clones get <code>exclusive-lock, object-map, fast-diff</code> instead of only <code>layering, deep-flatten</code>. Upstream intent: correct RBD feature handling on temp clones.</li>
-<li><strong>Proof:</strong> Same cluster, swap only <code>cephcsi-rhel9</code> image - 100 PVC clones: <strong>62s &rarr; 215s</strong> (+243%). Fresh snapshot: <strong>63s &rarr; 195s</strong>.</li>
-<li><strong>Ruled out:</strong> CDI v1.58 vs v1.60, emptyDisk, etcd (1ms P99), KubeVirt webhooks, container runtime.</li>
-<li><strong>When it entered:</strong> ODF <strong>4.22.0+</strong> via PR #733 (2026-04-02). Absent in 4.19/4.20/4.21. <a href="#patch-timeline">Full timeline</a>.</li>
+<li><strong>Only</strong> <code>cephcsi-rhel9</code> image digest</li>
+<li>In RBD CSI ctrlplugin + nodeplugin pods</li>
+<li>On clod30, OCP <strong>4.19.11</strong> (both runs)</li>
 </ul>
+<a href="#image-swap">Full swap details</a>
+</div>
+<div class="summary-card">
+<strong>What we did not change</strong>
+<ul>
+<li>OCP version, CNV, ODF operator, Ceph</li>
+<li>CDI, KubeVirt, etcd, cri-o</li>
+<li>Source snapshot, StorageClass, hardware</li>
+</ul>
+</div>
+</div>
+
+<table class="summary-proof">
+<thead><tr><th>Test</th><th>4.19 cephcsi (baseline)</th><th>4.22 cephcsi (swap)</th><th>Delta</th></tr></thead>
+<tbody>
+<tr><td>C1 - image swap on fixed 4.19 cluster</td><td class="better">62s</td><td class="worse">215s</td><td class="worse">+243%</td></tr>
+<tr><td>C3 - fresh snapshot retest</td><td class="better">63s</td><td class="worse">195s</td><td class="worse">+210%</td></tr>
+</tbody>
+</table>
+
+<ul class="summary-list">
+<li><strong>Ruled out:</strong> CDI v1.58 vs v1.60 (image swap, identical results), emptyDisk, etcd (1ms P99), KubeVirt webhooks, virt-controller, API admission pipeline, container runtime.</li>
+<li><strong>Shipped in:</strong> ODF <strong>4.22.0+</strong> via downstream PR #733 (2026-04-02). <strong>Not</strong> in 4.19, 4.20, or 4.21. <a href="#patch-timeline">Patch timeline</a>.</li>
+</ul>
+</div>
+
+<div class="section" id="image-swap">
+<h2>Image Swap Test: What Changed vs What Stayed the Same</h2>
+<p class="lead">Causal proof (certainty tests C1-C3). Cluster <strong>clod30</strong> stayed on <strong>OCP 4.19.11</strong> for both runs. We did <strong>not</strong> upgrade OCP, CNV, or ODF - only the ceph-csi driver binary inside existing CSI pods.</p>
+
+<div class="swap-grid">
+<div class="swap-col swap-changed">
+<h4>Changed (only this)</h4>
+<ul>
+<li>Container image <code>registry.redhat.io/odf4/cephcsi-rhel9</code> pinned by digest</li>
+<li>Workloads patched: <code>deployment/openshift-storage.rbd.csi.ceph.com-ctrlplugin</code> and <code>daemonset/openshift-storage.rbd.csi.ceph.com-nodeplugin</code></li>
+<li>Containers updated: <code>csi-rbdplugin</code>, <code>csi-omap-generator</code>, <code>log-rotator</code></li>
+<li><code>ceph-csi-controller-manager</code> scaled to <strong>0</strong> during swap (stops operator from reverting the image)</li>
+</ul>
+</div>
+<div class="swap-col swap-unchanged">
+<h4>Unchanged (held constant)</h4>
+<ul>
+<li>OCP <strong>4.19.11</strong>, CNV <strong>4.22.2</strong>, ODF operator and Ceph cluster</li>
+<li>CDI, KubeVirt, etcd, cri-o, API server</li>
+<li>Source snapshot <code>source-ns/source-snapshot</code>, virt SC <code>ocs-storagecluster-ceph-rbd-virtualization</code></li>
+<li>Test method: 100 PVCs with <code>dataSource: VolumeSnapshot</code> (no DataVolume, no CDI in path for C1)</li>
+<li>Hardware and network (same clod30 nodes)</li>
+</ul>
+</div>
+</div>
+
+<table>
+<thead><tr><th>Run</th><th>cephcsi-rhel9 digest</th><th>ceph-csi release</th><th>100 PVC bind time</th></tr></thead>
+<tbody>
+<tr><td><strong>A (baseline)</strong></td><td><code>sha256:5d0da2db...c5d80a</code></td><td>ODF 4.19 / release-4.19</td><td class="better">62s</td></tr>
+<tr><td><strong>B (swap)</strong></td><td><code>sha256:3928e649...9565f07</code></td><td>ODF 4.22 / release-4.22</td><td class="worse">215s (+243%)</td></tr>
+</tbody>
+</table>
+<p class="lead">Full digests: 4.19 <code>registry.redhat.io/odf4/cephcsi-rhel9@sha256:5d0da2db0e67c7054df6d94755ac050033514131ad879e388a93e30bf3c5d80a</code>; 4.22 <code>registry.redhat.io/odf4/cephcsi-rhel9@sha256:3928e6499dd866ed08168004803f174d187f3db185e7fddda4711b15a9565f07</code>. Rollout gated until all CSI pods report the target <code>cephcsi --version</code>. Scripts: <code>repro-cnv95003/lib-cnv95003.sh</code> (<code>swap_to_419</code> / <code>swap_to_422</code>).</p>
+<p class="lead"><strong>C2</strong> (100 VMs via kube-burner) used the same image swap on the same cluster. <strong>C3</strong> retested with a freshly created snapshot to rule out stale Ceph state.</p>
 </div>
 
 <div class="section section-timeline" id="patch-timeline">
@@ -420,7 +559,7 @@ tempClone.ImageFeatureSet =
 <div class="callout callout-blue">
 <h3>Why VM E2E (~30-50%) differs from PVC clone (~3x)</h3>
 <p>Purti measured <strong>VM creation</strong> end-to-end (kube-burner + DataVolume snapshot clone). Our causal proof used <strong>PVC bind time</strong> only (no CDI, no KubeVirt). VM creation adds CDI orchestration (~100s architectural overhead), CSI attach/map per volume, and virt-controller scheduling - these layers dilute the raw CSI hit.</p>
-<p style="margin-bottom:0">Certainty test <strong>C2</strong> (100 VMs, same ceph-csi swap): 284s vs 271s total (~flat), but per-VM Ready averaged ~7.7s vs ~8.7s (~13% slower on 4.22 CSI). A ~3x PVC clone regression manifesting as ~30-50% VM E2E on Purti's stack is consistent with this dilution.</p>
+<p style="margin-bottom:0">Certainty test <strong>C2</strong> used the <a href="#image-swap">same cephcsi digest swap</a> but measured 100 VM kube-burner (CDI in path): 284s vs 271s total (~flat), per-VM Ready ~7.7s vs ~8.7s (~13% slower on 4.22 CSI).</p>
 </div>
 
 <div class="jira-box">
@@ -454,14 +593,15 @@ tempClone.ImageFeatureSet =
 <p class="lead">Virt SC <code>ocs-storagecluster-ceph-rbd-virtualization</code> uses the full feature set. The upstream change was intentional (fixes <a href="https://github.com/ceph/ceph-csi/issues/4936">#4936</a> for <code>rbd du</code> on temp clones) and trades clone throughput for correctness on ephemeral temp-clone images at scale.</p>
 
 <div class="callout callout-green">
-<h3>Causal proof: ceph-csi image swap (same cluster)</h3>
-<p>On clod30 (OCP 4.19.11), only the <code>cephcsi-rhel9</code> image was swapped. Same snapshot, same SC, same hardware. CSI operator paused during swap to prevent revert.</p>
+<h3>Causal proof (see <a href="#image-swap">image swap test</a>)</h3>
+<p>Same clod30 cluster on OCP 4.19.11. Only the <code>cephcsi-rhel9</code> digest in RBD CSI ctrlplugin + nodeplugin was toggled between run A (4.19) and run B (4.22). Operator paused during swap.</p>
 <table>
-<tr><th>cephcsi image</th><th>100 PVC clones (bind time)</th><th>Delta</th></tr>
-<tr><td style="font-weight:600">4.19 (<code>5d0da2db...</code>)</td><td class="better">62s</td><td>-</td></tr>
-<tr><td style="font-weight:600">4.22 (<code>3928e649...</code>)</td><td class="degradation-high">215s</td><td class="worse">+243%</td></tr>
+<thead><tr><th>Run</th><th>cephcsi image</th><th>100 PVC clones (bind)</th><th>Delta</th></tr></thead>
+<tbody>
+<tr><td><strong>A</strong></td><td>ODF 4.19 digest (<code>5d0da2db...</code>)</td><td class="better">62s</td><td>-</td></tr>
+<tr><td><strong>B</strong></td><td>ODF 4.22 digest (<code>3928e649...</code>)</td><td class="degradation-high">215s</td><td class="worse">+243%</td></tr>
+</tbody>
 </table>
-<p style="font-size:12px;color:#546e7a;margin-top:8px">Images: <code>registry.redhat.io/odf4/cephcsi-rhel9@sha256:5d0da2db0e67c7054df6d94755ac050033514131ad879e388a93e30bf3c5d80a</code> (4.19) vs <code>...3928e6499dd866ed08168004803f174d187f3db185e7fddda4711b15a9565f07</code> (4.22). Scale <code>ceph-csi-controller-manager</code> to 0 during swap or the operator reverts the image.</p>
 </div>
 </div>
 
@@ -522,7 +662,7 @@ tempClone.ImageFeatureSet =
 <tr><th>Test context</th><th>OCP</th><th>ceph-csi</th><th>100 PVC bind</th></tr>
 <tr><td style="font-weight:600">Phase 1: native 4.22 cluster</td><td>4.22.6</td><td>4.22 (shipped)</td><td class="degradation-high">102s</td></tr>
 <tr><td style="font-weight:600">Phase 2: native 4.19 cluster</td><td>4.19.11</td><td>4.19 (shipped)</td><td class="better">62s</td></tr>
-<tr style="background:#e8f5e9"><td style="font-weight:600">Phase 2: image swap on 4.19 cluster</td><td>4.19.11</td><td>4.22 (image only)</td><td class="degradation-high">215s (+243%)</td></tr>
+<tr style="background:#e8f5e9"><td style="font-weight:600">Phase 2: cephcsi digest swap on 4.19 cluster</td><td>4.19.11 (fixed)</td><td>4.22 digest only</td><td class="degradation-high">215s (+243%)</td></tr>
 </table>
 
 <h3>Scale ramp (Phase 1 only - OCP 4.22.6)</h3>
