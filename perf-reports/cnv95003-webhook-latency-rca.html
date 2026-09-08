@@ -398,8 +398,9 @@ code{
 <nav class="toc" aria-label="Report sections">
   <a href="#image-swap">Image swap test</a>
   <a href="#patch-timeline">Patch timeline</a>
-  <a href="#certainty">Certainty suite</a>
   <a href="#root-cause">Root cause</a>
+  <a href="#certainty">Certainty suite</a>
+  <a href="#candidates">Candidates</a>
   <a href="#results">All results</a>
   <a href="#appendix">Appendix (CDI)</a>
 </nav>
@@ -449,6 +450,15 @@ ODF ceph-csi 4.22 commit <code>28daf2e0d</code> (<a href="https://github.com/cep
 <li><strong>Ruled out:</strong> CDI v1.58 vs v1.60 (image swap, identical results), emptyDisk, etcd (1ms P99), KubeVirt webhooks, virt-controller, API admission pipeline, container runtime.</li>
 <li><strong>Shipped in:</strong> ODF <strong>4.22.0+</strong> via downstream PR #733 (2026-04-02). <strong>Not</strong> in 4.19, 4.20, or 4.21. <a href="#patch-timeline">Patch timeline</a>.</li>
 </ul>
+</div>
+
+<div class="metrics-grid">
+<div class="metric-card metric-card-red"><div class="value">215s</div><div class="label">100 PVC clone (4.22 CSI)</div></div>
+<div class="metric-card metric-card-green"><div class="value">62s</div><div class="label">100 PVC clone (4.19 CSI)</div></div>
+<div class="metric-card metric-card-red"><div class="value">+243%</div><div class="label">Image-swap delta</div></div>
+<div class="metric-card"><div class="value">4.22.0</div><div class="label">First ODF with change</div></div>
+<div class="metric-card metric-card-green"><div class="value">Absent</div><div class="label">4.19 / 4.20 / 4.21</div></div>
+<div class="metric-card"><div class="value">PR #6205</div><div class="label">Upstream commit</div></div>
 </div>
 
 <div class="section" id="image-swap">
@@ -571,15 +581,6 @@ tempClone.ImageFeatureSet =
 <p class="related">Related: <a href="https://redhat.atlassian.net/browse/CNV-90050">CNV-90050</a> (CDI throughput at 10K scale)</p>
 </div>
 
-<div class="metrics-grid">
-<div class="metric-card metric-card-red"><div class="value">215s</div><div class="label">100 PVC clone (4.22 CSI)</div></div>
-<div class="metric-card metric-card-green"><div class="value">62s</div><div class="label">100 PVC clone (4.19 CSI)</div></div>
-<div class="metric-card metric-card-red"><div class="value">+243%</div><div class="label">Image-swap delta</div></div>
-<div class="metric-card"><div class="value">28daf2e0d</div><div class="label">ceph-csi commit</div></div>
-<div class="metric-card metric-card-green"><div class="value">Not in 4.19</div><div class="label">Commit absent in 4.19.22</div></div>
-<div class="metric-card"><div class="value">ODF 4.22</div><div class="label">First shipped in</div></div>
-</div>
-
 <div class="section" id="root-cause">
 <h2>Root Cause: ceph-csi Image Feature Change</h2>
 <p class="lead">Commit <code>28daf2e0d</code> on <code>release-4.22</code> (<a href="https://github.com/ceph/ceph-csi/pull/6205">PR #6205</a>) - temp clones inherit full StorageClass <code>imageFeatures</code>.</p>
@@ -593,15 +594,8 @@ tempClone.ImageFeatureSet =
 <p class="lead">Virt SC <code>ocs-storagecluster-ceph-rbd-virtualization</code> uses the full feature set. The upstream change was intentional (fixes <a href="https://github.com/ceph/ceph-csi/issues/4936">#4936</a> for <code>rbd du</code> on temp clones) and trades clone throughput for correctness on ephemeral temp-clone images at scale.</p>
 
 <div class="callout callout-green">
-<h3>Causal proof (see <a href="#image-swap">image swap test</a>)</h3>
-<p>Same clod30 cluster on OCP 4.19.11. Only the <code>cephcsi-rhel9</code> digest in RBD CSI ctrlplugin + nodeplugin was toggled between run A (4.19) and run B (4.22). Operator paused during swap.</p>
-<table>
-<thead><tr><th>Run</th><th>cephcsi image</th><th>100 PVC clones (bind)</th><th>Delta</th></tr></thead>
-<tbody>
-<tr><td><strong>A</strong></td><td>ODF 4.19 digest (<code>5d0da2db...</code>)</td><td class="better">62s</td><td>-</td></tr>
-<tr><td><strong>B</strong></td><td>ODF 4.22 digest (<code>3928e649...</code>)</td><td class="degradation-high">215s</td><td class="worse">+243%</td></tr>
-</tbody>
-</table>
+<h3>Causal proof</h3>
+<p style="margin-bottom:0">The <a href="#image-swap">image swap test</a> isolates this commit as the sole variable. On clod30 (OCP 4.19.11), toggling only the <code>cephcsi-rhel9</code> digest between ODF 4.19 and 4.22 produced <strong>62s vs 215s</strong> (+243%) for 100 PVC clones. A fresh-snapshot retest (C3) confirmed: <strong>63s vs 195s</strong>.</p>
 </div>
 </div>
 
@@ -633,7 +627,7 @@ tempClone.ImageFeatureSet =
 </div>
 </div>
 
-<div class="section">
+<div class="section" id="candidates">
 <h2>Candidate Summary</h2>
 <table>
 <tr><th>Candidate</th><th>Evidence</th><th>Status</th></tr>
@@ -654,8 +648,8 @@ tempClone.ImageFeatureSet =
 </div>
 
 <div class="section">
-<h2>CSI Snapshot Clone Speed (Pure Storage Test)</h2>
-<p style="font-size:13px;color:#546e7a">Created PVCs directly from VolumeSnapshot - no CDI, no KubeVirt. Measures raw ODF/Ceph snapshot clone performance.</p>
+<h2>CSI Snapshot Clone Speed (No CDI, No KubeVirt)</h2>
+<p style="font-size:13px;color:#546e7a">PVCs created directly from VolumeSnapshot - no CDI, no KubeVirt. Measures raw ODF/Ceph snapshot clone performance.</p>
 
 <h3>100 PVC benchmark (same snapshot, virt SC)</h3>
 <table>
