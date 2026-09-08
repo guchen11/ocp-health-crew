@@ -336,13 +336,13 @@ code{
 
 <div class="status-box status-green">
 <div class="status-title">Root cause: ODF ceph-csi 4.22</div>
-<div class="status-sub">Commit <code>28daf2e0d</code> - temp snapshot clones inherit full StorageClass image features. Image-swap on the same cluster reproduces a 3x PVC clone slowdown. CDI, KubeVirt, etcd ruled out. File RHSTOR bug; link <a href="https://redhat.atlassian.net/browse/CNV-95003">CNV-95003</a> as consumer symptom.</div>
+<div class="status-sub">Commit <code>28daf2e0d</code> - temp snapshot clones inherit full StorageClass image features (intentional upstream fix for <a href="https://github.com/ceph/ceph-csi/issues/4936">#4936</a>). Image-swap on the same cluster reproduces a 3x PVC clone slowdown. CDI, KubeVirt, etcd ruled out. User impact tracked in <a href="https://redhat.atlassian.net/browse/CNV-95003">CNV-95003</a>.</div>
 </div>
 
 <div class="callout callout-orange">
 <h3>Summary</h3>
 <ul>
-<li><strong>What broke:</strong> ceph-csi 4.22 commit <code>28daf2e0d</code> (<a href="https://github.com/ceph/ceph-csi/pull/6205">PR #6205</a>) - temp clones get <code>exclusive-lock, object-map, fast-diff</code> instead of only <code>layering, deep-flatten</code>.</li>
+<li><strong>What changed:</strong> ceph-csi 4.22 commit <code>28daf2e0d</code> (<a href="https://github.com/ceph/ceph-csi/pull/6205">PR #6205</a>) - temp clones get <code>exclusive-lock, object-map, fast-diff</code> instead of only <code>layering, deep-flatten</code>. Upstream intent: correct RBD feature handling on temp clones.</li>
 <li><strong>Proof:</strong> Same cluster, swap only <code>cephcsi-rhel9</code> image - 100 PVC clones: <strong>62s &rarr; 215s</strong> (+243%). Fresh snapshot: <strong>63s &rarr; 195s</strong>.</li>
 <li><strong>Ruled out:</strong> CDI v1.58 vs v1.60, emptyDisk, etcd (1ms P99), KubeVirt webhooks, container runtime.</li>
 <li><strong>When it entered:</strong> ODF <strong>4.22.0+</strong> via PR #733 (2026-04-02). Absent in 4.19/4.20/4.21. <a href="#patch-timeline">Full timeline</a>.</li>
@@ -408,11 +408,11 @@ tempClone.ImageFeatureSet =
 <p class="lead">Same pattern in <code>snapshot.go</code>. Virt SC temp clones also get <code>exclusive-lock</code>, <code>object-map</code>, <code>fast-diff</code>.</p>
 
 <table>
-<thead><tr><th>Product</th><th>Regression enters at</th><th>Ownership</th></tr></thead>
+<thead><tr><th>Product</th><th>Change enters at</th><th>Notes</th></tr></thead>
 <tbody>
-<tr><td>ODF / ceph-csi</td><td>4.22.0+</td><td>File RHSTOR bug</td></tr>
-<tr><td>OCP</td><td>4.22</td><td>Consumer</td></tr>
-<tr><td>CNV</td><td>Symptom only</td><td><a href="https://redhat.atlassian.net/browse/CNV-95003">CNV-95003</a></td></tr>
+<tr><td>ODF / ceph-csi</td><td>4.22.0+</td><td>Intentional design (<a href="https://github.com/ceph/ceph-csi/pull/6205">PR #6205</a>)</td></tr>
+<tr><td>OCP</td><td>4.22</td><td>Ships ODF 4.22</td></tr>
+<tr><td>CNV</td><td>Symptom at scale</td><td><a href="https://redhat.atlassian.net/browse/CNV-95003">CNV-95003</a></td></tr>
 </tbody>
 </table>
 </div>
@@ -451,7 +451,7 @@ tempClone.ImageFeatureSet =
 <tr><td style="font-weight:600">ODF 4.22 (ceph-csi 4.22.x)</td><td class="degradation-high"><code>layering, deep-flatten, exclusive-lock, object-map, fast-diff</code></td></tr>
 </table>
 
-<p style="font-size:13px;color:#546e7a">Virt SC <code>ocs-storagecluster-ceph-rbd-virtualization</code> uses the full feature set. The upstream change was intentional (fixes <a href="https://github.com/ceph/ceph-csi/issues/4936" style="color:#1565c0">#4936</a> for <code>rbd du</code> on temp clones) but adds per-clone Ceph overhead at scale. No existing RHSTOR/ODF Jira bug found for this performance impact.</p>
+<p class="lead">Virt SC <code>ocs-storagecluster-ceph-rbd-virtualization</code> uses the full feature set. The upstream change was intentional (fixes <a href="https://github.com/ceph/ceph-csi/issues/4936">#4936</a> for <code>rbd du</code> on temp clones) and trades clone throughput for correctness on ephemeral temp-clone images at scale.</p>
 
 <div class="callout callout-green">
 <h3>Causal proof: ceph-csi image swap (same cluster)</h3>
@@ -505,11 +505,11 @@ tempClone.ImageFeatureSet =
 <tr><td style="font-weight:600">Raw IO (FIO)</td><td>Purti: no FIO regression 4.19 vs 4.22.</td><td class="better">Ruled out</td></tr>
 </table>
 
-<div class="callout callout-yellow">
-<h3>Recommended Actions</h3>
-<p><strong>1. File RHSTOR bug</strong> against ODF/ceph-csi: reference commit <code>28daf2e0d</code>, upstream PR #6205, link CNV-95003 as consumer symptom. Ask whether temp-clone path can keep minimal features while final volumes retain full SC features.</p>
-<p><strong>2. Update CNV-95003</strong> with certainty suite results and redirect ownership to ODF storage team.</p>
-<p><strong>3. Optional:</strong> Run same image-swap test on Purti's native 4.22 stack to deflect "lab != production" objections.</p>
+<div class="callout callout-blue">
+<h3>Follow-up (optional)</h3>
+<p><strong>1. Document on CNV-95003:</strong> Attach certainty suite results and note this is likely intentional ceph-csi behavior, not a CNV regression.</p>
+<p><strong>2. Discuss with ODF/ceph-csi:</strong> Whether temp-clone path can retain minimal features while final volumes keep full SC features - a perf optimization, not a correctness fix.</p>
+<p style="margin-bottom:0"><strong>3. Validate on Purti's stack:</strong> Run the same image-swap test on native 4.22 to confirm lab findings.</p>
 </div>
 </div>
 
