@@ -375,6 +375,107 @@ code{
   line-height:1.55;
 }
 .summary-list li{margin-bottom:6px}
+.path-compare{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:20px 0}
+@media(max-width:800px){.path-compare{grid-template-columns:1fr}}
+.path-card{
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  overflow:hidden;
+  background:#fff;
+}
+.path-card-header{
+  padding:12px 16px;
+  font-size:.88rem;
+  font-weight:700;
+  border-bottom:1px solid var(--border);
+}
+.path-card-header.ours{background:#eff6ff;color:#1e40af}
+.path-card-header.purti{background:#fef2f2;color:#991b1b}
+.path-card-header.eli{background:#fffbeb;color:#92400e}
+.path-steps{padding:8px 12px 12px}
+.path-step{
+  display:grid;
+  grid-template-columns:36px 1fr;
+  gap:10px;
+  padding:10px 8px;
+  border-bottom:1px solid #f1f5f9;
+  align-items:start;
+}
+.path-step:last-child{border-bottom:none}
+.step-num{
+  width:28px;height:28px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-size:.75rem;font-weight:700;flex-shrink:0;
+  background:#e2e8f0;color:#475569;
+}
+.path-step.safe .step-num{background:#22c55e;color:#fff}
+.path-step.problem .step-num{background:#ef4444;color:#fff}
+.path-step.skip .step-num{background:#94a3b8;color:#fff}
+.step-body{font-size:.84rem;line-height:1.5}
+.step-body strong{display:block;color:#0f172a;margin-bottom:2px}
+.step-body p{margin:4px 0 0;font-size:.8rem;color:var(--muted)}
+.step-tag{
+  display:inline-block;font-size:.65rem;font-weight:700;
+  text-transform:uppercase;letter-spacing:.04em;
+  padding:2px 7px;border-radius:999px;margin-top:6px;
+}
+.step-tag-safe{background:#dcfce7;color:#166534}
+.step-tag-problem{background:#fee2e2;color:#991b1b;border:1px solid #fca5a5}
+.step-tag-skip{background:#f1f5f9;color:#64748b}
+.path-step.problem{
+  background:linear-gradient(90deg,#fef2f2,#fff);
+  border-radius:8px;
+  border:1px solid #fecaca;
+  margin:4px 0;
+  padding:12px 10px;
+}
+.yaml-block{margin:16px 0}
+.yaml-block-title{
+  font-size:.88rem;font-weight:600;color:#334155;
+  margin:20px 0 10px;
+  padding-bottom:6px;
+  border-bottom:1px solid var(--border);
+}
+.yaml-step{
+  border:1px solid var(--border);
+  border-radius:10px;
+  margin-bottom:12px;
+  overflow:hidden;
+}
+.yaml-step-header{
+  display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;
+  padding:10px 14px;
+  font-size:.82rem;font-weight:600;
+  background:#f8fafc;
+  border-bottom:1px solid var(--border);
+}
+.yaml-step-header.problem{background:#fef2f2;border-bottom-color:#fecaca;color:#991b1b}
+.yaml-step-header.safe{background:#f0fdf4;border-bottom-color:#bbf7d0;color:#166534}
+.yaml-step-header.neutral{background:#f8fafc;color:#475569}
+.yaml-step pre{
+  font-family:'Cascadia Code','Fira Code',Consolas,monospace;
+  font-size:.72rem;line-height:1.55;
+  margin:0;padding:12px 14px;
+  background:#0f172a;color:#e2e8f0;
+  overflow-x:auto;
+}
+.csi-internal{
+  border:2px dashed #ef4444;
+  border-radius:10px;
+  padding:14px 16px;
+  margin:12px 0 20px;
+  background:#fff5f5;
+  font-size:.86rem;
+  line-height:1.6;
+}
+.csi-internal strong{color:#991b1b}
+.feature-pills{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.feature-pill{
+  font-family:'Cascadia Code','Fira Code',Consolas,monospace;
+  font-size:.72rem;padding:3px 8px;border-radius:6px;
+  background:#fee2e2;color:#991b1b;border:1px solid #fca5a5;
+}
+.feature-pill.ok{background:#dcfce7;color:#166534;border-color:#86efac}
 @media print{
   *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
   body{background:#fff;padding:0}
@@ -866,13 +967,101 @@ tempClone.ImageFeatureSet =
 <strong>Jennifer (CNV) confirmed:</strong> Eli's PerfCI did not show a significant slowdown on 4.22. Bootstorm never clones storage. Windows scale uses <code>source.pvc</code>, not <code>source.snapshot</code>. Higher concurrency can make total time worse, but Purti already sees the regression at qps 10 on the same 4.19 vs 4.22 scenario. The gap is the provisioning path, not test aggressiveness.
 </div>
 
-<h3>YAML: what each path looks like</h3>
-<p style="font-size:13px;color:#546e7a">All paths start by importing a golden image once. The difference is how each new VM gets its disk.</p>
+<h3>Step-by-step: where each path hits the 4.22 bug</h3>
+<p class="lead">The regression is <strong>not</strong> in your YAML steps 1-2. It happens inside ceph-csi during <strong>step 3</strong> of Purti's path, when a short-lived temp RBD clone is created. On 4.22 that temp clone gets heavy features (<code>exclusive-lock</code>, <code>object-map</code>, <code>fast-diff</code>) that 4.19 skipped.</p>
 
-<h3 style="font-size:.92rem;margin-top:18px">Our path - clone golden disk (<code>source.pvc</code>)</h3>
-<div class="code-compare">
-<div class="callout callout-blue">
-<h3>Step 1 - import golden image once</h3>
+<div class="path-compare">
+<div class="path-card">
+<div class="path-card-header ours">Our path (<code>source.pvc</code>)</div>
+<div class="path-steps">
+<div class="path-step safe">
+<div class="step-num">1</div>
+<div class="step-body">
+<strong>Import golden image (HTTP)</strong>
+<p>One-time CDI import to <code>golden-alpine</code> PVC.</p>
+<span class="step-tag step-tag-safe">Not the bug</span>
+</div>
+</div>
+<div class="path-step safe">
+<div class="step-num">2</div>
+<div class="step-body">
+<strong>Clone golden PVC per VM</strong>
+<p>CSI uses PVC-clone path (CDI may temp-snap internally). Different code path than <code>source.snapshot</code>.</p>
+<span class="step-tag step-tag-safe">Missed CNV-95003</span>
+</div>
+</div>
+</div>
+</div>
+
+<div class="path-card">
+<div class="path-card-header purti">Purti's path (<code>source.snapshot</code>) - tuning guide</div>
+<div class="path-steps">
+<div class="path-step safe">
+<div class="step-num">1</div>
+<div class="step-body">
+<strong>Import golden image (HTTP)</strong>
+<p>Same as our step 1.</p>
+<span class="step-tag step-tag-safe">Not the bug</span>
+</div>
+</div>
+<div class="path-step safe">
+<div class="step-num">2</div>
+<div class="step-body">
+<strong>Snapshot golden PVC once</strong>
+<p>Create <code>VolumeSnapshot</code> from <code>golden-alpine</code>.</p>
+<span class="step-tag step-tag-safe">Not the bug</span>
+</div>
+</div>
+<div class="path-step problem">
+<div class="step-num">3</div>
+<div class="step-body">
+<strong>Each VM: <code>source.snapshot</code></strong>
+<p>Your YAML triggers CSI snapshot clone. ceph-csi creates a <strong>temp RBD clone</strong> (seconds, then deleted), then the final PVC.</p>
+<span class="step-tag step-tag-problem">4.22 slowdown here</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+
+<div class="csi-internal">
+<strong>Hidden CSI step (not in your YAML) - where <code>exclusive-lock</code>, <code>object-map</code>, <code>fast-diff</code> bite on 4.22:</strong>
+<div style="margin:10px 0;font-size:.84rem;color:#7f1d1d">
+VolumeSnapshot &rarr; <strong>temp RBD clone</strong> (ephemeral) &rarr; final PVC (<code>csi-vol-*</code>)
+</div>
+<div class="feature-pills">
+<span class="feature-pill">exclusive-lock</span>
+<span class="feature-pill">object-map</span>
+<span class="feature-pill">fast-diff</span>
+<span style="font-size:.8rem;color:#991b1b;align-self:center">added on temp clone in 4.22 only</span>
+</div>
+<p style="margin:8px 0 0;font-size:.84rem;color:#7f1d1d">
+<strong>ODF 4.19:</strong> temp clone gets <span class="feature-pill ok">layering</span> <span class="feature-pill ok">deep-flatten</span> only (fast).<br>
+<strong>ODF 4.22:</strong> temp clone also inherits full StorageClass features (slow). Final VM disk always had full features on both versions - FIO after boot looks fine.
+</p>
+</div>
+
+<div class="path-card" style="margin-bottom:20px">
+<div class="path-card-header eli">Eli PerfCI bootstorm (<code>containerDisk</code>)</div>
+<div class="path-steps">
+<div class="path-step skip">
+<div class="step-num">1</div>
+<div class="step-body">
+<strong>VM from container image</strong>
+<p>No DataVolume, no PVC clone, no snapshot. Measures boot time only.</p>
+<span class="step-tag step-tag-skip">Never hits clone path</span>
+</div>
+</div>
+</div>
+</div>
+
+<h3>YAML reference</h3>
+
+<div class="yaml-block">
+<div class="yaml-block-title">Our path - steps 1 and 2</div>
+
+<div class="yaml-step">
+<div class="yaml-step-header safe">Step 1 - import golden image once <span class="step-tag step-tag-safe">safe</span></div>
 <pre>apiVersion: cdi.kubevirt.io/v1beta1
 kind: DataVolume
 metadata:
@@ -890,14 +1079,15 @@ spec:
     storageClassName: ocs-storagecluster-ceph-rbd-virtualization
     volumeMode: Block</pre>
 </div>
-<div class="callout callout-blue">
-<h3>Step 2 - each VM clones the PVC</h3>
+
+<div class="yaml-step">
+<div class="yaml-step-header safe">Step 2 - each VM clones the PVC <span class="step-tag step-tag-safe">different path</span></div>
 <pre>dataVolumeTemplates:
 - metadata:
     name: vm-001-disk
   spec:
     source:
-      pvc:              # OUR PATH
+      pvc:              # OUR PATH - not source.snapshot
         name: golden-alpine
         namespace: my-ns
     pvc:
@@ -910,10 +1100,11 @@ spec:
 </div>
 </div>
 
-<h3 style="font-size:.92rem">Purti's path - clone snapshot (<code>source.snapshot</code>) - tuning guide</h3>
-<div class="code-compare">
-<div class="callout callout-red">
-<h3>Step 1 - same golden import (above)</h3>
+<div class="yaml-block">
+<div class="yaml-block-title">Purti's path - steps 1 to 3 (step 3 triggers the CSI temp clone)</div>
+
+<div class="yaml-step">
+<div class="yaml-step-header safe">Step 1 - import golden image once <span class="step-tag step-tag-safe">safe</span></div>
 <pre>apiVersion: cdi.kubevirt.io/v1beta1
 kind: DataVolume
 metadata:
@@ -931,8 +1122,9 @@ spec:
     storageClassName: ocs-storagecluster-ceph-rbd-virtualization
     volumeMode: Block</pre>
 </div>
-<div class="callout callout-red">
-<h3>Step 2 - snapshot golden PVC once</h3>
+
+<div class="yaml-step">
+<div class="yaml-step-header safe">Step 2 - snapshot golden PVC once <span class="step-tag step-tag-safe">safe</span></div>
 <pre>apiVersion: snapshot.storage.k8s.io/v1
 kind: VolumeSnapshot
 metadata:
@@ -943,16 +1135,15 @@ spec:
   source:
     persistentVolumeClaimName: golden-alpine</pre>
 </div>
-</div>
-<div class="code-compare" style="grid-template-columns:1fr">
-<div class="callout callout-red">
-<h3>Step 3 - each VM clones from snapshot</h3>
+
+<div class="yaml-step">
+<div class="yaml-step-header problem">Step 3 - each VM clones from snapshot <span class="step-tag step-tag-problem">4.22 slowdown</span></div>
 <pre>dataVolumeTemplates:
 - metadata:
     name: vm-001-disk
   spec:
     source:
-      snapshot:         # PURTI / TUNING GUIDE
+      snapshot:         # PURTI - triggers CSI temp clone
         name: golden-snapshot
         namespace: my-ns
     pvc:
@@ -965,16 +1156,16 @@ spec:
 </div>
 </div>
 
-<h3 style="font-size:.92rem">Eli PerfCI bootstorm - no clone (<code>containerDisk</code>)</h3>
-<div class="code-compare" style="grid-template-columns:1fr">
-<div class="callout callout-yellow">
-<h3>VM only - no DataVolume, no snapshot</h3>
+<div class="yaml-block">
+<div class="yaml-block-title">Eli PerfCI bootstorm - no clone</div>
+<div class="yaml-step">
+<div class="yaml-step-header neutral">Single step - containerDisk only <span class="step-tag step-tag-skip">no clone</span></div>
 <pre>spec:
   template:
     spec:
       volumes:
       - name: rootdisk
-        containerDisk:    # PERFCI BOOTSTORM
+        containerDisk:
           image: quay.io/.../fedora-container-disk:latest</pre>
 </div>
 </div>
