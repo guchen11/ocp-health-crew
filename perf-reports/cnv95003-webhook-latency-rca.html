@@ -403,6 +403,7 @@ code{
   <a href="#candidates">Candidates</a>
   <a href="#results">All results</a>
   <a href="#appendix">Appendix (CDI)</a>
+  <a href="#coverage-gap">Why we missed it</a>
 </nav>
 
 <div class="status-box status-green">
@@ -846,6 +847,145 @@ tempClone.ImageFeatureSet =
 <tr><td style="font-weight:700">14</td><td>Pre-bound PVC VMs</td><td>Pre-created 20 PVCs from snapshot, waited until all Bound. Then created 20 VMs referencing those PVCs. Measured from VM creation to all VMIs Running. Isolates KubeVirt controller + cri-o + CSI attach/map from CDI and CSI provisioning.</td></tr>
 <tr style="background:#e8f5e9"><td style="font-weight:700">C1-C5</td><td>Certainty suite (Phase 2)</td><td>On OCP 4.19.11: C1=100 PVC image swap A/B, C2=100 VM kube-burner A/B, C3=fresh snapshot 100 PVC clone, C4=<code>rbd info</code> feature capture, C5=virt vs non-virt SC (30 PVC each). Scripts: <code>/root/repro-cnv95003/</code>.</td></tr>
 </table>
+</div>
+
+<div class="section" id="coverage-gap">
+<h2>Why Our Tests Did Not Catch This</h2>
+<p class="lead">The 4.22 regression is specific to <strong>DataVolume <code>source.snapshot</code></strong> (VolumeSnapshot clone). Our scale scenarios, Eli's PerfCI runs, and Purti's kube-burner test use different provisioning paths. Only Purti's matches the tuning guide and hit the bug.</p>
+
+<table>
+<tr><th>Test</th><th>Tool</th><th>VM disk source</th><th>Snapshot clone path?</th><th>Saw CNV-95003?</th></tr>
+<tr><td style="font-weight:600">Purti (CNV-95003)</td><td>kube-burner, qps 10</td><td><code>source.snapshot</code></td><td class="worse">Yes</td><td class="worse">Yes</td></tr>
+<tr><td style="font-weight:600">Our cnv-scenarios (per-host-density)</td><td>kube-burner</td><td><code>source.pvc</code> or HTTP import</td><td class="same">No</td><td class="same">No</td></tr>
+<tr><td style="font-weight:600">Our 10K test</td><td>shell scripts</td><td><code>source.pvc</code> (ODF snapshot strategy under the hood)</td><td class="same">Partial / different entry</td><td class="same">No (ODF 4.21.4)</td></tr>
+<tr><td style="font-weight:600">Eli PerfCI bootstorm</td><td>benchmark-runner</td><td><code>containerDisk</code> (no clone)</td><td class="same">No</td><td class="same">No</td></tr>
+<tr><td style="font-weight:600">Eli PerfCI windows scale</td><td>benchmark-runner, ~111 VMs</td><td><code>source.pvc</code></td><td class="same">No</td><td class="same">No</td></tr>
+</table>
+
+<div class="insight-box">
+<strong>Jennifer (CNV) confirmed:</strong> Eli's PerfCI did not show a significant slowdown on 4.22. Bootstorm never clones storage. Windows scale uses <code>source.pvc</code>, not <code>source.snapshot</code>. Higher concurrency can make total time worse, but Purti already sees the regression at qps 10 on the same 4.19 vs 4.22 scenario. The gap is the provisioning path, not test aggressiveness.
+</div>
+
+<h3>YAML: what each path looks like</h3>
+<p style="font-size:13px;color:#546e7a">All paths start by importing a golden image once. The difference is how each new VM gets its disk.</p>
+
+<h3 style="font-size:.92rem;margin-top:18px">Our path - clone golden disk (<code>source.pvc</code>)</h3>
+<div class="code-compare">
+<div class="callout callout-blue">
+<h3>Step 1 - import golden image once</h3>
+<pre>apiVersion: cdi.kubevirt.io/v1beta1
+kind: DataVolume
+metadata:
+  name: golden-alpine
+  namespace: my-ns
+spec:
+  source:
+    http:
+      url: "https://.../alpine.qcow2"
+  pvc:
+    accessModes: [ReadWriteMany]
+    resources:
+      requests:
+        storage: 1Gi
+    storageClassName: ocs-storagecluster-ceph-rbd-virtualization
+    volumeMode: Block</pre>
+</div>
+<div class="callout callout-blue">
+<h3>Step 2 - each VM clones the PVC</h3>
+<pre>dataVolumeTemplates:
+- metadata:
+    name: vm-001-disk
+  spec:
+    source:
+      pvc:              # OUR PATH
+        name: golden-alpine
+        namespace: my-ns
+    pvc:
+      accessModes: [ReadWriteMany]
+      resources:
+        requests:
+          storage: 1Gi
+      storageClassName: ocs-storagecluster-ceph-rbd-virtualization
+      volumeMode: Block</pre>
+</div>
+</div>
+
+<h3 style="font-size:.92rem">Purti's path - clone snapshot (<code>source.snapshot</code>) - tuning guide</h3>
+<div class="code-compare">
+<div class="callout callout-red">
+<h3>Step 1 - same golden import (above)</h3>
+<pre>apiVersion: cdi.kubevirt.io/v1beta1
+kind: DataVolume
+metadata:
+  name: golden-alpine
+  namespace: my-ns
+spec:
+  source:
+    http:
+      url: "https://.../alpine.qcow2"
+  pvc:
+    accessModes: [ReadWriteMany]
+    resources:
+      requests:
+        storage: 1Gi
+    storageClassName: ocs-storagecluster-ceph-rbd-virtualization
+    volumeMode: Block</pre>
+</div>
+<div class="callout callout-red">
+<h3>Step 2 - snapshot golden PVC once</h3>
+<pre>apiVersion: snapshot.storage.k8s.io/v1
+kind: VolumeSnapshot
+metadata:
+  name: golden-snapshot
+  namespace: my-ns
+spec:
+  volumeSnapshotClassName: ocs-storagecluster-rbdplugin-snapclass
+  source:
+    persistentVolumeClaimName: golden-alpine</pre>
+</div>
+</div>
+<div class="code-compare" style="grid-template-columns:1fr">
+<div class="callout callout-red">
+<h3>Step 3 - each VM clones from snapshot</h3>
+<pre>dataVolumeTemplates:
+- metadata:
+    name: vm-001-disk
+  spec:
+    source:
+      snapshot:         # PURTI / TUNING GUIDE
+        name: golden-snapshot
+        namespace: my-ns
+    pvc:
+      accessModes: [ReadWriteMany]
+      resources:
+        requests:
+          storage: 1Gi
+      storageClassName: ocs-storagecluster-ceph-rbd-virtualization
+      volumeMode: Block</pre>
+</div>
+</div>
+
+<h3 style="font-size:.92rem">Eli PerfCI bootstorm - no clone (<code>containerDisk</code>)</h3>
+<div class="code-compare" style="grid-template-columns:1fr">
+<div class="callout callout-yellow">
+<h3>VM only - no DataVolume, no snapshot</h3>
+<pre>spec:
+  template:
+    spec:
+      volumes:
+      - name: rootdisk
+        containerDisk:    # PERFCI BOOTSTORM
+          image: quay.io/.../fedora-container-disk:latest</pre>
+</div>
+</div>
+
+<div class="callout callout-green">
+<h3>Planned coverage fixes</h3>
+<ul>
+<li><strong>cnv-scenarios:</strong> add VolumeSnapshot step + switch per-host-density to <code>source.snapshot</code> (with optional <code>source.pvc</code> toggle for A/B)</li>
+<li><strong>PerfCI (Eli):</strong> add a snapshot-clone scale workload (golden PVC -&gt; VolumeSnapshot -&gt; DV <code>source.snapshot</code>); keep bootstorm as-is (boot metric only)</li>
+</ul>
+</div>
 </div>
 
 <div class="footer">
