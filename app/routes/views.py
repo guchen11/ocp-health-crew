@@ -311,10 +311,13 @@ def suites_page():
                    SuiteRun.query.filter_by(created_by=current_user.id)
                    .order_by(SuiteRun.started_at.desc()).limit(20).all()]
 
+    saved_hosts = [h.to_dict() for h in get_hosts_for_user(current_user)]
+
     return render_template('suites.html',
                            suites=user_suites,
                            user_templates=user_templates,
                            recent_runs=recent_runs,
+                           saved_hosts=saved_hosts,
                            active_page='suites')
 
 

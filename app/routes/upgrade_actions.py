@@ -123,6 +123,8 @@ def _run_single_action(run, action_def, tag, app, step_label):
         run_items = []
         for item in (suite.items or []):
             cfg = dict(item.get('config', {}))
+            if suite.server_host:
+                cfg['server_host'] = suite.server_host
             cfg['_upgrade_context'] = tag
             orig_name = cfg.get('run_name', item.get('template_name', ''))
             cfg['run_name'] = f"{tag['label']} {orig_name}"

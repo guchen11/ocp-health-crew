@@ -139,12 +139,26 @@
                     <input type="text" id="suiteDesc" placeholder="Optional description" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text-primary);width:100%;box-sizing:border-box;">
                 </div>
             </div>
-            <div style="display:flex;gap:16px;margin-bottom:16px;font-size:13px;">
+            <div style="display:flex;gap:16px;margin-bottom:16px;font-size:13px;align-items:center;flex-wrap:wrap;">
                 <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
                     <input type="checkbox" id="suiteStopOnFail" checked> Stop on failure
                 </label>
                 <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
                     <input type="checkbox" id="suiteShared"> Share with team
+                </label>
+                <label style="display:flex;align-items:center;gap:6px;margin-left:auto;">
+                    <span style="color:var(--text-secondary);white-space:nowrap;">Cloud</span>
+                    {% if saved_hosts %}
+                    <select id="suiteServerHost" style="padding:4px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text-primary);font-size:13px;min-width:180px;">
+                        <option value="">Default (env)</option>
+                        {% for h in saved_hosts %}
+                        <option value="{{ h.host }}">{{ h.name }}</option>
+                        {% endfor %}
+                    </select>
+                    {% else %}
+                    <span style="color:var(--text-secondary);font-size:12px;">No hosts configured - <a href="/settings#ssh" style="color:var(--accent);">Settings</a></span>
+                    <input type="hidden" id="suiteServerHost" value="">
+                    {% endif %}
                 </label>
             </div>
             <div id="suiteItems"></div>
@@ -239,6 +253,8 @@ function loadSuite(id) {
         document.getElementById('suiteDesc').value = s.description;
         document.getElementById('suiteStopOnFail').checked = s.stop_on_failure;
         document.getElementById('suiteShared').checked = s.shared;
+        const hostSelect = document.getElementById('suiteServerHost');
+        if (hostSelect) hostSelect.value = s.server_host || '';
         document.getElementById('builderTitle').textContent = s.icon + ' ' + s.name;
         document.getElementById('emptyState').style.display = 'none';
         document.getElementById('builderPanel').style.display = '';
@@ -358,6 +374,11 @@ function applyOverrides() {
     renderItems();
 }
 
+function getSuiteServerHost() {
+    const el = document.getElementById('suiteServerHost');
+    return el ? (el.value || '').trim() : '';
+}
+
 function saveSuite() {
     if (!currentSuiteId) return;
     const data = {
@@ -365,19 +386,21 @@ function saveSuite() {
         description: document.getElementById('suiteDesc').value.trim(),
         stop_on_failure: document.getElementById('suiteStopOnFail').checked,
         shared: document.getElementById('suiteShared').checked,
+        server_host: getSuiteServerHost(),
         items: currentItems,
     };
-    fetch(`/api/suites/${currentSuiteId}`, {
+    return fetch(`/api/suites/${currentSuiteId}`, {
         method:'PUT', headers:{'Content-Type':'application/json'},
         body: JSON.stringify(data)
     }).then(r => r.json()).then(s => {
-        if (s.error) return alert(s.error);
+        if (s.error) { alert(s.error); return null; }
         document.getElementById('builderTitle').textContent = (s.icon||'📦') + ' ' + s.name;
         const card = document.querySelector(`.suite-card[data-id="${currentSuiteId}"]`);
         if (card) {
             card.querySelector('h3').innerHTML = `<span>${s.icon||'📦'}</span> ${s.name}`;
             card.querySelector('.meta').textContent = `${s.item_count} item${s.item_count!==1?'s':''} - ${s.created_by}`;
         }
+        return s;
     });
 }
 
@@ -389,14 +412,22 @@ function deleteSuite() {
 function runCurrentSuite() {
     if (!currentSuiteId) return;
     if (!currentItems.length) return alert('Add items to the suite first');
-    saveSuite();
-    setTimeout(() => {
-        fetch(`/api/suites/${currentSuiteId}/run`, {method:'POST'})
-            .then(r => r.json()).then(sr => {
-                if (sr.error) return alert(sr.error);
-                window.location.href = `/suite-run/${sr.id}`;
-            });
-    }, 300);
+    const serverHost = getSuiteServerHost();
+    Promise.resolve(saveSuite()).then(saved => {
+        if (saved === null) return;
+        return fetch(`/api/suites/${currentSuiteId}/run`, {
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({server_host: serverHost}),
+        });
+    }).then(r => {
+        if (!r) return;
+        return r.json();
+    }).then(sr => {
+        if (!sr) return;
+        if (sr.error) return alert(sr.error);
+        window.location.href = `/suite-run/${sr.id}`;
+    });
 }
 
 {% if suites %}

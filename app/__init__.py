@@ -40,6 +40,18 @@ def _ensure_upgrade_policy_columns():
             db.session.rollback()
 
 
+def _ensure_test_suite_columns():
+    """Add server_host column to test_suites if missing (SQLite-safe)."""
+    import sqlalchemy
+    try:
+        db.session.execute(sqlalchemy.text(
+            "ALTER TABLE test_suites ADD COLUMN server_host VARCHAR(200) DEFAULT ''"
+        ))
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+
+
 def _seed_builtin_templates():
     """Create built-in shared templates if they don't exist yet."""
     from app.models import Template, User
@@ -132,10 +144,12 @@ def create_app(config_object=None):
     
     # Create database tables
     with app.app_context():
-        from app.models import User, Build, Schedule, Host, AuditLog, CustomCheck, Template, TestSuite, SuiteRun, UpgradePolicy, UpgradeRun  # noqa: F811
+        from app.models import User, Build, Schedule, Host, AuditLog, CustomCheck, Template, UpgradePolicy, UpgradeRun  # noqa: F811
         from app.models_operators import OperatorInstall, DeployerConfig, DeployerRun  # noqa: F401
+        from app.models_suites import TestSuite, SuiteRun  # noqa: F401
         db.create_all()
         _ensure_upgrade_policy_columns()
+        _ensure_test_suite_columns()
 
         # Seed built-in shared templates (idempotent)
         _seed_builtin_templates()

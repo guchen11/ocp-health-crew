@@ -1,4 +1,5 @@
 """Test Suite CRUD and execution API routes."""
+import copy
 import logging
 
 from flask import jsonify, request
@@ -18,6 +19,19 @@ VALID_TASK_TYPES = {'health_check', 'cnv_scenarios', 'cnv_combined'}
 VALID_REMOTE_NAMES = {s['remote_name'] for s in CNV_SCENARIOS.values()}
 
 
+def _registered_hosts():
+    return {h.host for h in Host.query.all()}
+
+
+def _validate_server_host(server_host):
+    """Validate optional suite-level jump host. Returns (ok, error_msg)."""
+    if not server_host:
+        return True, ''
+    if server_host not in _registered_hosts():
+        return False, f'unregistered server_host "{server_host}"'
+    return True, ''
+
+
 def _validate_suite_items(items):
     """Validate suite item configs (SEC-001). Returns (ok, error_msg)."""
     if not isinstance(items, list):
@@ -27,7 +41,7 @@ def _validate_suite_items(items):
     if len(items) > MAX_SUITE_ITEMS:
         return False, f'maximum {MAX_SUITE_ITEMS} items per suite'
 
-    registered_hosts = {h.host for h in Host.query.all()}
+    registered_hosts = _registered_hosts()
     valid_checks = set(AVAILABLE_CHECKS.keys())
 
     for idx, item in enumerate(items):
@@ -75,6 +89,11 @@ def api_suites_create():
     if not ok:
         return jsonify({'error': err}), 400
 
+    server_host = (data.get('server_host') or '').strip()
+    ok, err = _validate_server_host(server_host)
+    if not ok:
+        return jsonify({'error': err}), 400
+
     suite = TestSuite(
         name=data['name'][:200],
         description=(data.get('description') or '')[:500],
@@ -82,6 +101,7 @@ def api_suites_create():
         created_by=current_user.id,
         shared=bool(data.get('shared', False)),
         stop_on_failure=bool(data.get('stop_on_failure', True)),
+        server_host=server_host[:200],
         items=items,
     )
     db.session.add(suite)
@@ -123,6 +143,12 @@ def api_suites_update(suite_id):
         suite.shared = bool(data['shared'])
     if 'stop_on_failure' in data:
         suite.stop_on_failure = bool(data['stop_on_failure'])
+    if 'server_host' in data:
+        server_host = (data.get('server_host') or '').strip()
+        ok, err = _validate_server_host(server_host)
+        if not ok:
+            return jsonify({'error': err}), 400
+        suite.server_host = server_host[:200]
     if 'items' in data:
         ok, err = _validate_suite_items(data['items'])
         if not ok:
@@ -149,6 +175,22 @@ def api_suites_delete(suite_id):
     return jsonify({'ok': True})
 
 
+def _build_run_items(items, server_host):
+    """Copy suite items for a run, applying suite-level server_host."""
+    run_items = []
+    for item in items:
+        config = copy.deepcopy(item.get('config') or {})
+        if server_host:
+            config['server_host'] = server_host
+        run_items.append({
+            'template_name': item.get('template_name', ''),
+            'config': config,
+            'item_status': 'pending',
+            'build_number': None,
+        })
+    return run_items
+
+
 @dashboard_bp.route('/api/suites/<int:suite_id>/run', methods=['POST'])
 @operator_required
 def api_suites_run(suite_id):
@@ -163,21 +205,19 @@ def api_suites_run(suite_id):
     if not items:
         return jsonify({'error': 'suite has no items'}), 400
 
+    data = request.get_json(silent=True) or {}
+    server_host = (data.get('server_host') or suite.server_host or '').strip()
+    ok, err = _validate_server_host(server_host)
+    if not ok:
+        return jsonify({'error': err}), 400
+
     if len(items) > 20:
         log.warning(
             "User %s triggered suite '%s' with %d items (SEC-004)",
             current_user.username, suite.name, len(items),
         )
 
-    run_items = []
-    for item in items:
-        run_items.append({
-            'template_name': item.get('template_name', ''),
-            'config': item.get('config', {}),
-            'item_status': 'pending',
-            'build_number': None,
-        })
-
+    run_items = _build_run_items(items, server_host)
     suite_run = SuiteRun(
         suite_id=suite.id,
         name=suite.name,
