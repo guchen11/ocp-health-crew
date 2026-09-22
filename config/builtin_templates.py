@@ -84,6 +84,8 @@ BUILTIN_TEMPLATES = [
     ),
 
     # ─── Minimum CPU per virtual machine ─────────────────────────────────
+    # Memory must be >= cnv-scenarios sanity default (512Mi). 256Mi OOMs
+    # Fedora Cloud cloud-init (dnf install stress-ng) and breaks Phase 4.
     _tpl(
         name='Sanity - Minimum CPU per virtual machine',
         description='1 vCPU with Fedora OS verification.',
@@ -92,7 +94,7 @@ BUILTIN_TEMPLATES = [
             'cpu_limits.cpuCores': '1',
             'cpu_limits.cpuSockets': '1',
             'cpu_limits.cpuMaxSockets': '1',
-            'cpu_limits.memory': '256Mi',
+            'cpu_limits.memory': '512Mi',
             'cpu_limits.storage': '10Gi',
         },
     ),
@@ -104,7 +106,7 @@ BUILTIN_TEMPLATES = [
             'cpu_limits.cpuCores': '1',
             'cpu_limits.cpuSockets': '1',
             'cpu_limits.cpuMaxSockets': '1',
-            'cpu_limits.memory': '256Mi',
+            'cpu_limits.memory': '512Mi',
             'cpu_limits.storage': '10Gi',
         },
     ),
