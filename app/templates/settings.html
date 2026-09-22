@@ -189,6 +189,7 @@
                 <div class="card-body">
                     <p style="color:var(--text-secondary);margin-bottom:20px;">
                         Add the target hosts that have <code>oc</code> access. These will appear in the build dropdown.
+                        Use the <strong>Default</strong> radio to choose which cloud is pre-selected on the build page.
                     </p>
                     
                     <!-- Existing hosts list -->
@@ -197,11 +198,18 @@
                         <div class="host-row" style="display:flex;align-items:center;gap:12px;padding:14px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:8px;margin-bottom:10px;">
                             <input type="hidden" name="host_id[]" value="{{ h.id }}">
                             <input type="hidden" name="host_password[]" value="">
+                            <label style="display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer;min-width:52px;" title="Set as default cloud">
+                                <input type="radio" name="default_host" value="{{ h.host }}"
+                                    {% if h.host == ssh_config.host or (not ssh_config.host and loop.first) %}checked{% endif %}
+                                    style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer;">
+                                <span style="font-size:10px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.03em;">Default</span>
+                            </label>
                             <span style="font-size:18px;">🖥️</span>
                             <div style="flex:1;display:grid;grid-template-columns:1fr 2fr 1fr;gap:10px;">
                                 <input type="text" name="host_name[]" value="{{ h.name }}" placeholder="Label"
                                     style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-weight:600;">
                                 <input type="text" name="host_addr[]" value="{{ h.host }}" placeholder="hostname or IP"
+                                    oninput="syncDefaultHostRadio(this)"
                                     style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:monospace;">
                                 <input type="text" name="host_user[]" value="{{ h.user or 'root' }}" placeholder="user"
                                     style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
@@ -814,13 +822,19 @@ function addBlankHostRow() {
     var row = document.createElement('div');
     row.className = 'host-row';
     row.style.cssText = 'padding:14px;background:var(--bg-secondary);border:1px solid var(--accent);border-radius:8px;margin-bottom:10px;';
+    var isFirst = !list.querySelector('input[name="default_host"]');
     row.innerHTML = '<input type="hidden" name="host_id[]" value="">' +
         '<input type="hidden" name="host_password[]" value="">' +
         '<div style="display:flex;align-items:center;gap:12px;">' +
+            '<label style="display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer;min-width:52px;" title="Set as default cloud">' +
+                '<input type="radio" name="default_host" value=""' + (isFirst ? ' checked' : '') +
+                    ' style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer;">' +
+                '<span style="font-size:10px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.03em;">Default</span>' +
+            '</label>' +
             '<span style="font-size:18px;">🖥️</span>' +
             '<div style="flex:1;display:grid;grid-template-columns:1fr 2fr 1fr;gap:10px;">' +
                 '<input type="text" name="host_name[]" value="" placeholder="Label (e.g. Lab Cluster)" style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-weight:600;">' +
-                '<input type="text" name="host_addr[]" value="" placeholder="hostname or IP" style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:monospace;">' +
+                '<input type="text" name="host_addr[]" value="" placeholder="hostname or IP" oninput="syncDefaultHostRadio(this)" style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:monospace;">' +
                 '<input type="text" name="host_user[]" value="root" placeholder="user" style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;">' +
             '</div>' +
             '<button type="button" onclick="removeHost(this)" style="background:none;border:none;color:var(--error);cursor:pointer;font-size:18px;padding:4px 8px;" title="Remove host">&times;</button>' +
@@ -834,6 +848,24 @@ function addBlankHostRow() {
     row.querySelector('input[name="host_addr[]"]').focus();
 }
 
+function syncDefaultHostRadio(addrInput) {
+    var row = addrInput.closest('.host-row');
+    var radio = row.querySelector('input[name="default_host"]');
+    if (radio) {
+        radio.value = addrInput.value.trim();
+    }
+}
+
+function removeHost(btn) {
+    var row = btn.closest('.host-row');
+    var wasDefault = row.querySelector('input[name="default_host"]:checked');
+    row.remove();
+    if (wasDefault) {
+        var next = document.querySelector('#hosts-list input[name="default_host"]');
+        if (next) next.checked = true;
+    }
+}
+
 function copyPwdToHidden(btn) {
     var row = btn.closest('.host-row');
     var pwdInput = row.querySelector('.host-pwd-input');
@@ -841,10 +873,6 @@ function copyPwdToHidden(btn) {
     if (pwdInput && hiddenPwd) {
         hiddenPwd.value = pwdInput.value;
     }
-}
-
-function removeHost(btn) {
-    btn.closest('.host-row').remove();
 }
 
 function resetDefaults() {

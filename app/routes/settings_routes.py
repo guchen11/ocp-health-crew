@@ -140,70 +140,68 @@ def _setup_passwordless_ssh(host, user, password):
         return False, str(e)
 
 
-def sync_hosts_from_form(host_ids, host_names, host_addrs, host_users, host_passwords, user):
-    """
-    Sync the host list from form submission for the current user.
-    - Existing hosts (with id) are updated.
-    - New hosts (no id) are created.
-    - If a password is provided for a new host, passwordless SSH is set up first.
-    Returns (first_host, first_user, ssh_messages).
-    """
-    first_host = ''
-    first_user = 'root'
-    ssh_messages = []
-    submitted_ids = set()
+def _submitted_host_ids(host_ids):
+    return {int(hid.strip()) for hid in host_ids if hid.strip()}
 
-    # First pass: collect IDs of existing hosts still in the form
-    for hid in host_ids:
-        hid = hid.strip()
-        if hid:
-            submitted_ids.add(int(hid))
 
-    # Delete hosts that were removed from the form (before adding new ones)
-    if user.is_admin:
-        all_hosts = Host.query.all()
-    else:
-        all_hosts = Host.query.filter_by(created_by=user.id).all()
-    for h in all_hosts:
+def _delete_removed_hosts(user, submitted_ids):
+    query = Host.query if user.is_admin else Host.query.filter_by(created_by=user.id)
+    for h in query.all():
         if h.id not in submitted_ids:
             db.session.delete(h)
     db.session.flush()
 
-    # Second pass: update existing and create new hosts
-    for hid, name, addr, usr, pwd in zip(host_ids, host_names, host_addrs, host_users, host_passwords):
+
+def _upsert_host_row(hid, name, addr, usr, pwd, user, ssh_messages):
+    """Update an existing host or create a new one. Mutates ssh_messages."""
+    if hid.strip():
+        host_obj = Host.query.get(int(hid.strip()))
+        if host_obj and (host_obj.created_by == user.id or user.is_admin):
+            host_obj.name = name
+            host_obj.host = addr
+            host_obj.user = usr
+        return
+    if pwd:
+        ok, msg = _setup_passwordless_ssh(addr, usr, pwd)
+        if ok:
+            ssh_messages.append(f'SSH key installed on {usr}@{addr}')
+        else:
+            ssh_messages.append(f'SSH setup failed for {usr}@{addr}: {msg}')
+    label = f'{name} [{user.username}]' if not name.endswith(f'[{user.username}]') else name
+    db.session.add(Host(name=label, host=addr, user=usr, created_by=user.id))
+
+
+def sync_hosts_from_form(host_ids, host_names, host_addrs, host_users,
+                         host_passwords, user, default_host=''):
+    """
+    Sync hosts from form. default_host selects the default cloud (hostname/IP).
+    Returns (default_host_addr, default_user, ssh_messages).
+    """
+    fallback_host, fallback_user = '', 'root'
+    chosen_host, chosen_user = '', 'root'
+    default_host = (default_host or '').strip()
+    ssh_messages = []
+
+    _delete_removed_hosts(user, _submitted_host_ids(host_ids))
+
+    rows = zip(host_ids, host_names, host_addrs, host_users, host_passwords)
+    for hid, name, addr, usr, pwd in rows:
         addr = addr.strip()
         if not addr:
             continue
         name = name.strip() or addr
         usr = usr.strip() or 'root'
         pwd = pwd.strip() if pwd else ''
-
-        if not first_host:
-            first_host = addr
-            first_user = usr
-
-        hid = hid.strip()
-        if hid:
-            # Update existing host
-            host_obj = Host.query.get(int(hid))
-            if host_obj and (host_obj.created_by == user.id or user.is_admin):
-                host_obj.name = name
-                host_obj.host = addr
-                host_obj.user = usr
-        else:
-            # New host — setup passwordless SSH if password provided
-            if pwd:
-                ok, msg = _setup_passwordless_ssh(addr, usr, pwd)
-                if ok:
-                    ssh_messages.append(f'SSH key installed on {usr}@{addr}')
-                else:
-                    ssh_messages.append(f'SSH setup failed for {usr}@{addr}: {msg}')
-            label = f'{name} [{user.username}]' if not name.endswith(f'[{user.username}]') else name
-            host_obj = Host(name=label, host=addr, user=usr, created_by=user.id)
-            db.session.add(host_obj)
+        if not fallback_host:
+            fallback_host, fallback_user = addr, usr
+        if default_host and addr == default_host:
+            chosen_host, chosen_user = addr, usr
+        _upsert_host_row(hid, name, addr, usr, pwd, user, ssh_messages)
 
     db.session.commit()
-    return first_host, first_user, ssh_messages
+    if chosen_host:
+        return chosen_host, chosen_user, ssh_messages
+    return fallback_host, fallback_user, ssh_messages
 
 @dashboard_bp.route('/settings', methods=['GET', 'POST'])
 @login_required
@@ -222,11 +220,13 @@ def settings_page():
         host_addrs = request.form.getlist('host_addr[]')
         host_users = request.form.getlist('host_user[]')
         host_passwords = request.form.getlist('host_password[]')
+        default_host = request.form.get('default_host', '').strip()
         # Pad passwords list to match hosts (existing hosts don't have password fields)
         while len(host_passwords) < len(host_ids):
             host_passwords.append('')
         first_host, first_user, ssh_messages = sync_hosts_from_form(
-            host_ids, host_names, host_addrs, host_users, host_passwords, current_user
+            host_ids, host_names, host_addrs, host_users, host_passwords,
+            current_user, default_host=default_host
         )
 
         new_settings = {
