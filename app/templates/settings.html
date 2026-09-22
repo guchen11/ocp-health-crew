@@ -910,7 +910,13 @@ function resetDefaults() {
     var gvDefaults = {{ cnv_global_vars | tojson }};
     for (var k in gvDefaults) {
         var el = document.getElementById('cnv_default_' + k);
-        if (el) el.value = gvDefaults[k].default || '';
+        if (!el) continue;
+        var d = gvDefaults[k].default;
+        if (d && typeof d === 'object') {
+            el.value = d.sanity || '';
+        } else {
+            el.value = d || '';
+        }
     }
     // Reset per-scenario vars to built-in defaults
     var scenarioDefaults = {{ cnv_scenarios | tojson }};

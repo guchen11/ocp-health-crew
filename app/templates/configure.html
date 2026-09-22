@@ -795,7 +795,7 @@
                                 {% for var_name, var_info in cnv_global_vars.items() %}
                                 {% if var_name == 'esServer' %}
                                 {% set es_val = cnv_config.global_vars[var_name] if cnv_config.global_vars is defined and var_name in cnv_config.global_vars and cnv_config.global_vars[var_name] else '' %}
-                                {% set es_def = var_info.default.full if var_info.default is mapping else (var_info.default or '') %}
+                                {% set es_def = var_info.get('suggested', '') or (var_info.default.full if var_info.default is mapping else (var_info.default or '')) %}
                                 {% set es_enabled = es_val | length > 0 %}
                                 <div style="grid-column: span 2;">
                                     <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-secondary);margin-bottom:4px;">
@@ -810,7 +810,7 @@
                                     </div>
                                     <input type="text" name="cnv_var_{{ var_name }}" id="es-url-input"
                                         class="cnv-global-var-input"
-                                        value="{{ es_val or (es_def if es_enabled else '') }}"
+                                        value="{{ es_val }}"
                                         data-default="{{ es_def }}"
                                         placeholder="ES URL (enables metadata/validation indexing)"
                                         {{ 'disabled' if not es_enabled }}
@@ -824,6 +824,7 @@
                                         inp.disabled = !enabling;
                                         inp.style.opacity = enabling ? '1' : '0.4';
                                         if (enabling && !inp.value) inp.value = inp.getAttribute('data-default');
+                                        if (!enabling) inp.value = '';
                                         btn.textContent = enabling ? 'Disable' : 'Enable';
                                         status.textContent = enabling ? 'ON' : 'OFF';
                                         status.style.background = enabling ? '#23863620' : '#da363320';

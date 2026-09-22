@@ -48,7 +48,8 @@ CNV_GLOBAL_VARIABLES = {
     "esServer": {
         "type": "str", "label": "Elasticsearch Server",
         "icon": "🔍",
-        "default": {"sanity": "http://f01-h08-000-1029u.rdu2.scalelab.redhat.com:9200", "full": "http://f01-h08-000-1029u.rdu2.scalelab.redhat.com:9200"},
+        "default": {"sanity": "", "full": ""},
+        "suggested": "http://f01-h08-000-1029u.rdu2.scalelab.redhat.com:9200",
         "placeholder": {"sanity": "ES URL (enables metadata/validation indexing)", "full": "ES URL (enables metadata/validation indexing)"},
     },
 }
