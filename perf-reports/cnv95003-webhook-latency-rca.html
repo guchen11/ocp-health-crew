@@ -967,6 +967,11 @@ tempClone.ImageFeatureSet =
 <strong>Jennifer (CNV) confirmed:</strong> Eli's PerfCI did not show a significant slowdown on 4.22. Bootstorm never clones storage. Windows scale uses <code>source.pvc</code>, not <code>source.snapshot</code>. Higher concurrency can make total time worse, but Purti already sees the regression at qps 10 on the same 4.19 vs 4.22 scenario. The gap is the provisioning path, not test aggressiveness.
 </div>
 
+<div class="callout callout-blue">
+<h3>Note on <code>cloneType</code> annotation</h3>
+<p style="margin-bottom:0">We did <strong>not</strong> use <code>cdi.kubevirt.io/cloneType: "snapshot"</code>. We used explicit DV <code>source.snapshot</code> and PVC <code>dataSource: VolumeSnapshot</code>. Both should hit the same CSI snapshot-clone path that triggers CNV-95003; the annotation path was not separately tested.</p>
+</div>
+
 <h3>Step-by-step: where each path hits the 4.22 bug</h3>
 <p class="lead">The regression is <strong>not</strong> in your YAML steps 1-2. It happens inside ceph-csi during <strong>step 3</strong> of Purti's path, when a short-lived temp RBD clone is created. On 4.22 that temp clone gets heavy features (<code>exclusive-lock</code>, <code>object-map</code>, <code>fast-diff</code>) that 4.19 skipped.</p>
 
