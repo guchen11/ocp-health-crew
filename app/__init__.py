@@ -58,6 +58,18 @@ def _seed_builtin_templates():
     admin = User.query.filter_by(role='admin').first()
     if not admin:
         return
+
+    # Keep existing installations aligned when a built-in template is renamed.
+    renamed_templates = {
+        'Validation - Requested IP on Primary UDN':
+            'Sanity - Requested IP on Primary UDN',
+    }
+    for old_name, new_name in renamed_templates.items():
+        old_template = Template.query.filter_by(name=old_name, shared=True).first()
+        new_template = Template.query.filter_by(name=new_name, shared=True).first()
+        if old_template and not new_template:
+            old_template.name = new_name
+
     for bt in BUILTIN_TEMPLATES:
         exists = Template.query.filter_by(name=bt['name'], shared=True).first()
         if not exists:
