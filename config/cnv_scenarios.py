@@ -112,12 +112,13 @@ CNV_SCENARIOS = {
     "disk_hotplug": {
         "name": "Disk Hot-plug",
         "icon": "🔌",
-        "description": "Test hot-plugging up to 256 disks per VM with automated mounting and OS validation",
+        # KubeVirt max volumes/disks is 256 total; rootdisk + cloudinit leave 254 hotplug slots.
+        "description": "Test hot-plugging up to 254 disks per VM with automated mounting and OS validation",
         "category": "Hot-plug",
         "remote_name": "disk-hotplug",
         "default": True,
         "variables": {
-            "diskCount": {"type": "int", "default": {"sanity": 15, "full": 255}, "label": "Disk Count", "min": 1, "max": 256},
+            "diskCount": {"type": "int", "default": {"sanity": 15, "full": 254}, "label": "Disk Count", "min": 1, "max": 254},
             "pvcSize": {"type": "str", "default": {"sanity": "2Gi", "full": "1Gi"}, "label": "PVC Size", "placeholder": "e.g. 1Gi, 5Gi"},
             "vmCount": {"type": "int", "default": {"sanity": 1, "full": 1}, "label": "VM Count", "min": 1, "max": 10},
             "cpuCores": {"type": "int", "default": {"sanity": 2, "full": 16}, "label": "CPU Cores", "min": 1, "max": 32},

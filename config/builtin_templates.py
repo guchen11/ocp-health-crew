@@ -62,9 +62,11 @@ BUILTIN_TEMPLATES = [
     ),
 
     # ─── Minimum memory per virtual machine ──────────────────────────────
+    # Keep memorySize at 256Mi (the limit under test). Guest workload uses
+    # shell CNV_MEM_BURN in cnv-scenarios (no dnf/stress-ng; those OOM at 256Mi).
     _tpl(
         name='Sanity - Minimum memory per virtual machine',
-        description='256 MiB per VM with Fedora OS verification.',
+        description='256 MiB per VM with Fedora OS verification (shell memory burn).',
         icon='💾', mode='sanity', tests=['memory-limits'], timeout='30m',
         env_vars={
             'memory_limits.memorySize': '256Mi',
@@ -74,7 +76,7 @@ BUILTIN_TEMPLATES = [
     ),
     _tpl(
         name='Full - Minimum memory per virtual machine',
-        description='256 MiB per VM with Fedora OS and stress-ng verification.',
+        description='256 MiB per VM with Fedora OS and shell memory-burn verification.',
         icon='💾', mode='full', tests=['memory-limits'], timeout='1h',
         env_vars={
             'memory_limits.memorySize': '256Mi',
@@ -112,6 +114,8 @@ BUILTIN_TEMPLATES = [
     ),
 
     # ─── Minimum disk per virtual machine ────────────────────────────────
+    # Guest RAM must be >= cnv-scenarios sanity default (512Mi). 256Mi OOMs
+    # Fedora Cloud cloud-init (dnf install fio/hdparm) and breaks guest SSH.
     _tpl(
         name='Sanity - Minimum disk per virtual machine',
         description='256 MiB disk with Fedora OS and lsblk verification.',
@@ -120,7 +124,7 @@ BUILTIN_TEMPLATES = [
             'disk_limits.diskCount': '1',
             'disk_limits.diskSize': '256Mi',
             'disk_limits.cpuCores': '1',
-            'disk_limits.memory': '256Mi',
+            'disk_limits.memory': '512Mi',
         },
     ),
     _tpl(
@@ -131,7 +135,7 @@ BUILTIN_TEMPLATES = [
             'disk_limits.diskCount': '1',
             'disk_limits.diskSize': '256Mi',
             'disk_limits.cpuCores': '1',
-            'disk_limits.memory': '256Mi',
+            'disk_limits.memory': '512Mi',
         },
     ),
 
@@ -230,10 +234,12 @@ BUILTIN_TEMPLATES = [
     ),
     _tpl(
         name='Full - Maximum number of hot-pluggable disks per virtual machine',
-        description='255 hot-pluggable disks (SCSI) with OS validation and persistence.',
+        # KubeVirt caps volumes/disks at 256 total. VM already has rootdisk +
+        # cloudinitdisk, so max hotplug is 254 (not 255/256).
+        description='254 hot-pluggable disks (SCSI) with OS validation and persistence.',
         icon='🔌', mode='full', tests=['disk-hotplug'], timeout='4h',
         env_vars={
-            'disk_hotplug.diskCount': '255',
+            'disk_hotplug.diskCount': '254',
             'disk_hotplug.pvcSize': '1Gi',
             'disk_hotplug.cpuCores': '16',
             'disk_hotplug.memory': '32Gi',
@@ -264,6 +270,7 @@ BUILTIN_TEMPLATES = [
     ),
 
     # ─── Maximum number of defined VMs ────────────────────────────────────
+    # vmMemory 256Mi is intentional density sizing (Alpine; no package install).
     _tpl(
         name='Sanity - Maximum number of defined VMs',
         description='30 VMs across 2 namespaces, multi-node.',

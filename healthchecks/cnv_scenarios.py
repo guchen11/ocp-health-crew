@@ -168,6 +168,10 @@ def build_remote_command(args):
                 if args.cleanup_only and pair.startswith("cleanup="):
                     continue
                 key, _, val = pair.partition("=")
+                # Template env keys are often scenario-prefixed (disk_limits.diskBus).
+                # Export the bare kube-burner var name (suffix after the last dot).
+                if "." in key:
+                    key = key.rsplit(".", 1)[-1]
                 if not re.match(r'^[A-Za-z_][A-Za-z0-9_]*$', key):
                     log(f"  ⚠ Skipping invalid env var key: {key}")
                     continue
