@@ -374,7 +374,7 @@ BUILTIN_TEMPLATES = [
 
     # ─── Requested IP on Primary UDN ───────────────────────────────────────
     _tpl(
-        name='Validation - Requested IP on Primary UDN',
+        name='Sanity - Requested IP on Primary UDN',
         description='2 CirrOS VMs with requested IP, VMI, IPAM, and guest validation.',
         icon='🌐', mode='sanity', tests=['requested-ip-udn'], timeout='30m',
         env_vars={

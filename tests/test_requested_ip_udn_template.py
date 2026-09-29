@@ -23,8 +23,9 @@ class RequestedIpUdnTemplateTests(unittest.TestCase):
         self.assertEqual({"sanity": 2, "full": 2}, variables["ipOffset"]["default"])
 
     def test_validation_template_targets_requested_ip_scenario(self):
-        template = self.templates["Validation - Requested IP on Primary UDN"]
+        template = self.templates["Sanity - Requested IP on Primary UDN"]
         config = template["config"]
+        self.assertTrue(template["name"].startswith("Sanity - "))
         self.assertEqual("sanity", config["scenario_mode"])
         self.assertEqual(["requested-ip-udn"], config["scenario_tests"])
         self.assertEqual("2", config["env_vars"]["requested_ip_udn.vmCount"])
