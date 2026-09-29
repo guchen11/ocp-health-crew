@@ -372,6 +372,44 @@ BUILTIN_TEMPLATES = [
         },
     ),
 
+    # ─── Requested IP on Primary UDN ───────────────────────────────────────
+    _tpl(
+        name='Validation - Requested IP on Primary UDN',
+        description='2 CirrOS VMs with requested IP, VMI, IPAM, and guest validation.',
+        icon='🌐', mode='sanity', tests=['requested-ip-udn'], timeout='30m',
+        env_vars={
+            'requested_ip_udn.vmCount': '2',
+            'requested_ip_udn.udnName': 'scale-test-udn',
+            'requested_ip_udn.udnSubnet': '172.16.0.0/16',
+            'requested_ip_udn.subnetPrefix': '172.16.0',
+            'requested_ip_udn.ipOffset': '2',
+            'requested_ip_udn.memory': '256Mi',
+            'requested_ip_udn.validateSSH': 'true',
+            'requested_ip_udn.sshSamplePercent': '100',
+            'requested_ip_udn.maxSshRetries': '10',
+            'requested_ip_udn.sshRetryDelaySeconds': '5',
+            'requested_ip_udn.udnPause': '15s',
+        },
+    ),
+    _tpl(
+        name='Full - Requested IP on Primary UDN',
+        description='100 CirrOS VMs with requested IP allocation and sampled guest validation.',
+        icon='🌐', mode='full', tests=['requested-ip-udn'], timeout='2h',
+        env_vars={
+            'requested_ip_udn.vmCount': '100',
+            'requested_ip_udn.udnName': 'scale-test-udn',
+            'requested_ip_udn.udnSubnet': '172.16.0.0/16',
+            'requested_ip_udn.subnetPrefix': '172.16.0',
+            'requested_ip_udn.ipOffset': '2',
+            'requested_ip_udn.memory': '256Mi',
+            'requested_ip_udn.validateSSH': 'true',
+            'requested_ip_udn.sshSamplePercent': '25',
+            'requested_ip_udn.maxSshRetries': '10',
+            'requested_ip_udn.sshRetryDelaySeconds': '5',
+            'requested_ip_udn.udnPause': '15s',
+        },
+    ),
+
     # ─── HCP & ACM ───────────────────────────────────────────────────────
     _tpl(
         name='Sanity - HCP & ACM',
