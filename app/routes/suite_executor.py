@@ -146,27 +146,31 @@ def _execute_suite(suite_run_id, user_id):
 
 
 def recover_stale_runs(app):
-    """Mark SuiteRuns stuck in 'running' as 'aborted' (SEC-005).
+    """Mark SuiteRuns left in 'running' as aborted after process restart (SEC-005).
 
-    Only recovers runs older than 30 minutes to avoid killing runs
-    that are legitimately still in progress.
+    Suite executor threads do not survive a HealthCrew restart, so any DB row
+    still marked running is orphaned. Abort those immediately on startup
+    (no age grace period - a 30m cutoff wrongly killed long Windows suites
+    that were still healthy before the restart).
     """
     with app.app_context():
         from app.models import SuiteRun, db
-        cutoff = datetime.now(timezone.utc) - __import__('datetime').timedelta(minutes=30)
-        stale = SuiteRun.query.filter(
-            SuiteRun.status == 'running',
-            SuiteRun.started_at < cutoff,
-        ).all()
+        stale = SuiteRun.query.filter(SuiteRun.status == 'running').all()
         for sr in stale:
-            log.warning("Recovering stale SuiteRun %s (%s)", sr.id, sr.name)
+            log.warning(
+                "Recovering orphaned SuiteRun %s (%s) after restart",
+                sr.id, sr.name,
+            )
             sr.status = 'aborted'
             items = list(sr.items or [])
             for item in items:
-                if item.get('item_status') == 'running':
+                status = item.get('item_status')
+                if status == 'running':
                     item['item_status'] = 'aborted'
+                elif status in ('pending', None):
+                    item['item_status'] = 'skipped'
             sr.items = items
             sr.finished_at = datetime.now(timezone.utc)
         if stale:
             db.session.commit()
-            log.info("Recovered %d stale suite run(s)", len(stale))
+            log.info("Recovered %d orphaned suite run(s)", len(stale))
