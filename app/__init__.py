@@ -14,9 +14,6 @@ login_manager.login_view = 'auth.login'
 login_manager.login_message = 'Please log in to access the dashboard.'
 login_manager.login_message_category = 'info'
 
-_startup_recovery_done = False
-
-
 @login_manager.user_loader
 def load_user(user_id):
     from app.models import User
@@ -169,15 +166,9 @@ def create_app(config_object=None):
         # Seed built-in deployer configs (idempotent)
         _seed_deployer_configs()
 
-        global _startup_recovery_done
-        if not _startup_recovery_done:
-            _startup_recovery_done = True
-
-            from app.routes.suite_executor import recover_stale_runs
-            recover_stale_runs(app)
-
-            from app.routes.upgrade_executor import recover_stale_upgrade_runs
-            recover_stale_upgrade_runs(app)
+        # Stale suite/upgrade recovery runs from run.py only (port-gated).
+        # create_app() is also called by build/suite worker threads and by any
+        # crash-looping duplicate systemd unit; those must not abort live runs.
     
     # Register blueprints
     from app.routes import dashboard_bp

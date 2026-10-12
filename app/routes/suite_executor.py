@@ -149,9 +149,13 @@ def recover_stale_runs(app):
     """Mark SuiteRuns left in 'running' as aborted after process restart (SEC-005).
 
     Suite executor threads do not survive a HealthCrew restart, so any DB row
-    still marked running is orphaned. Abort those immediately on startup
-    (no age grace period - a 30m cutoff wrongly killed long Windows suites
-    that were still healthy before the restart).
+    still marked running is orphaned. Abort those immediately on primary
+    startup (called from run.py only when the listen port is free).
+
+    Do not call this from create_app(): duplicate crash-loop instances and
+    worker threads would abort live suites. A 30m age grace is also wrong -
+    it lets short orphans linger and still kills long Windows suites once
+    they cross the cutoff while a bogus instance keeps calling create_app.
     """
     with app.app_context():
         from app.models import SuiteRun, db
